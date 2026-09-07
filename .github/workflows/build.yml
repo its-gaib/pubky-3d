@@ -6,20 +6,28 @@ on:
     branches:
       - master
       - dev
+      - vibe/pubky-3d
   pull_request:
     branches:
       - '**' # Run on PRs targeting any branch
   # Enable manual trigger
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Check NextJS Build
+    # Register the inherited workflow in this fork; feature builds are dispatched manually.
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/vibe/pubky-3d' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,9 +39,76 @@ jobs:
         run: npm ci
 
       - name: Build prod
+        env:
+          NEXT_STANDALONE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: npm run build
 
+      - name: Package standalone runtime
+        if: github.event_name == 'workflow_dispatch'
+        id: standalone
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import tarfile
+          import tempfile
+
+          sha = os.environ['GITHUB_SHA']
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('Expected an exact commit SHA.')
+
+          runtime = Path(tempfile.mkdtemp(prefix='pubky-standalone-', dir=os.environ['RUNNER_TEMP']))
+
+          def ignored(directory, names):
+              return [name for name in names if (
+                  name.startswith('.env') or name in {'.git', '.cache'} or name.endswith('.map')
+                  or (Path(directory).name == '.next' and name == 'cache')
+              )]
+
+          for source, target in (
+              (Path('.next/standalone'), runtime),
+              (Path('.next/static'), runtime / '.next/static'),
+              (Path('public'), runtime / 'public'),
+          ):
+              if source.is_symlink() or not source.is_dir():
+                  raise SystemExit('A required standalone runtime directory is missing or linked.')
+              for parent in (target, *target.parents):
+                  if parent == runtime:
+                      break
+                  if parent.is_symlink():
+                      raise SystemExit('A runtime asset destination cannot be a link.')
+              if target != runtime and target.exists():
+                  shutil.rmtree(target)
+              shutil.copytree(source, target, dirs_exist_ok=True, symlinks=True, ignore=ignored)
+
+          # Never follow a link out of the clean runtime when archiving or running it.
+          for directory, directories, files in os.walk(runtime, followlinks=False):
+              for name in directories + files:
+                  path = Path(directory) / name
+                  if path.is_symlink() and (
+                      path.readlink().is_absolute()
+                      or not path.resolve().is_relative_to(runtime.resolve())
+                      or not path.exists()
+                  ):
+                      raise SystemExit('The standalone runtime contains an unsafe or broken link.')
+
+          if not (runtime / 'server.js').is_file():
+              raise SystemExit('The standalone runtime is missing server.js.')
+
+          output = Path(tempfile.mkdtemp(prefix='pubky-artifact-', dir=os.environ['RUNNER_TEMP']))
+          archive = output / f'pubky-standalone-{sha}.tar.gz'
+          with tarfile.open(archive, 'w:gz') as bundle:
+              bundle.add(runtime, arcname='.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as step_output:
+              print(f'standalone_dir={runtime}', file=step_output)
+              print(f'archive_path={archive}', file=step_output)
+          PY
+
       - name: Smoke test production server
+        env:
+          PUBKY_STANDALONE_DIR: ${{ steps.standalone.outputs.standalone_dir }}
         run: |
           SERVER_LOG="$(mktemp)"
 
@@ -48,16 +123,20 @@ jobs:
           export PUBKY_RUNTIME_PKARR_RELAYS='["https://pkarr.pubky.app","https://pkarr.pubky.org"]'
           export PUBKY_RUNTIME_DEFAULT_HTTP_RELAY="https://httprelay.staging.pubky.app/inbox"
 
-          npm run start > "$SERVER_LOG" 2>&1 &
+          if [ -n "$PUBKY_STANDALONE_DIR" ]; then
+            HOSTNAME=127.0.0.1 PORT=3000 node "$PUBKY_STANDALONE_DIR/server.js" > "$SERVER_LOG" 2>&1 &
+          else
+            npm run start -- --hostname 127.0.0.1 --port 3000 > "$SERVER_LOG" 2>&1 &
+          fi
           SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
           PORT=3000
           MAX_WAIT=120
           WAIT_INTERVAL=2
           ELAPSED=0
 
-          while ! curl -fsS "http://localhost:${PORT}/" > /dev/null; do
+          while ! curl -fsS --max-time 5 "http://127.0.0.1:${PORT}/" > /dev/null; do
             if ! kill -0 "$SERVER_PID" 2>/dev/null; then
               echo "Production server exited unexpectedly (PID ${SERVER_PID})."
               echo "--- server log ---"
@@ -70,9 +149,26 @@ jobs:
               cat "$SERVER_LOG"
               exit 1
             fi
-            echo "Waiting for http://localhost:${PORT}/ ... (${ELAPSED}s)"
+            echo "Waiting for http://127.0.0.1:${PORT}/ ... (${ELAPSED}s)"
             sleep $WAIT_INTERVAL
             ELAPSED=$((ELAPSED + WAIT_INTERVAL))
           done
 
-          echo "Production server is ready."
+          SIGN_IN_STATUS=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/sign-in")
+          if [ "$SIGN_IN_STATUS" != "200" ]; then
+            echo "Sign-in route returned HTTP ${SIGN_IN_STATUS}."
+            cat "$SERVER_LOG"
+            exit 1
+          fi
+
+          echo "Production server and sign-in route are ready."
+
+      - name: Upload standalone runtime
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pubky-standalone-${{ github.sha }}
+          path: ${{ steps.standalone.outputs.archive_path }}
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 0

@@ -1,8 +1,10 @@
 {
   "name": "Pubky World",
-  "repository": "https://github.com/gcomte/pubky-3d",
+  "repository": "https://github.com/its-gaib/pubky-3d",
   "upstream": "https://github.com/pubky/pubky-app",
-  "defaultBranch": "dev",
+  "defaultBranch": "vibe/pubky-3d",
+  "upstreamDefaultBranch": "dev",
+  "visibility": "private",
   "baseCommit": "aaba2b8da18af33e066ded10e5e538f1855a07d0",
   "branch": "vibe/pubky-3d",
   "stack": "frontend-only",
