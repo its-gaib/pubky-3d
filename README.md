@@ -2,9 +2,10 @@
 
 # Pubky World
 
-A playful 3D fork of Pubky: walk through a forest of tags, meet a social
-constellation, visit Pubky University and the builders' yard, or challenge the arena.
-Take a photo of the world and bring it into Pubky's post composer as a postcard.
+A dark, playful 3D fork of Pubky: walk through a forest of tags, follow the social
+constellation, or catch the Trending Theater's rotating Hot-feed show. Visit Pubky
+University, the builders' yard, the Satoshi monument, and a bank that prints fading
+dollar confetti. Take a world photo and bring it into Pubky's post composer.
 
 The world lives at `/`; the familiar Pubky feed is at `/home`. Start with the
 fictional example world or opt into a sample of public staging content.

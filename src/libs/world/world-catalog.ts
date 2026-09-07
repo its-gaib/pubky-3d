@@ -6,7 +6,7 @@ export const WORLD_ZONES: WorldZone[] = [
     name: 'Social Plaza',
     subtitle: 'A constellation of connections',
     description: 'People are little worlds. Follow the glowing threads and find out how theirs connect.',
-    color: '#bfdbfa',
+    color: '#C8FF03',
     position: [0, 8],
   },
   {
@@ -14,7 +14,7 @@ export const WORLD_ZONES: WorldZone[] = [
     name: 'Tag Forest',
     subtitle: 'Ideas grow on trees here',
     description: 'Every tree is a tag. Every leaf is a post. Wander between ideas and pick something good to read.',
-    color: '#bcdf80',
+    color: '#94C954',
     position: [24, -24],
   },
   {
@@ -22,7 +22,7 @@ export const WORLD_ZONES: WorldZone[] = [
     name: 'The Arena',
     subtitle: 'Extremely unserious competition',
     description: 'A very grand arena for very small victories. Challenge the local champion to rock, paper, scissors.',
-    color: '#f4c3a2',
+    color: '#E98154',
     position: [31, 13],
   },
   {
@@ -31,7 +31,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'Stay curious. Keep your keys.',
     description:
       'A tiny campus for big ideas: identity, your data, and a web you can leave without leaving yourself behind.',
-    color: '#dbcef4',
+    color: '#AA8BCD',
     position: [-24, -27],
   },
   {
@@ -40,7 +40,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'Some assembly encouraged',
     description:
       'Meet the projects that make Pubky possible. Every workshop has an open door and a link to its source.',
-    color: '#a9d4cf',
+    color: '#71BEAA',
     position: [-30, 4],
   },
   {
@@ -48,8 +48,16 @@ export const WORLD_ZONES: WorldZone[] = [
     name: 'Bitkit Beacon',
     subtitle: 'A rather large orange idea',
     description: 'A monument to keeping your bitcoin in your own hands. Also a very good place to stand dramatically.',
-    color: '#ffaf80',
+    color: '#FF7040',
     position: [-20, 31],
+  },
+  {
+    id: 'theater',
+    name: 'Trending Theater',
+    subtitle: 'Big ideas. Bigger screen.',
+    description: 'Take a seat under the stars. The public Hot feed takes the stage, one post at a time.',
+    color: '#C8FF03',
+    position: [-35, -15],
   },
 ];
 
@@ -149,6 +157,8 @@ const DEMO_POSTS: WorldPost[] = [
 
 export const DEMO_WORLD_DATA: WorldData = {
   source: 'demo',
+  // A fictional theater program, replaced entirely when public staging loads.
+  trendingPosts: DEMO_POSTS.slice(0, 8),
   tags: ['pubky', 'nature', 'bitcoin', 'memes', 'opensource', 'ideas'].map((label) => {
     const posts = DEMO_POSTS.filter((post) => post.tags.includes(label)).slice(0, 5);
     return { label, count: posts.length, posts };
@@ -157,42 +167,42 @@ export const DEMO_WORLD_DATA: WorldData = {
     {
       id: 'moss',
       name: 'Moss Boss',
-      color: '#bddd85',
+      color: '#C8FF03',
       bio: 'Botanical overthinker. Runs this entirely fictional forest’s most exclusive compost club.',
       position: [-6, 5],
     },
     {
       id: 'quack',
       name: 'Captain Quack',
-      color: '#ffd16e',
+      color: '#EFC34A',
       bio: 'Demo pond administrator. Has never read the terms of service. Has eaten them.',
       position: [3, 3],
     },
     {
       id: 'keys',
       name: 'Professor Keys',
-      color: '#c6a4ed',
+      color: '#A085C5',
       bio: 'Fictional professor of applied curiosity. Tenure is stored on a homeserver.',
       position: [7, 8],
     },
     {
       id: 'sprout',
       name: 'Satoshi Sprout',
-      color: '#f8ad79',
+      color: '#E2834E',
       bio: 'A made-up gardener of orange ideas. Carries snacks and extremely patient optimism.',
       position: [3, 14],
     },
     {
       id: 'bug',
       name: 'Bug Whisperer',
-      color: '#91d7d9',
+      color: '#61B8AF',
       bio: 'Sample open-source tinkerer. Fixes one bug. Befriends two more.',
       position: [-4, 14],
     },
     {
       id: 'disco',
       name: 'Disco Node',
-      color: '#eea8c8',
+      color: '#CE7196',
       bio: 'Demo dance enthusiast. Connected to the beat, occasionally connected to the internet.',
       position: [-8, 10],
     },

@@ -21,6 +21,7 @@ import { UserStreamTimeframe } from '@/services/nexus/nexus.types';
 
 const TREE_LIMIT = 6;
 const POSTS_PER_TREE = 4;
+const TRENDING_POST_LIMIT = 8;
 const PEOPLE_LIMIT = 6;
 // Nexus's user-stream endpoint rejects limits above 20 (post streams have a
 // separate, larger cap). Keep the world sample within the user-stream contract.
@@ -148,6 +149,49 @@ async function readTag(label: string, signal: AbortSignal): Promise<WorldTag> {
   return { label, count: posts.length, posts };
 }
 
+/** The existing public Hot feed ranks by total engagement, without a timeframe filter. */
+async function readTrendingPosts(signal: AbortSignal): Promise<WorldPost[]> {
+  // Reset any Hot-page pagination overflow so this is a fresh ranked first page.
+  await readWhileActive(signal, () =>
+    StreamPostsController.prepareStreamForInitialLoad({ streamId: PostStreamTypes.POPULARITY_ALL_ALL }),
+  );
+  const stream = await readWhileActive(signal, () =>
+    StreamPostsController.getOrFetchStreamSlice({
+      streamId: PostStreamTypes.POPULARITY_ALL_ALL,
+      streamTail: 0,
+      limit: TRENDING_POST_LIMIT,
+    }),
+  );
+  const compositeIds = [...new Set(stream.nextPageIds)].filter((id) => parsePostId(id)).slice(0, TRENDING_POST_LIMIT);
+  if (compositeIds.length === 0) return [];
+
+  const [details, tagCollections] = await Promise.all([
+    readWhileActive(signal, () => PostController.getDetailsByIds({ compositeIds })),
+    Promise.all(
+      compositeIds.map((compositeId) => readWhileActive(signal, () => PostController.getTags({ compositeId }))),
+    ),
+  ]);
+
+  // Preserve Nexus's ranking after invalid or missing records are excluded.
+  return compositeIds.flatMap((id, index) => {
+    const parsed = parsePostId(id);
+    const post = details[index];
+    if (!parsed || !post || post.id !== id) return [];
+    const labels = [
+      ...new Set(tagCollections[index].flatMap((collection) => collection.tags.map((tag) => tag.label))),
+    ].filter(isWorldTag);
+    return [
+      {
+        id,
+        author: parsed.author,
+        text: plainText(post.content, 1_200) || 'This post contains an attachment. Open it in the feed to view it.',
+        tags: labels.slice(0, 12),
+        url: `${POST_ROUTES.POST}/${encodeURIComponent(parsed.author)}/${encodeURIComponent(parsed.postId)}`,
+      },
+    ];
+  });
+}
+
 async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData; partial: boolean }> {
   const initial = await Promise.allSettled([
     readWhileActive(signal, () =>
@@ -174,7 +218,7 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
   const userIds =
     peopleResult.status === 'fulfilled' ? publicUserIds(peopleResult.value.nextPageIds, PEOPLE_LIMIT) : [];
 
-  const [trees, profiles, following] = await Promise.all([
+  const [trees, profiles, following, trendingResults] = await Promise.all([
     Promise.allSettled(labels.map((label) => readTag(label, signal))),
     readWhileActive(signal, () => UserController.getManyDetails({ userIds })),
     Promise.allSettled(
@@ -188,15 +232,16 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
         ),
       ),
     ),
+    Promise.allSettled([readTrendingPosts(signal)]),
   ]);
 
   const tags = trees.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
-  const authorIds = [...new Set(tags.flatMap((tag) => tag.posts.map((post) => post.author)))];
+  const trendingPosts = trendingResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+  const allPosts = [...tags.flatMap((tag) => tag.posts), ...trendingPosts];
+  const authorIds = [...new Set(allPosts.map((post) => post.author))];
   const authors = await readWhileActive(signal, () => UserController.getManyDetails({ userIds: authorIds }));
-  for (const tag of tags) {
-    for (const post of tag.posts) {
-      post.author = plainText(authors.get(post.author)?.name, 48) || `${post.author.slice(0, 8)}…`;
-    }
+  for (const post of allPosts) {
+    post.author = plainText(authors.get(post.author)?.name, 48) || `${post.author.slice(0, 8)}…`;
   }
 
   const people: WorldPerson[] = userIds.flatMap((id, index) => {
@@ -228,8 +273,8 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
   }
 
   return {
-    data: { source: 'staging', tags, people, relationships },
-    partial: [...initial, ...trees, ...following].some((result) => result.status === 'rejected'),
+    data: { source: 'staging', tags, trendingPosts, people, relationships },
+    partial: [...initial, ...trees, ...following, ...trendingResults].some((result) => result.status === 'rejected'),
   };
 }
 
@@ -272,7 +317,7 @@ export function useWorldData(): UseWorldDataResult {
     try {
       const sample = await readStagingWorld(controller.signal);
       if (controller.signal.aborted || activeLoad.current !== controller) return;
-      if (sample.data.tags.length === 0 && sample.data.people.length === 0) {
+      if (sample.data.tags.length === 0 && sample.data.people.length === 0 && sample.data.trendingPosts.length === 0) {
         setStatus('error');
         setError('No public staging samples were available. Your previous world is still here.');
         return;

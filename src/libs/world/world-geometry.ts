@@ -2,12 +2,23 @@ import * as THREE from 'three';
 
 export type Point3 = [number, number, number];
 
+/** Pubky's canonical neutral surfaces and acid-lime brand accent. */
+export const WORLD_PALETTE = {
+  background: '#05050A',
+  surface: '#1D1D20',
+  border: '#303034',
+  neutral: '#454549',
+  text: '#EEEEF6',
+  lime: '#C8FF03',
+} as const;
+
 export function material(color: string, emissive = false) {
   return new THREE.MeshStandardMaterial({
     color,
-    roughness: 0.82,
+    roughness: 0.7,
+    metalness: 0.12,
     flatShading: true,
-    ...(emissive ? { emissive: color, emissiveIntensity: 0.45 } : {}),
+    ...(emissive ? { emissive: color, emissiveIntensity: 0.72 } : {}),
   });
 }
 
@@ -51,8 +62,8 @@ export function label(
   text: string,
   position: Point3,
   width = 8,
-  foreground = '#183b38',
-  background = '#fffcef',
+  foreground: string = WORLD_PALETTE.text,
+  background: string = WORLD_PALETTE.surface,
 ) {
   const canvas = document.createElement('canvas');
   canvas.width = 640;
@@ -63,6 +74,9 @@ export function label(
     context.beginPath();
     context.roundRect(4, 4, 632, 120, 35);
     context.fill();
+    context.strokeStyle = WORLD_PALETTE.neutral;
+    context.lineWidth = 3;
+    context.stroke();
     context.fillStyle = foreground;
     context.textAlign = 'center';
     context.textBaseline = 'middle';

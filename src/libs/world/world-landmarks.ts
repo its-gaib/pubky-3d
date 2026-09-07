@@ -10,9 +10,9 @@ export function createLandmarks(
   obstacle: (x: number, z: number, radius: number) => void,
 ): { animate: (time: number, delta: number) => void; dispose: () => void } {
   const abort = new AbortController();
-  const cream = '#fff2d7';
-  const lilac = '#b596e0';
-  const ink = '#34495e';
+  const cream = '#A9A9B2';
+  const lilac = '#665080';
+  const ink = '#101014';
 
   function group(x: number, z: number) {
     const object = new THREE.Group();
@@ -30,13 +30,13 @@ export function createLandmarks(
   }
 
   const university = group(-24, -27);
-  box(university, [13, 0.45, 10], '#e5d8c3', [0, 0.23, 0]);
+  box(university, [13, 0.45, 10], '#303034', [0, 0.23, 0]);
   box(university, [12, 0.5, 9], cream, [0, 0.7, 0]);
-  box(university, [10.4, 5.4, 6], '#e9dfcb', [0, 3.7, -1]);
-  box(university, [2.4, 3.8, 0.16], '#736691', [0, 2.9, 2.05]);
+  box(university, [10.4, 5.4, 6], '#454549', [0, 3.7, -1]);
+  box(university, [2.4, 3.8, 0.16], '#17151D', [0, 2.9, 2.05]);
   for (const x of [-4.7, -2.9, 2.9, 4.7]) {
     cylinder(university, 0.42, 0.48, 5.2, cream, [x, 3.6, 3.1], 12);
-    box(university, [1.15, 0.35, 1.15], '#d8c5e9', [x, 1.13, 3.1]);
+    box(university, [1.15, 0.35, 1.15], '#6E667B', [x, 1.13, 3.1]);
     box(university, [1.15, 0.4, 1.15], cream, [x, 6.05, 3.1]);
   }
   box(university, [12.5, 0.55, 8.8], cream, [0, 6.4, 0]);
@@ -46,23 +46,23 @@ export function createLandmarks(
   roofShape.lineTo(0, 2.6);
   roofShape.closePath();
   mesh(university, new THREE.ExtrudeGeometry(roofShape, { depth: 8.6, bevelEnabled: false }), lilac, [0, 6.7, -4.3]);
-  sphere(university, 0.62, '#ffdb83', [0, 7.7, 4.42]);
+  sphere(university, 0.62, '#C8FF03', [0, 7.7, 4.42]);
   const cap = new THREE.Group();
   university.add(cap);
   cap.position.y = 11.7;
-  cylinder(cap, 1.15, 1.1, 0.7, '#5a4878');
-  box(cap, [4.2, 0.25, 4.2], '#54426f', [0, 0.42, 0]).rotation.y = Math.PI / 4;
-  beam(cap, new THREE.Vector3(0, 0.65, 0), new THREE.Vector3(2, 0.6, 1), '#ffcc64', 0.07);
-  beam(cap, new THREE.Vector3(2, 0.6, 1), new THREE.Vector3(2, -0.6, 1), '#ffcc64', 0.07);
-  sphere(cap, 0.2, '#ffcc64', [2, -0.65, 1]);
+  cylinder(cap, 1.15, 1.1, 0.7, '#303034');
+  box(cap, [4.2, 0.25, 4.2], '#18171E', [0, 0.42, 0]).rotation.y = Math.PI / 4;
+  beam(cap, new THREE.Vector3(0, 0.65, 0), new THREE.Vector3(2, 0.6, 1), '#C8FF03', 0.07);
+  beam(cap, new THREE.Vector3(2, 0.6, 1), new THREE.Vector3(2, -0.6, 1), '#C8FF03', 0.07);
+  sphere(cap, 0.2, '#C8FF03', [2, -0.65, 1]);
   label(university, 'Pubky University', [0, 15, 0], 12);
-  label(university, 'KEEP YOUR KEYS. GET A DEGREE.', [0, 2.4, 5.7], 8.4, '#5d487a');
+  label(university, 'KEEP YOUR KEYS. GET A DEGREE.', [0, 2.4, 5.7], 8.4, '#C8FF03');
   register(university, { kind: 'zone', id: 'university' }, 'Visit Pubky University');
   obstacle(-24, -28.2, 4.7);
 
   const arena = group(31, 13);
-  cylinder(arena, 10, 10.2, 0.22, '#f6d9b5', [0, 0.12, 0], 48);
-  ring(arena, 4.9, 0.08, '#fff4df', [0, 0.26, 0]);
+  cylinder(arena, 10, 10.2, 0.22, '#29292F', [0, 0.12, 0], 48);
+  ring(arena, 4.9, 0.08, '#C8FF03', [0, 0.26, 0]);
   // A horseshoe keeps the front entrance open and the arena floor walkable.
   for (let tier = 0; tier < 3; tier++) {
     const outer = 7.8 + tier * 0.85;
@@ -82,7 +82,7 @@ export function createLandmarks(
     const stand = mesh(
       arena,
       new THREE.ExtrudeGeometry(shape, { depth: 0.9 + tier * 0.65, bevelEnabled: false }),
-      ['#eaa98e', '#f1baa1', '#f6cbb3'][tier],
+      ['#484047', '#615257', '#786067'][tier],
       [0, 0.2, 0],
     );
     stand.rotation.x = -Math.PI / 2;
@@ -92,33 +92,33 @@ export function createLandmarks(
     const x = Math.sin(angle) * 9;
     const z = Math.cos(angle) * 9;
     box(arena, [0.7, 3.5, 0.9], cream, [x, 3.6, z]).rotation.y = angle;
-    box(arena, [1.9, 0.45, 1.1], '#de957d', [x, 5.15, z]).rotation.y = angle;
+    box(arena, [1.9, 0.45, 1.1], '#BF5C39', [x, 5.15, z]).rotation.y = angle;
     obstacle(31 + x, 13 + z, 0.65);
   }
   for (const x of [-5.8, 5.8]) {
-    cylinder(arena, 0.09, 0.09, 5.6, '#845e65', [x, 2.8, 6]);
-    box(arena, [1.65, 1.05, 0.08], '#e98383', [x + 0.72, 5.1, 6]);
+    cylinder(arena, 0.09, 0.09, 5.6, '#7E7E89', [x, 2.8, 6]);
+    box(arena, [1.65, 1.05, 0.08], '#DE6339', [x + 0.72, 5.1, 6]);
   }
-  cylinder(arena, 1.3, 1.5, 0.5, '#eab37e', [0, 0.4, -2]);
-  cylinder(arena, 0.12, 0.35, 1.1, '#d8a144', [0, 1.15, -2]);
-  cylinder(arena, 0.72, 0.22, 0.8, '#ffda74', [0, 1.95, -2], 12);
+  cylinder(arena, 1.3, 1.5, 0.5, '#35353B', [0, 0.4, -2]);
+  cylinder(arena, 0.12, 0.35, 1.1, '#AD7929', [0, 1.15, -2]);
+  cylinder(arena, 0.72, 0.22, 0.8, '#F6B948', [0, 1.95, -2], 12);
   label(arena, 'The Arena', [0, 7.5, -1], 10.5);
-  label(arena, 'BIG STADIUM. TINY VICTORIES.', [0, 0.8, 6], 7.5, '#915b4f');
+  label(arena, 'BIG STADIUM. TINY VICTORIES.', [0, 0.8, 6], 7.5, '#F6B948');
   register(arena, { kind: 'zone', id: 'arena' }, 'Enter the Arena');
 
   const yard = group(-30, 4);
-  box(yard, [15, 0.25, 11], '#b7cfbf', [0, 0.12, 0]);
+  box(yard, [15, 0.25, 11], '#303034', [0, 0.12, 0]);
   const workshops = [
-    { x: -5, z: -1, color: '#f2bc83', name: 'APP' },
-    { x: 0, z: -3, color: '#ae9bd0', name: 'NEXUS' },
-    { x: 5, z: -1, color: '#75bdb1', name: 'HOMESERVER' },
+    { x: -5, z: -1, color: '#664C36', name: 'APP' },
+    { x: 0, z: -3, color: '#4F4264', name: 'NEXUS' },
+    { x: 5, z: -1, color: '#31564F', name: 'HOMESERVER' },
   ];
   for (const workshop of workshops) {
     box(yard, [3.6, 3.3, 3.3], workshop.color, [workshop.x, 1.85, workshop.z]);
     box(yard, [3.9, 0.35, 3.6], cream, [workshop.x, 3.65, workshop.z]);
     for (let i = 0; i < 3; i++) {
       box(yard, [2.5, 0.56, 0.12], ink, [workshop.x, 1 + i * 0.85, workshop.z + 1.7]);
-      sphere(yard, 0.11, '#c8ec9f', [workshop.x + 0.88, 1 + i * 0.85, workshop.z + 1.82]);
+      sphere(yard, 0.11, '#C8FF03', [workshop.x + 0.88, 1 + i * 0.85, workshop.z + 1.82]);
     }
     label(yard, workshop.name, [workshop.x, 4.4, workshop.z], 4.5);
     obstacle(-30 + workshop.x, 4 + workshop.z, 2.2);
@@ -126,22 +126,22 @@ export function createLandmarks(
   const branch = new THREE.Group();
   branch.position.set(1.2, 0, 3.7);
   yard.add(branch);
-  beam(branch, new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 7.4, 0), '#6c8f81', 0.3);
-  beam(branch, new THREE.Vector3(0, 3.3, 0), new THREE.Vector3(3, 5.1, 0), '#6c8f81', 0.3);
-  beam(branch, new THREE.Vector3(3, 5.1, 0), new THREE.Vector3(3, 7.4, 0), '#6c8f81', 0.3);
+  beam(branch, new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 7.4, 0), '#89898F', 0.3);
+  beam(branch, new THREE.Vector3(0, 3.3, 0), new THREE.Vector3(3, 5.1, 0), '#89898F', 0.3);
+  beam(branch, new THREE.Vector3(3, 5.1, 0), new THREE.Vector3(3, 7.4, 0), '#89898F', 0.3);
   for (const [x, y, color] of [
-    [0, 1, '#ffbd7c'],
-    [0, 4.3, '#bba2e7'],
-    [0, 7.4, '#94d6ce'],
-    [3, 7.4, '#ffbd7c'],
+    [0, 1, '#C8FF03'],
+    [0, 4.3, '#9A7DCD'],
+    [0, 7.4, '#67B79A'],
+    [3, 7.4, '#C8FF03'],
   ] as const) {
     sphere(branch, 0.69, color, [x, y, 0]);
   }
   const forklift = new THREE.Group();
   forklift.position.set(-4.3, 0, 3.8);
   yard.add(forklift);
-  box(forklift, [2, 1.3, 2.6], '#f6cb65', [0, 1.15, 0]);
-  box(forklift, [1.5, 1.25, 1.2], '#749991', [0, 2.3, -0.4]);
+  box(forklift, [2, 1.3, 2.6], '#C8FF03', [0, 1.15, 0]);
+  box(forklift, [1.5, 1.25, 1.2], '#3C4449', [0, 2.3, -0.4]);
   box(forklift, [1.8, 0.2, 1.5], cream, [0, 3, -0.4]);
   for (const x of [-1, 1])
     for (const z of [-0.8, 0.8]) {
@@ -155,9 +155,9 @@ export function createLandmarks(
   register(yard, { kind: 'zone', id: 'github' }, 'Explore the GitHub workshops');
 
   const bitkit = group(-20, 31);
-  cylinder(bitkit, 6.2, 6.5, 0.45, '#ffd3a7', [0, 0.22, 0]);
-  cylinder(bitkit, 5, 5.8, 1.1, '#ff8950', [0, 1, 0]);
-  cylinder(bitkit, 3.8, 4.8, 0.7, '#ffb574', [0, 1.9, 0]);
+  cylinder(bitkit, 6.2, 6.5, 0.45, '#303034', [0, 0.22, 0]);
+  cylinder(bitkit, 5, 5.8, 1.1, '#BD481F', [0, 1, 0]);
+  cylinder(bitkit, 3.8, 4.8, 0.7, '#F0662F', [0, 1.9, 0]);
   for (const x of [-4.3, 4.3]) box(bitkit, [0.32, 4.8, 0.32], '#fc6b30', [x, 4.2, -0.2]);
   const logo = new THREE.Group();
   logo.position.set(0, 7.3, 0);
@@ -190,16 +190,16 @@ export function createLandmarks(
   obstacle(-20, 31, 3.8);
 
   const pond = group(15, 36);
-  cylinder(pond, 5.3, 5.7, 0.18, '#dfd9a9', [0, 0.08, 0], 36).scale.z = 0.8;
-  cylinder(pond, 4.9, 4.9, 0.2, '#79cfd1', [0, 0.16, 0], 36).scale.z = 0.8;
+  cylinder(pond, 5.3, 5.7, 0.18, '#454549', [0, 0.08, 0], 36).scale.z = 0.8;
+  cylinder(pond, 4.9, 4.9, 0.2, '#164D57', [0, 0.16, 0], 36).scale.z = 0.8;
   const duck = new THREE.Group();
   duck.position.y = 1.1;
   pond.add(duck);
-  sphere(duck, 2, '#ffdb68').scale.set(1.2, 0.8, 1);
-  sphere(duck, 1.3, '#ffe582', [0, 1.8, 0.9]);
+  sphere(duck, 2, '#EEC432').scale.set(1.2, 0.8, 1);
+  sphere(duck, 1.3, '#FFDB50', [0, 1.8, 0.9]);
   const beak = sphere(duck, 0.75, '#f7964e', [0, 1.65, 2]);
   beak.scale.set(1, 0.4, 1.1);
-  for (const x of [-0.7, 0.7]) sphere(duck, 0.13, '#39473e', [x, 2.05, 1.87]);
+  for (const x of [-0.7, 0.7]) sphere(duck, 0.13, '#15151B', [x, 2.05, 1.87]);
   for (const x of [-1.5, 1.5]) sphere(duck, 0.85, '#f5c34f', [x, 0.45, 0]).scale.set(0.4, 0.5, 1.4);
   label(pond, 'Department of Quack', [0, 6.4, 0], 10.5);
   register(pond, { kind: 'fun', id: 'duck' }, 'Consult the giant duck');
@@ -207,22 +207,22 @@ export function createLandmarks(
   const trampoline = group(39, -8);
   for (let i = 0; i < 6; i++) {
     const angle = (i * Math.PI) / 3;
-    cylinder(trampoline, 0.15, 0.15, 0.8, '#657c7a', [Math.sin(angle) * 2.5, 0.4, Math.cos(angle) * 2.5]);
+    cylinder(trampoline, 0.15, 0.15, 0.8, '#71717A', [Math.sin(angle) * 2.5, 0.4, Math.cos(angle) * 2.5]);
   }
-  cylinder(trampoline, 3, 3, 0.23, '#53718d', [0, 0.8, 0], 32);
-  ring(trampoline, 3, 0.25, '#c9afe5', [0, 0.86, 0]);
-  ring(trampoline, 1.4, 0.06, '#99b9ca', [0, 0.93, 0]);
+  cylinder(trampoline, 3, 3, 0.23, '#17171E', [0, 0.8, 0], 32);
+  ring(trampoline, 3, 0.25, '#C8FF03', [0, 0.86, 0]);
+  ring(trampoline, 1.4, 0.06, '#8DA850', [0, 0.93, 0]);
   label(trampoline, 'Proof of Bounce', [0, 4, 0], 9);
   register(trampoline, { kind: 'fun', id: 'trampoline' }, 'Bounce on the trampoline');
 
   const portal = group(-2, -43);
-  cylinder(portal, 4.3, 4.8, 0.4, '#b4aac7', [0, 0.2, 0]);
-  const portalRing = mesh(portal, new THREE.TorusGeometry(3.1, 0.48, 8, 40), material('#d0a6ef', true), [0, 4, 0]);
+  cylinder(portal, 4.3, 4.8, 0.4, '#303034', [0, 0.2, 0]);
+  const portalRing = mesh(portal, new THREE.TorusGeometry(3.1, 0.48, 8, 40), material('#C8FF03', true), [0, 4, 0]);
   const veil = mesh(
     portal,
     new THREE.CircleGeometry(2.8, 32),
     new THREE.MeshBasicMaterial({
-      color: '#b5d6ea',
+      color: '#88CA32',
       transparent: true,
       opacity: 0.36,
       side: THREE.DoubleSide,
@@ -232,7 +232,7 @@ export function createLandmarks(
   );
   for (let i = 0; i < 8; i++) {
     const angle = (i * Math.PI) / 4;
-    const rune = box(portal, [0.35, 0.35, 0.4], '#fff4cb', [Math.sin(angle) * 3.15, 4 + Math.cos(angle) * 3.15, 0.46]);
+    const rune = box(portal, [0.35, 0.35, 0.4], '#EEEEF6', [Math.sin(angle) * 3.15, 4 + Math.cos(angle) * 3.15, 0.46]);
     rune.rotation.z = angle + Math.PI / 4;
   }
   label(portal, 'Probably a Portal', [0, 9, 0], 10);

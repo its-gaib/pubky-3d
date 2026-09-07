@@ -1,5 +1,5 @@
 /** Serializable world state, independent of rendering or a future presence transport. */
-export type WorldZoneId = 'plaza' | 'forest' | 'arena' | 'university' | 'github' | 'bitkit';
+export type WorldZoneId = 'plaza' | 'forest' | 'arena' | 'university' | 'github' | 'bitkit' | 'theater';
 
 export interface WorldZone {
   id: WorldZoneId;
@@ -41,6 +41,8 @@ export interface WorldRelationship {
 export interface WorldData {
   source: 'demo' | 'staging';
   tags: WorldTag[];
+  /** Public Hot feed order (total engagement), with no date-window filter. */
+  trendingPosts: WorldPost[];
   people: WorldPerson[];
   relationships: WorldRelationship[];
 }
@@ -56,7 +58,7 @@ export type WorldInteraction =
   | { kind: 'tag'; index: number }
   | { kind: 'post'; tagIndex: number; postIndex: number }
   | { kind: 'person'; id: string }
-  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'portal' };
+  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'portal' | 'satoshi' | 'bank' };
 
 export interface PersonaState {
   position: [number, number, number];
@@ -69,6 +71,8 @@ export interface WorldStatus {
   position: [number, number];
   nearby: string | null;
   collected: number;
+  theaterIndex: number;
+  theaterPaused: boolean;
 }
 
 export interface WorldOptions {
@@ -86,6 +90,8 @@ export interface WorldController {
   setPaused: (paused: boolean) => void;
   setNight: (night: boolean) => void;
   setReducedMotion: (reduced: boolean) => void;
+  setTheaterPaused: (paused: boolean) => void;
+  stepTheater: (delta: number) => void;
   setPersonaColor: (color: string) => void;
   setMove: (x: number, z: number) => void;
   jump: () => void;

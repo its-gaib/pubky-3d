@@ -8,6 +8,9 @@ The world begins with original, explicitly fictional example posts and inhabitan
 Use the staging switch to populate it from the public staging Nexus. No sign-in is
 needed to explore the world.
 
+The world uses Pubky's near-black and graphite palette with acid-lime accents.
+**Classic Pubky** opens the public [pubky.app](https://pubky.app/) in a new tab.
+
 ![The Pubky World island](./screenshots/overview.png)
 
 ## Places
@@ -22,6 +25,18 @@ needed to explore the world.
 - **Pubky University:** short lessons with links to the official Pubky documentation.
 - **Open Source Yard:** linked workshops introducing the organization's projects.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large 3D landmark.
+- **Trending Theater:** an outdoor stage cycles through up to eight posts from
+  Pubky's public Hot feed, in total-engagement order. Each post stays on screen
+  for 20 seconds. Opening the program pauses it for reading; controls resume,
+  pause or skip. No date-window ranking is implied. The example program is
+  explicitly fictional; use Staging to load the current public lineup.
+- **Satoshi monument:** an original seated, hooded laptop figure made of separated
+  vertical steel contours. Walk around it to see the silhouette change. Its
+  plaque is beside the plaza and also reachable from the Social Plaza reader.
+- **Brrr Bank:** an east-side bank continually prints dollar confetti. Thirty
+  reusable bills drift, shrink and fade independently, with a visual BRRR sign
+  and no audio. Reduced motion keeps the scattered bills still. Its reader is
+  also available from the Arena panel.
 - **Detours:** giant duck, trampoline, portal, floating balloon, dancing, and eight
   collectible keys. Collected keys are local game props with no monetary value.
 - **Camera:** frame a picture, keep a PNG postcard, or send it to Pubky's post
@@ -97,6 +112,8 @@ authentication and classic app routes need the full Next application.
 - `src/libs/world/world-scene.ts`: Three.js lifecycle, island, forest, relationships,
   player input and camera. Loaded only when the world mounts.
 - `src/libs/world/world-landmarks.ts`: original procedural buildings and props.
+- `src/libs/world/world-theater.ts`, `world-satoshi.ts` and `world-bank.ts`:
+  the rotating public-post screen, steel monument, and bounded confetti animation.
 - `src/libs/world/world-motion.ts`: camera-relative movement and simple collision
   resolution. The map uses a flat walkable plane; this is not a full physics engine.
 - `src/libs/world/world-types.ts`: serializable world data and `PersonaState`.
@@ -106,7 +123,7 @@ authentication and classic app routes need the full Next application.
   local photo review and an explicit handoff to the existing post composer.
 
 The data loader renders at most six tag trees, four verified posts per staging
-tree, six people and twelve confirmed follow edges. Counts describe the displayed
+tree, eight trending posts, six people and twelve confirmed follow edges. Counts describe the displayed
 sample. Missing results are left empty, never replaced with fictional records in
 staging mode. A 20-second deadline bounds the loading UI. Existing controllers do
 not expose transport cancellation, so reads already issued may finish filling
@@ -163,6 +180,11 @@ characters and vegetation are generated from original code.
 
 University summaries link to [pubky.org](https://pubky.org/), and project exhibits
 link to [the Pubky GitHub organization](https://github.com/pubky/).
+
+The Satoshi sculpture is an original procedural homage to Valentina Picozzi's
+[Lugano monument](https://tether.io/news/plan-b-initiative-unveils-satoshi-nakamoto-statue-at-3rd-annual-plan-forum-in-lugano/).
+No photograph or third-party model of that artwork is bundled. Its separated
+vertical contours echo the original's disappearing-angle concept.
 
 `public/world/bitkit-logo.svg` comes from the
 [official Bitkit logo](https://bitkit.to/images/brands/logo-header-bitkit.svg).

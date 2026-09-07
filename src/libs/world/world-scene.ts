@@ -1,9 +1,22 @@
 import * as THREE from 'three';
 import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
+import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
-import { box, cylinder, disposeObject, label, material, mesh, ring, sphere } from '@/libs/world/world-geometry';
+import {
+  box,
+  cylinder,
+  disposeObject,
+  label,
+  material,
+  mesh,
+  ring,
+  sphere,
+  WORLD_PALETTE,
+} from '@/libs/world/world-geometry';
 import { createLandmarks } from '@/libs/world/world-landmarks';
 import { movementStep, resolvePosition, type WorldObstacle } from '@/libs/world/world-motion';
+import { createSatoshi } from '@/libs/world/world-satoshi';
+import { createTheater } from '@/libs/world/world-theater';
 import type {
   PersonaState,
   WorldController,
@@ -20,7 +33,7 @@ interface Interactive {
   dynamic: boolean;
 }
 
-const TREE_COLORS = ['#aacd66', '#60b89c', '#efba6d', '#e89fb3', '#9c9fd1', '#71bbaa'];
+const TREE_COLORS = ['#79A63B', '#276A55', '#976631', '#8B405D', '#5E497E', '#33887B'];
 const TREE_POSITIONS = [
   [16, -21],
   [27, -16],
@@ -35,16 +48,16 @@ function persona(color: string) {
   const coat = material(color);
   const body = mesh(group, new THREE.CapsuleGeometry(0.48, 0.6, 3, 8), coat, [0, 1.22, 0]);
   body.scale.z = 0.8;
-  sphere(group, 0.46, '#f5debe', [0, 2.08, 0]);
+  sphere(group, 0.46, '#D4BCA4', [0, 2.08, 0]);
   cylinder(group, 0.48, 0.53, 0.2, color, [0, 2.38, 0], 10);
-  sphere(group, 0.1, '#d8fa90', [0, 2.57, 0]);
-  box(group, [0.08, 0.09, 0.06], '#1b3635', [-0.16, 2.12, 0.41]);
-  box(group, [0.08, 0.09, 0.06], '#1b3635', [0.16, 2.12, 0.41]);
-  const leftLeg = box(group, [0.3, 0.65, 0.36], '#27434b', [-0.25, 0.43, 0]);
-  const rightLeg = box(group, [0.3, 0.65, 0.36], '#27434b', [0.25, 0.43, 0]);
+  sphere(group, 0.1, '#C8FF03', [0, 2.57, 0]);
+  box(group, [0.08, 0.09, 0.06], '#101014', [-0.16, 2.12, 0.41]);
+  box(group, [0.08, 0.09, 0.06], '#101014', [0.16, 2.12, 0.41]);
+  const leftLeg = box(group, [0.3, 0.65, 0.36], '#303034', [-0.25, 0.43, 0]);
+  const rightLeg = box(group, [0.3, 0.65, 0.36], '#303034', [0.25, 0.43, 0]);
   const leftArm = box(group, [0.23, 0.7, 0.26], color, [-0.61, 1.18, 0]);
   const rightArm = box(group, [0.23, 0.7, 0.26], color, [0.61, 1.18, 0]);
-  box(group, [0.65, 0.65, 0.3], '#e3cd9a', [0, 1.25, -0.43]);
+  box(group, [0.65, 0.65, 0.3], '#56565F', [0, 1.25, -0.43]);
   return { group, coat, leftLeg, rightLeg, leftArm, rightArm };
 }
 
@@ -52,11 +65,14 @@ function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
   const curve = new THREE.CatmullRomCurve3(points);
   const positions: number[] = [];
   const indices: number[] = [];
+  const edges: THREE.Vector3[][] = [[], []];
   for (let i = 0; i <= 45; i++) {
     const point = curve.getPoint(i / 45);
     const tangent = curve.getTangent(i / 45);
     const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(width / 2);
     positions.push(point.x + side.x, 0.075, point.z + side.z, point.x - side.x, 0.075, point.z - side.z);
+    edges[0].push(new THREE.Vector3(point.x + side.x, 0.14, point.z + side.z));
+    edges[1].push(new THREE.Vector3(point.x - side.x, 0.14, point.z - side.z));
     if (i < 45) {
       const k = i * 2;
       indices.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
@@ -66,16 +82,24 @@ function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  const path = mesh(scene, geometry, '#f1e6c8');
+  const path = mesh(scene, geometry, '#3B3B42');
   path.material.side = THREE.DoubleSide;
   path.castShadow = false;
+  for (const edge of edges) {
+    const rail = mesh(
+      scene,
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge), 45, 0.035, 3, false),
+      new THREE.MeshBasicMaterial({ color: WORLD_PALETTE.lime, toneMapped: false }),
+    );
+    rail.castShadow = false;
+  }
 }
 
 /** Browser-only scene. Avatar state deliberately has no network / account dependency. */
 export function createWorld(container: HTMLElement, options: WorldOptions): WorldController {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#9bcfca');
-  scene.fog = new THREE.Fog('#9bcfca', 155, 330);
+  scene.background = new THREE.Color('#05050A');
+  scene.fog = new THREE.Fog('#05050A', 155, 330);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
@@ -93,25 +117,28 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
-  const ambient = new THREE.HemisphereLight('#ffffec', '#698f86', 1.6);
+  const ambient = new THREE.HemisphereLight('#DDE5FF', '#18201B', 1.7);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight('#fff0d4', 2);
+  const sun = new THREE.DirectionalLight('#E8EDFF', 2.25);
   sun.position.set(-35, 65, 30);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   Object.assign(sun.shadow.camera, { left: -72, right: 72, top: 72, bottom: -72, near: 1, far: 180 });
   sun.shadow.normalBias = 0.1;
   scene.add(sun);
+  const rim = new THREE.DirectionalLight('#738CDB', 0.95);
+  rim.position.set(35, 28, -45);
+  scene.add(rim);
 
-  const water = mesh(scene, new THREE.PlaneGeometry(900, 900), '#72b8b6', [0, -4.6, 0]);
+  const water = mesh(scene, new THREE.PlaneGeometry(900, 900), '#0A1019', [0, -4.6, 0]);
   water.rotation.x = -Math.PI / 2;
   water.castShadow = false;
-  const coast = cylinder(scene, 62.5, 58, 5.2, '#e4d4ac', [0, -2.85, 0], 64);
+  const coast = cylinder(scene, 62.5, 58, 5.2, '#303037', [0, -2.85, 0], 64);
   coast.receiveShadow = true;
-  cylinder(scene, 60.5, 62, 0.85, '#9fca9b', [0, -0.425, 0], 64);
+  cylinder(scene, 60.5, 62, 0.85, '#232327', [0, -0.425, 0], 64);
   const surf: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
-    const wave = ring(scene, 65 + i * 6, 0.13, '#bfdfd0', [0, -4.35, 0]);
+    const wave = ring(scene, 65 + i * 6, 0.13, '#25343A', [0, -4.35, 0]);
     wave.scale.z = 0.7;
     surf.push(wave);
   }
@@ -139,7 +166,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       zone.id === 'plaza' ? 12 : 10,
       zone.id === 'plaza' ? 12 : 10,
       0.16,
-      zone.id === 'plaza' ? '#e4dfc7' : '#b2d1a1',
+      zone.id === 'plaza' ? '#3B3B42' : '#2A2A30',
       [x, 0.04, z],
       48,
     );
@@ -155,14 +182,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     if (WORLD_ZONES.some((zone) => Math.hypot(x - zone.position[0], z - zone.position[1]) < 15)) continue;
+    if (Math.hypot(x - BANK_POSITION[0], z - BANK_POSITION[1]) < 7) continue;
     const height = 2.3 + (i % 4) * 0.55;
-    cylinder(scene, 0.2, 0.32, height, '#96785a', [x, height / 2, z], 5);
-    cylinder(scene, 0, height * 0.65, height * 1.5, i % 3 ? '#488f79' : '#82a972', [x, height * 1.4, z], 7);
+    cylinder(scene, 0.2, 0.32, height, '#4F4844', [x, height / 2, z], 5);
+    cylinder(scene, 0, height * 0.65, height * 1.5, i % 3 ? '#254B40' : '#405C34', [x, height * 1.4, z], 7);
     obstacle(x, z, 0.5);
   }
 
   // Instanced wildflowers avoid hundreds of individual draw calls.
-  const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), material('#f4ecb4'), 160);
+  const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), material('#FFFFFF', true), 160);
   const dummy = new THREE.Object3D();
   for (let i = 0; i < 160; i++) {
     const angle = i * 2.39996;
@@ -171,27 +199,30 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     dummy.scale.set(1, 1.5 + (i % 3), 1);
     dummy.updateMatrix();
     flowers.setMatrixAt(i, dummy.matrix);
-    flowers.setColorAt(i, new THREE.Color(i % 3 ? '#f2e6a0' : '#eee5ef'));
+    flowers.setColorAt(i, new THREE.Color(i % 3 ? '#C8FF03' : '#7D9182'));
   }
   scene.add(flowers);
 
   const landmarks = createLandmarks(scene, register, obstacle);
-  const player = persona('#cbe994');
+  const bank = createBank(scene, register, obstacle);
+  createSatoshi(scene, register, obstacle);
+  const theater = createTheater(scene, register, obstacle, options.data);
+  const player = persona('#C8FF03');
   player.group.position.set(0, 0.15, 24);
   scene.add(player.group);
-  const playerHalo = ring(scene, 1, 0.08, '#efffc6', [0, 0.2, 24]);
-  label(player.group, 'you', [0, 3.3, 0], 2.4, '#f4fbe5', '#264943');
+  const playerHalo = ring(scene, 1, 0.08, '#C8FF03', [0, 0.2, 24]);
+  label(player.group, 'you', [0, 3.3, 0], 2.4, '#C8FF03', '#1D1D20');
 
   // A floating sculpture expresses the social graph before opening individual people.
   const sculpture = new THREE.Group();
   sculpture.position.set(0, 0, 8);
   scene.add(sculpture);
-  cylinder(sculpture, 2.7, 3.3, 0.6, '#adc5b6', [0, 0.35, 0]);
-  const orbitA = ring(sculpture, 2.1, 0.12, '#f3df9f', [0, 4.6, 0]);
+  cylinder(sculpture, 2.7, 3.3, 0.6, '#454549', [0, 0.35, 0]);
+  const orbitA = ring(sculpture, 2.1, 0.12, '#C8FF03', [0, 4.6, 0]);
   orbitA.rotation.x = 0.8;
-  const orbitB = ring(sculpture, 2.5, 0.09, '#b4b7e6', [0, 4.6, 0]);
+  const orbitB = ring(sculpture, 2.5, 0.09, '#85859A', [0, 4.6, 0]);
   orbitB.rotation.x = -0.8;
-  sphere(sculpture, 0.85, '#e2edbb', [0, 4.6, 0]);
+  sphere(sculpture, 0.85, '#EEEEF6', [0, 4.6, 0]);
   label(sculpture, 'social plaza', [0, 8.5, 0], 10);
   register(sculpture, { kind: 'zone', id: 'plaza' }, 'Explore the social constellation');
   obstacle(0, 8, 2.5);
@@ -219,17 +250,17 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       tree.position.set(x, 0, z);
       dataGroup.add(tree);
       const color = TREE_COLORS[tagIndex];
-      cylinder(tree, 0.45, 0.8, 5, '#8e7659', [0, 2.5, 0], 6);
-      cylinder(tree, 3.5, 4, 0.12, '#96bf8d', [0, 0.15, 0]);
+      cylinder(tree, 0.45, 0.8, 5, '#514842', [0, 2.5, 0], 6);
+      cylinder(tree, 3.5, 4, 0.12, '#303B2B', [0, 0.15, 0]);
       const canopy = sphere(tree, 3.1, color, [0, 6.1, 0]);
       canopy.scale.set(1.1, 0.8, 1);
       sphere(tree, 2, color, [-2.1, 5.7, 0.6]);
       sphere(tree, 1.9, color, [1.8, 5.2, -1]);
       for (let i = 0; i < 3; i++) {
-        const branch = cylinder(tree, 0.15, 0.25, 3, '#8e7659', [Math.cos(i * 2) * 1.1, 3.8, Math.sin(i * 2) * 1.1], 5);
+        const branch = cylinder(tree, 0.15, 0.25, 3, '#514842', [Math.cos(i * 2) * 1.1, 3.8, Math.sin(i * 2) * 1.1], 5);
         branch.rotation.z = i % 2 ? 0.7 : -0.7;
       }
-      label(tree, `#${tag.label}`, [0, 10, 0], 7, '#243f31', '#f7f5da');
+      label(tree, `#${tag.label}`, [0, 10, 0], 7, '#C8FF03', '#1D1D20');
       register(tree, { kind: 'tag', index: tagIndex }, `Read #${tag.label.slice(0, 24)}`);
       obstacle(x, z, 1.1);
       tag.posts.slice(0, 5).forEach((post, postIndex) => {
@@ -239,10 +270,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         leaf.rotation.y = angle;
         leaf.rotation.z = (postIndex % 2 ? -1 : 1) * 0.12;
         tree.add(leaf);
-        box(leaf, [1.2, 1.6, 0.12], '#fffbdb');
+        mesh(leaf, new THREE.BoxGeometry(1.2, 1.6, 0.12), material('#D9E2CE', true));
         box(leaf, [0.3, 0.12, 0.15], color, [-0.25, 0.46, 0.06]);
         for (let line = 0; line < 3; line++)
-          box(leaf, [line === 2 ? 0.48 : 0.8, 0.06, 0.14], '#a5b2a0', [-0.02, 0.08 - line * 0.23, 0.06]);
+          box(leaf, [line === 2 ? 0.48 : 0.8, 0.06, 0.14], '#4B5646', [-0.02, 0.08 - line * 0.23, 0.06]);
         register(leaf, { kind: 'post', tagIndex, postIndex }, `Read a post by ${post.author.slice(0, 22)}`);
         floatingLeaves.push({ object: leaf, baseY: leaf.position.y, phase: tagIndex + postIndex });
       });
@@ -266,11 +297,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const middle = start.clone().lerp(end, 0.5);
       middle.y = 5 + (index % 3) * 1.3;
       const curve = new THREE.QuadraticBezierCurve3(start, middle, end);
-      mesh(dataGroup, new THREE.TubeGeometry(curve, 24, 0.045, 4, false), material(from.color, true));
-      const particle = sphere(dataGroup, 0.14, '#ffffe4');
+      mesh(
+        dataGroup,
+        new THREE.TubeGeometry(curve, 24, 0.045, 4, false),
+        material(index % 3 === 0 ? WORLD_PALETTE.text : WORLD_PALETTE.lime, true),
+      );
+      const particle = sphere(dataGroup, 0.14, '#EEEEF6');
       particle.position.copy(curve.getPoint(index / 18));
       graphParticles.push({ mesh: particle, curve, phase: index / 8 });
-      const arrow = mesh(dataGroup, new THREE.ConeGeometry(0.18, 0.55, 5), from.color);
+      const arrow = mesh(dataGroup, new THREE.ConeGeometry(0.18, 0.55, 5), material(WORLD_PALETTE.lime, true));
       arrow.position.copy(curve.getPoint(0.88));
       arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), curve.getTangent(0.88).normalize());
     });
@@ -284,19 +319,19 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const collectible = new THREE.Group();
     const angle = (i / 8) * Math.PI * 2;
     collectible.position.set(Math.sin(angle) * 19, 1.6, Math.cos(angle) * 19 + 5);
-    ring(collectible, 0.45, 0.12, '#ffe28a', [0, 0.4, 0]).rotation.x = 0;
-    box(collectible, [0.16, 0.75, 0.14], '#ffe28a', [0, -0.25, 0]);
-    box(collectible, [0.36, 0.14, 0.14], '#ffe28a', [0.1, -0.55, 0]);
+    ring(collectible, 0.45, 0.12, '#C8FF03', [0, 0.4, 0]).rotation.x = 0;
+    box(collectible, [0.16, 0.75, 0.14], '#C8FF03', [0, -0.25, 0]);
+    box(collectible, [0.36, 0.14, 0.14], '#C8FF03', [0.1, -0.55, 0]);
     scene.add(collectible);
     collectibles.push(collectible);
   }
 
   const balloon = new THREE.Group();
   balloon.position.set(-45, 18, 25);
-  const envelope = sphere(balloon, 3.1, '#f2b99d', [0, 3, 0]);
+  const envelope = sphere(balloon, 3.1, '#41414A', [0, 3, 0]);
   envelope.scale.y = 1.25;
-  box(balloon, [1.5, 1, 1.5], '#b29471', [0, -2, 0]);
-  for (const side of [-0.6, 0.6]) cylinder(balloon, 0.035, 0.035, 2.7, '#f5e3c1', [side, -0.3, side], 4);
+  box(balloon, [1.5, 1, 1.5], '#25252C', [0, -2, 0]);
+  for (const side of [-0.6, 0.6]) cylinder(balloon, 0.035, 0.035, 2.7, '#C8FF03', [side, -0.3, side], 4);
   scene.add(balloon);
 
   const keys = new Set<string>();
@@ -352,7 +387,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
     clearInput();
-    const spawn = resolvePosition(zone.position[0], zone.position[1] + (id === 'arena' ? 2 : 11), obstacles);
+    const approach = id === 'arena' ? 2 : id === 'theater' ? 7 : 11;
+    const spawn = resolvePosition(zone.position[0], zone.position[1] + approach, obstacles);
     player.group.position.set(spawn.x, 0.15, spawn.z);
     jumpHeight = 0;
     jumpVelocity = 0;
@@ -489,9 +525,12 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
 
   const tick = (timestamp: number) => {
     if (disposed) return;
-    const delta = lastTime ? Math.min((timestamp - lastTime) / 1000, 0.05) : 0.016;
+    const elapsed = lastTime ? Math.max(0, (timestamp - lastTime) / 1000) : 0.016;
+    const delta = Math.min(elapsed, 0.05);
     lastTime = timestamp;
     if (document.hidden) return;
+    // The theater can resume from its reading panel while avatar input stays paused.
+    if (theater.tick(Math.min(elapsed, 1))) lastStatus = -1;
     if (!paused) time += delta;
     let moving = false;
     if (!paused) {
@@ -552,6 +591,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     player.group.position.y = 0.15 + jumpHeight + (!reducedMotion && dancing ? Math.abs(Math.sin(time * 8)) * 0.4 : 0);
     if (dancing && !reducedMotion) player.group.rotation.y += delta * 3;
     playerHalo.position.set(player.group.position.x, 0.23, player.group.position.z);
+    if (!paused) bank.animate(time, reducedMotion);
 
     if (!paused && !reducedMotion) {
       orbitA.rotation.z = time * 0.2;
@@ -625,6 +665,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         position: [player.group.position.x, player.group.position.z],
         nearby: nearby?.title ?? null,
         collected,
+        ...theater.getStatus(),
       });
     }
     renderer.render(scene, camera);
@@ -645,15 +686,28 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       drag = null;
     },
     setNight(value) {
-      const color = value ? '#162e40' : '#9bcfca';
+      const color = value ? '#03050C' : WORLD_PALETTE.background;
       scene.background = new THREE.Color(color);
       scene.fog = new THREE.Fog(color, 155, 330);
-      ambient.intensity = value ? 1.2 : 1.6;
-      sun.intensity = value ? 0.6 : 2;
-      (water.material as THREE.MeshStandardMaterial).color.set(value ? '#234353' : '#72b8b6');
+      ambient.intensity = value ? 1.25 : 1.7;
+      sun.intensity = value ? 1.5 : 2.25;
+      rim.intensity = value ? 1.4 : 0.95;
+      (water.material as THREE.MeshStandardMaterial).color.set(value ? '#050A15' : '#0A1019');
     },
     setReducedMotion(value) {
       reducedMotion = value;
+      if (value) {
+        theater.setPaused(true);
+        lastStatus = -1;
+      }
+    },
+    setTheaterPaused(value) {
+      theater.setPaused(value);
+      lastStatus = -1;
+    },
+    stepTheater(delta) {
+      theater.step(delta);
+      lastStatus = -1;
     },
     setPersonaColor(color) {
       if (/^#[0-9a-f]{6}$/i.test(color)) player.coat.color.set(color);
@@ -697,6 +751,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     },
     updateData(data) {
       populateData(data);
+      theater.updateData(data);
       nearby = null;
       lastStatus = -1;
     },

@@ -24,18 +24,20 @@ import {
   MoveUp,
   Network,
   Orbit,
+  Pause,
+  Play,
   Scissors,
   Settings2,
   Sparkles,
   Sun,
   Swords,
+  Theater,
   TreePine,
   Trophy,
   VolumeX,
   X,
   Zap,
 } from 'lucide-react';
-import { APP_ROUTES } from '@/app/routes';
 import { Button } from '@/atoms/Button/Button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/atoms/Dialog/Dialog';
 import { Switch } from '@/atoms/Switch/Switch';
@@ -60,9 +62,26 @@ const ZONE_ICONS = {
   university: GraduationCap,
   github: Github,
   bitkit: Zap,
+  theater: Theater,
 };
-const PERSONA_COLORS = ['#d9ee85', '#f0a47c', '#bda8ed', '#89d5d0', '#e8a7c3'];
-const INITIAL_STATUS: WorldStatus = { zone: 'plaza', position: [0, 8], nearby: null, collected: 0 };
+const PERSONA_COLORS = ['#c8ff03', '#ff9155', '#b59bff', '#5fe5e7', '#ff89c8'];
+const SHORT_ZONE_NAMES: Record<WorldZoneId, string> = {
+  plaza: 'Plaza',
+  forest: 'Forest',
+  arena: 'Arena',
+  university: 'Uni',
+  github: 'Builders',
+  bitkit: 'Bitkit',
+  theater: 'Show',
+};
+const INITIAL_STATUS: WorldStatus = {
+  zone: 'plaza',
+  position: [0, 8],
+  nearby: null,
+  collected: 0,
+  theaterIndex: 0,
+  theaterPaused: false,
+};
 type Panel = WorldInteraction | { kind: 'settings' };
 
 function ExternalWorldLink({ href, children, className }: { href?: string; children: ReactNode; className?: string }) {
@@ -110,6 +129,14 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
         },
         trampoline: { title: 'A small leap for a person.', subtitle: 'A deeply unnecessary leap for social media.' },
         portal: { title: 'The Credible Exit.', subtitle: 'A portal with absolutely no emotional baggage.' },
+        satoshi: {
+          title: 'Present. Absent. Satoshi.',
+          subtitle: 'A monument to the person who left the keys with everyone else.',
+        },
+        bank: {
+          title: 'Brrr. There it goes.',
+          subtitle: 'The bank where money is always in the air. Briefly.',
+        },
       }[panel.id];
   }
 }
@@ -191,6 +218,97 @@ function ArenaGame() {
   );
 }
 
+function TrendingShow({
+  data,
+  index,
+  paused,
+  canPlay,
+  onPause,
+  onStep,
+}: {
+  data: WorldData;
+  index: number;
+  paused: boolean;
+  canPlay: boolean;
+  onPause: (paused: boolean) => void;
+  onStep: (delta: number) => void;
+}) {
+  const posts = data.trendingPosts;
+  const postIndex = posts.length ? ((index % posts.length) + posts.length) % posts.length : 0;
+  const post = posts[postIndex];
+  return (
+    <div className={styles.theaterPanel}>
+      <div className={styles.theaterMarquee}>
+        <Theater size={27} aria-hidden="true" />
+        <div>
+          <strong>The feed has taken the stage.</strong>
+          <span>
+            {data.source === 'demo'
+              ? 'Example program · fictional posts'
+              : 'Public staging · ranked by total engagement'}
+          </span>
+        </div>
+      </div>
+      {post ? (
+        <>
+          <div className={styles.theaterTransport} role="group" aria-label="Trending show controls">
+            <Button
+              overrideDefaults
+              className={styles.theaterStep}
+              aria-label="Previous trending post"
+              disabled={posts.length < 2}
+              onClick={() => onStep(-1)}
+            >
+              <ArrowLeft size={18} />
+            </Button>
+            <Button
+              overrideDefaults
+              className={styles.theaterPlay}
+              onClick={() => onPause(!paused)}
+              disabled={posts.length < 2 || !canPlay}
+            >
+              {paused ? <Play size={16} /> : <Pause size={16} />}
+              {paused ? 'Resume show' : 'Pause show'}
+            </Button>
+            <Button
+              overrideDefaults
+              className={styles.theaterStep}
+              aria-label="Next trending post"
+              disabled={posts.length < 2}
+              onClick={() => onStep(1)}
+            >
+              <ArrowRight size={18} />
+            </Button>
+            <span className={styles.theaterCounter} role="status">
+              {String(postIndex + 1).padStart(2, '0')} / {String(posts.length).padStart(2, '0')}
+            </span>
+          </div>
+          <PostLeaf post={post} source={data.source} />
+          <p className={styles.smallPrint}>
+            {!canPlay
+              ? 'Use the arrows to browse while the 3D screen is unavailable.'
+              : paused
+                ? 'The show is paused so you can read.'
+                : 'A new post takes the stage every 20 seconds.'}{' '}
+            Skipping pauses the show. Heckling is between you and the duck.
+          </p>
+        </>
+      ) : (
+        <div className={styles.theaterEmpty}>
+          <Theater size={36} aria-hidden="true" />
+          <h3>The stage is taking a breather.</h3>
+          <p>No public trending posts are available in this sample. Reload Staging to try the current program again.</p>
+        </div>
+      )}
+      <p className={styles.smallPrint}>
+        {data.source === 'demo'
+          ? 'Select Staging above to load the current public Hot feed.'
+          : 'This program uses Pubky’s Hot feed ranking, without a date filter. Reload Staging to refresh the lineup.'}
+      </p>
+    </div>
+  );
+}
+
 function WorldPanel({
   panel,
   data,
@@ -198,6 +316,11 @@ function WorldPanel({
   onDance,
   onJump,
   onTravel,
+  theaterIndex,
+  theaterPaused,
+  theaterCanPlay,
+  onTheaterPause,
+  onTheaterStep,
 }: {
   panel: WorldInteraction;
   data: WorldData;
@@ -205,6 +328,11 @@ function WorldPanel({
   onDance: () => void;
   onJump: () => void;
   onTravel: (zone: WorldZoneId) => void;
+  theaterIndex: number;
+  theaterPaused: boolean;
+  theaterCanPlay: boolean;
+  onTheaterPause: (paused: boolean) => void;
+  onTheaterStep: (delta: number) => void;
 }) {
   if (panel.kind === 'post') {
     const post = data.tags[panel.tagIndex]?.posts[panel.postIndex];
@@ -283,6 +411,53 @@ function WorldPanel({
     );
   }
   if (panel.kind === 'fun') {
+    if (panel.id === 'bank')
+      return (
+        <div className={styles.satoshiPanel}>
+          <span className={styles.brrrWordmark} aria-hidden="true">
+            BRRR
+          </span>
+          <blockquote>Unlimited supply. Extremely limited shelf life.</blockquote>
+          <p>
+            The printer never clocks out. Fresh dollars flutter out of the bank, take a little victory lap, and
+            evaporate one bill at a time. Finally, a bank with transparent assets.
+          </p>
+          <p className={styles.smallPrint}>
+            Find the Brrr Bank on the east side of the island, beside the Arena. The bills are decorative confetti. The
+            printer’s noise is just a sign; your speakers can relax.
+          </p>
+          <Button overrideDefaults className={styles.primaryButton} onClick={() => onTravel('arena')}>
+            Head toward the bank
+            <ArrowRight size={18} />
+          </Button>
+        </div>
+      );
+    if (panel.id === 'satoshi')
+      return (
+        <div className={styles.satoshiPanel}>
+          <span className={styles.satoshiWordmark} aria-hidden="true">
+            ₿
+          </span>
+          <blockquote>Identity: unknown. Impact: everywhere.</blockquote>
+          <p>
+            Walk around the hooded figure. Its separated steel plates catch the light, then slip out of view as you
+            change angle. Even the statue is practicing privacy.
+          </p>
+          <p className={styles.smallPrint}>
+            An original 3D tribute inspired by Valentina Picozzi’s Satoshi Nakamoto monument in Lugano: a seated figure,
+            a laptop, and a disappearing silhouette.
+          </p>
+          <ExternalWorldLink
+            href="https://tether.io/news/plan-b-initiative-unveils-satoshi-nakamoto-statue-at-3rd-annual-plan-forum-in-lugano/"
+            className={styles.textLink}
+          >
+            The story of Lugano’s monument
+          </ExternalWorldLink>
+          <p className={styles.smallPrint}>
+            Find the sculpture beside Social Plaza, on the path toward Pubky University.
+          </p>
+        </div>
+      );
     if (panel.id === 'duck')
       return (
         <div className={styles.funPanel}>
@@ -380,9 +555,45 @@ function WorldPanel({
             : 'Public staging sample. Only follow connections between the displayed profiles are shown.'}{' '}
           You are the only player on this island for now.
         </p>
+        <Button
+          overrideDefaults
+          className={styles.monumentLink}
+          onClick={() => onSelect({ kind: 'fun', id: 'satoshi' })}
+        >
+          <span aria-hidden="true">₿</span>
+          <span>
+            <strong>The Satoshi monument</strong>
+            <small>A familiar stranger beside the plaza.</small>
+          </span>
+          <ChevronRight size={18} />
+        </Button>
       </>
     );
-  if (panel.id === 'arena') return <ArenaGame />;
+  if (panel.id === 'arena')
+    return (
+      <>
+        <ArenaGame />
+        <Button overrideDefaults className={styles.monumentLink} onClick={() => onSelect({ kind: 'fun', id: 'bank' })}>
+          <span aria-hidden="true">$</span>
+          <span>
+            <strong>The Brrr Bank</strong>
+            <small>Our neighbor has a printing problem.</small>
+          </span>
+          <ChevronRight size={18} />
+        </Button>
+      </>
+    );
+  if (panel.id === 'theater')
+    return (
+      <TrendingShow
+        data={data}
+        index={theaterIndex}
+        paused={theaterPaused}
+        canPlay={theaterCanPlay}
+        onPause={onTheaterPause}
+        onStep={onTheaterStep}
+      />
+    );
   if (panel.id === 'university')
     return (
       <>
@@ -513,6 +724,12 @@ export function World() {
     controllerRef.current?.setPaused(panel !== null || cameraOpen);
   }, [panel, cameraOpen, sceneState]);
   useEffect(() => {
+    if (panel?.kind === 'zone' && panel.id === 'theater') {
+      controllerRef.current?.setTheaterPaused(true);
+      setWorldStatus((current) => ({ ...current, theaterPaused: true }));
+    }
+  }, [panel, sceneState]);
+  useEffect(() => {
     controllerRef.current?.setNight(night);
   }, [night, sceneState]);
   useEffect(() => {
@@ -560,6 +777,22 @@ export function World() {
   function move(x: number, z: number) {
     if (!panel) controllerRef.current?.setMove(x, z);
   }
+  function pauseTheater(paused: boolean) {
+    controllerRef.current?.setTheaterPaused(paused);
+    setWorldStatus((current) => ({ ...current, theaterPaused: paused }));
+  }
+  function stepTheater(delta: number) {
+    pauseTheater(true);
+    if (controllerRef.current) {
+      controllerRef.current.stepTheater(delta);
+    } else {
+      const count = data.trendingPosts.length;
+      setWorldStatus((current) => ({
+        ...current,
+        theaterIndex: count ? (((current.theaterIndex + delta) % count) + count) % count : 0,
+      }));
+    }
+  }
   function perform(action: 'dance' | 'jump') {
     setPanel(null);
     setWelcome(false);
@@ -570,7 +803,7 @@ export function World() {
 
   return (
     <main
-      className={`${styles.world} ${night ? styles.night : ''}`}
+      className={styles.world}
       data-testid="pubky-world"
       data-world-x={worldStatus.position[0].toFixed(2)}
       data-world-z={worldStatus.position[1].toFixed(2)}
@@ -632,10 +865,10 @@ export function World() {
               <span>Guest persona</span>
             </div>
           </div>
-          <Link href={APP_ROUTES.HOME} className={styles.classicLink}>
+          <a href="https://pubky.app/" target="_blank" rel="noopener noreferrer" className={styles.classicLink}>
             Classic Pubky
             <ArrowUpRight size={15} />
-          </Link>
+          </a>
         </div>
       </header>
 
@@ -679,7 +912,7 @@ export function World() {
         <div className={styles.dockHeading}>
           <Compass size={15} />
           <span>YOUR NEXT DETOUR</span>
-          <span>06</span>
+          <span>{String(WORLD_ZONES.length).padStart(2, '0')}</span>
         </div>
         {WORLD_ZONES.map((destination, index) => {
           const Icon = ZONE_ICONS[destination.id];
@@ -698,7 +931,10 @@ export function World() {
                   <Icon size={20} />
                 </span>
                 <span>
-                  <strong>{destination.name}</strong>
+                  <strong>
+                    <span className={styles.destinationFullName}>{destination.name}</span>
+                    <span className={styles.destinationShortName}>{SHORT_ZONE_NAMES[destination.id]}</span>
+                  </strong>
                   <small>
                     {
                       [
@@ -708,6 +944,7 @@ export function World() {
                         'Learn a little',
                         'Meet the builders',
                         'Follow the orange',
+                        'Catch the trending show',
                       ][index]
                     }
                   </small>
@@ -1018,7 +1255,7 @@ export function World() {
                       key={color}
                       className={styles.colorChoice}
                       style={{ background: color }}
-                      aria-label={`Explorer color ${['lime', 'peach', 'lavender', 'teal', 'pink'][index]}`}
+                      aria-label={`Explorer color ${['lime', 'orange', 'violet', 'cyan', 'pink'][index]}`}
                       aria-pressed={color === personaColor}
                       onClick={() => setPersonaColor(color)}
                     >
@@ -1045,6 +1282,11 @@ export function World() {
                 onDance={() => perform('dance')}
                 onJump={() => perform('jump')}
                 onTravel={travelTo}
+                theaterIndex={worldStatus.theaterIndex}
+                theaterPaused={worldStatus.theaterPaused}
+                theaterCanPlay={sceneState === 'ready'}
+                onTheaterPause={pauseTheater}
+                onTheaterStep={stepTheater}
               />
             )
           )}
