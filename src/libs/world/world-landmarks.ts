@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
 import { box, cylinder, label, material, mesh, ring, sphere } from '@/libs/world/world-geometry';
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 /** Original toy architecture. Only the fixed, bundled Bitkit asset is parsed as SVG. */
@@ -29,7 +30,7 @@ export function createLandmarks(
     return object;
   }
 
-  const university = group(-24, -27);
+  const university = group(...WORLD_ANCHORS.university);
   box(university, [13, 0.45, 10], '#303034', [0, 0.23, 0]);
   box(university, [12, 0.5, 9], cream, [0, 0.7, 0]);
   box(university, [10.4, 5.4, 6], '#454549', [0, 3.7, -1]);
@@ -58,9 +59,9 @@ export function createLandmarks(
   label(university, 'Pubky University', [0, 15, 0], 12);
   label(university, 'KEEP YOUR KEYS. GET A DEGREE.', [0, 2.4, 5.7], 8.4, '#C8FF03');
   register(university, { kind: 'zone', id: 'university' }, 'Visit Pubky University');
-  obstacle(-24, -28.2, 4.7);
+  obstacle(university.position.x, university.position.z - 1.2, 4.7);
 
-  const arena = group(31, 13);
+  const arena = group(...WORLD_ANCHORS.arena);
   cylinder(arena, 10, 10.2, 0.22, '#29292F', [0, 0.12, 0], 48);
   ring(arena, 4.9, 0.08, '#C8FF03', [0, 0.26, 0]);
   // A horseshoe keeps the front entrance open and the arena floor walkable.
@@ -93,7 +94,7 @@ export function createLandmarks(
     const z = Math.cos(angle) * 9;
     box(arena, [0.7, 3.5, 0.9], cream, [x, 3.6, z]).rotation.y = angle;
     box(arena, [1.9, 0.45, 1.1], '#BF5C39', [x, 5.15, z]).rotation.y = angle;
-    obstacle(31 + x, 13 + z, 0.65);
+    obstacle(arena.position.x + x, arena.position.z + z, 0.65);
   }
   for (const x of [-5.8, 5.8]) {
     cylinder(arena, 0.09, 0.09, 5.6, '#7E7E89', [x, 2.8, 6]);
@@ -106,7 +107,7 @@ export function createLandmarks(
   label(arena, 'BIG STADIUM. TINY VICTORIES.', [0, 0.8, 6], 7.5, '#F6B948');
   register(arena, { kind: 'zone', id: 'arena' }, 'Enter the Arena');
 
-  const yard = group(-30, 4);
+  const yard = group(...WORLD_ANCHORS.github);
   box(yard, [15, 0.25, 11], '#303034', [0, 0.12, 0]);
   const workshops = [
     { x: -5, z: -1, color: '#664C36', name: 'APP' },
@@ -121,7 +122,7 @@ export function createLandmarks(
       sphere(yard, 0.11, '#C8FF03', [workshop.x + 0.88, 1 + i * 0.85, workshop.z + 1.82]);
     }
     label(yard, workshop.name, [workshop.x, 4.4, workshop.z], 4.5);
-    obstacle(-30 + workshop.x, 4 + workshop.z, 2.2);
+    obstacle(yard.position.x + workshop.x, yard.position.z + workshop.z, 2.2);
   }
   const branch = new THREE.Group();
   branch.position.set(1.2, 0, 3.7);
@@ -154,7 +155,7 @@ export function createLandmarks(
   label(yard, 'Open Source Yard', [0, 10.1, 0], 12);
   register(yard, { kind: 'zone', id: 'github' }, 'Explore the GitHub workshops');
 
-  const bitkit = group(-20, 31);
+  const bitkit = group(...WORLD_ANCHORS.bitkit);
   cylinder(bitkit, 6.2, 6.5, 0.45, '#303034', [0, 0.22, 0]);
   cylinder(bitkit, 5, 5.8, 1.1, '#BD481F', [0, 1, 0]);
   cylinder(bitkit, 3.8, 4.8, 0.7, '#F0662F', [0, 1.9, 0]);
@@ -187,9 +188,9 @@ export function createLandmarks(
     });
   label(bitkit, 'Bitkit Beacon', [0, 11.6, 0], 10);
   register(bitkit, { kind: 'zone', id: 'bitkit' }, 'Visit the Bitkit Beacon');
-  obstacle(-20, 31, 3.8);
+  obstacle(bitkit.position.x, bitkit.position.z, 3.8);
 
-  const pond = group(15, 36);
+  const pond = group(...WORLD_ANCHORS.duck);
   cylinder(pond, 5.3, 5.7, 0.18, '#454549', [0, 0.08, 0], 36).scale.z = 0.8;
   cylinder(pond, 4.9, 4.9, 0.2, '#164D57', [0, 0.16, 0], 36).scale.z = 0.8;
   const duck = new THREE.Group();
@@ -204,7 +205,7 @@ export function createLandmarks(
   label(pond, 'Department of Quack', [0, 6.4, 0], 10.5);
   register(pond, { kind: 'fun', id: 'duck' }, 'Consult the giant duck');
 
-  const trampoline = group(39, -8);
+  const trampoline = group(...WORLD_ANCHORS.trampoline);
   for (let i = 0; i < 6; i++) {
     const angle = (i * Math.PI) / 3;
     cylinder(trampoline, 0.15, 0.15, 0.8, '#71717A', [Math.sin(angle) * 2.5, 0.4, Math.cos(angle) * 2.5]);
@@ -215,7 +216,7 @@ export function createLandmarks(
   label(trampoline, 'Proof of Bounce', [0, 4, 0], 9);
   register(trampoline, { kind: 'fun', id: 'trampoline' }, 'Bounce on the trampoline');
 
-  const portal = group(-2, -43);
+  const portal = group(...WORLD_ANCHORS.portal);
   cylinder(portal, 4.3, 4.8, 0.4, '#303034', [0, 0.2, 0]);
   const portalRing = mesh(portal, new THREE.TorusGeometry(3.1, 0.48, 8, 40), material('#C8FF03', true), [0, 4, 0]);
   const veil = mesh(

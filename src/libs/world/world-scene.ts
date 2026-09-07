@@ -14,6 +14,14 @@ import {
   WORLD_PALETTE,
 } from '@/libs/world/world-geometry';
 import { createLandmarks } from '@/libs/world/world-landmarks';
+import {
+  WORLD_ANCHORS,
+  WORLD_DIMENSIONS,
+  WORLD_RADIUS,
+  WORLD_TREE_POSITIONS,
+  worldArrival,
+  worldCameraFar,
+} from '@/libs/world/world-layout';
 import { movementStep, resolvePosition, type WorldObstacle } from '@/libs/world/world-motion';
 import { createSatoshi } from '@/libs/world/world-satoshi';
 import { createTheater } from '@/libs/world/world-theater';
@@ -34,14 +42,6 @@ interface Interactive {
 }
 
 const TREE_COLORS = ['#79A63B', '#276A55', '#976631', '#8B405D', '#5E497E', '#33887B'];
-const TREE_POSITIONS = [
-  [16, -21],
-  [27, -16],
-  [36, -23],
-  [29, -33],
-  [17, -34],
-  [8, -29],
-];
 
 function persona(color: string) {
   const group = new THREE.Group();
@@ -65,14 +65,11 @@ function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
   const curve = new THREE.CatmullRomCurve3(points);
   const positions: number[] = [];
   const indices: number[] = [];
-  const edges: THREE.Vector3[][] = [[], []];
   for (let i = 0; i <= 45; i++) {
     const point = curve.getPoint(i / 45);
     const tangent = curve.getTangent(i / 45);
     const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(width / 2);
     positions.push(point.x + side.x, 0.075, point.z + side.z, point.x - side.x, 0.075, point.z - side.z);
-    edges[0].push(new THREE.Vector3(point.x + side.x, 0.14, point.z + side.z));
-    edges[1].push(new THREE.Vector3(point.x - side.x, 0.14, point.z - side.z));
     if (i < 45) {
       const k = i * 2;
       indices.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
@@ -85,14 +82,7 @@ function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
   const path = mesh(scene, geometry, '#3B3B42');
   path.material.side = THREE.DoubleSide;
   path.castShadow = false;
-  for (const edge of edges) {
-    const rail = mesh(
-      scene,
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge), 45, 0.035, 3, false),
-      new THREE.MeshBasicMaterial({ color: WORLD_PALETTE.lime, toneMapped: false }),
-    );
-    rail.castShadow = false;
-  }
+  return curve;
 }
 
 /** Browser-only scene. Avatar state deliberately has no network / account dependency. */
@@ -116,14 +106,21 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   renderer.domElement.style.outline = 'none';
   container.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+  const camera = new THREE.PerspectiveCamera(40, 1, WORLD_DIMENSIONS.cameraNear, WORLD_DIMENSIONS.cameraFar);
   const ambient = new THREE.HemisphereLight('#DDE5FF', '#18201B', 1.7);
   scene.add(ambient);
   const sun = new THREE.DirectionalLight('#E8EDFF', 2.25);
   sun.position.set(-35, 65, 30);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -72, right: 72, top: 72, bottom: -72, near: 1, far: 180 });
+  Object.assign(sun.shadow.camera, {
+    left: -WORLD_DIMENSIONS.shadowExtent,
+    right: WORLD_DIMENSIONS.shadowExtent,
+    top: WORLD_DIMENSIONS.shadowExtent,
+    bottom: -WORLD_DIMENSIONS.shadowExtent,
+    near: 1,
+    far: WORLD_DIMENSIONS.shadowFar,
+  });
   sun.shadow.normalBias = 0.1;
   scene.add(sun);
   const rim = new THREE.DirectionalLight('#738CDB', 0.95);
@@ -133,12 +130,20 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const water = mesh(scene, new THREE.PlaneGeometry(900, 900), '#0A1019', [0, -4.6, 0]);
   water.rotation.x = -Math.PI / 2;
   water.castShadow = false;
-  const coast = cylinder(scene, 62.5, 58, 5.2, '#303037', [0, -2.85, 0], 64);
+  const coast = cylinder(
+    scene,
+    WORLD_DIMENSIONS.coastRadius,
+    WORLD_DIMENSIONS.coastRadius - 6,
+    5.2,
+    '#303037',
+    [0, -2.85, 0],
+    64,
+  );
   coast.receiveShadow = true;
-  cylinder(scene, 60.5, 62, 0.85, '#232327', [0, -0.425, 0], 64);
+  cylinder(scene, WORLD_DIMENSIONS.landRadius, WORLD_DIMENSIONS.landRadius + 2, 0.85, '#232327', [0, -0.425, 0], 64);
   const surf: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
-    const wave = ring(scene, 65 + i * 6, 0.13, '#25343A', [0, -4.35, 0]);
+    const wave = ring(scene, WORLD_DIMENSIONS.coastRadius + 2.5 + i * 8, 0.13, '#25343A', [0, -4.35, 0]);
     wave.scale.z = 0.7;
     surf.push(wave);
   }
@@ -151,15 +156,21 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     object.userData.worldInteraction = interactives[interactives.length - 1];
   };
   const obstacle = (x: number, z: number, radius: number) => obstacles.push({ x, z, radius });
+  const pathSamples: THREE.Vector3[] = [];
+  const groundPoint = ([x, z]: readonly [number, number]) => new THREE.Vector3(x, 0, z);
+  const addPath = (points: THREE.Vector3[]) => pathSamples.push(...makePath(scene, points).getSpacedPoints(35));
+  const plazaGround = groundPoint(WORLD_ANCHORS.plaza);
+  const arenaEntrance = new THREE.Vector3(WORLD_ANCHORS.arena[0], 0, WORLD_ANCHORS.arena[1] + 11);
 
   WORLD_ZONES.forEach((zone) => {
     const [x, z] = zone.position;
-    if (zone.id !== 'plaza') {
-      makePath(scene, [
-        new THREE.Vector3(0, 0, 8),
-        new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4),
-        new THREE.Vector3(x, 0, z),
-      ]);
+    if (zone.id === 'arena') {
+      addPath([plazaGround, new THREE.Vector3(28, 0, 43), arenaEntrance, groundPoint(zone.position)]);
+    } else if (zone.id === 'university') {
+      // Leave the Satoshi plinth clear on the university approach.
+      addPath([plazaGround, new THREE.Vector3(-4, 0, -22), groundPoint(zone.position)]);
+    } else if (zone.id !== 'plaza') {
+      addPath([plazaGround, new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4), groundPoint(zone.position)]);
     }
     cylinder(
       scene,
@@ -171,18 +182,25 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       48,
     );
   });
-  makePath(scene, [new THREE.Vector3(-20, 0, 31), new THREE.Vector3(0, 0, 35), new THREE.Vector3(31, 0, 13)]);
-  makePath(scene, [new THREE.Vector3(-24, 0, -27), new THREE.Vector3(0, 0, -42), new THREE.Vector3(24, 0, -24)]);
-  makePath(scene, [new THREE.Vector3(-30, 0, 4), new THREE.Vector3(-40, 0, -13), new THREE.Vector3(-24, 0, -27)]);
+  addPath([groundPoint(WORLD_ANCHORS.bitkit), new THREE.Vector3(4, 0, 44), arenaEntrance]);
+  addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(4, 0, -54), groundPoint(WORLD_ANCHORS.forest)]);
+  addPath([groundPoint(WORLD_ANCHORS.github), new THREE.Vector3(-69, 0, -10), groundPoint(WORLD_ANCHORS.university)]);
+  addPath([
+    arenaEntrance,
+    new THREE.Vector3(56, 0, 42),
+    new THREE.Vector3(67, 0, 24),
+    new THREE.Vector3(BANK_POSITION[0], 0, BANK_POSITION[1] + 7),
+  ]);
 
   // Tiny trees around the coast leave the central paths clear.
   for (let i = 0; i < 38; i++) {
     const angle = i * 2.39996;
-    const radius = 45 + Math.sin(i * 7.1) * 8;
+    const radius = 64 + Math.sin(i * 7.1) * 11;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     if (WORLD_ZONES.some((zone) => Math.hypot(x - zone.position[0], z - zone.position[1]) < 15)) continue;
     if (Math.hypot(x - BANK_POSITION[0], z - BANK_POSITION[1]) < 7) continue;
+    if (pathSamples.some((point) => Math.hypot(x - point.x, z - point.z) < 3.2)) continue;
     const height = 2.3 + (i % 4) * 0.55;
     cylinder(scene, 0.2, 0.32, height, '#4F4844', [x, height / 2, z], 5);
     cylinder(scene, 0, height * 0.65, height * 1.5, i % 3 ? '#254B40' : '#405C34', [x, height * 1.4, z], 7);
@@ -194,7 +212,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const dummy = new THREE.Object3D();
   for (let i = 0; i < 160; i++) {
     const angle = i * 2.39996;
-    const radius = 20 + (Math.sin(i * 16.4) * 0.5 + 0.5) * 36;
+    const radius = 24 + (Math.sin(i * 16.4) * 0.5 + 0.5) * 51;
     dummy.position.set(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
     dummy.scale.set(1, 1.5 + (i % 3), 1);
     dummy.updateMatrix();
@@ -215,7 +233,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
 
   // A floating sculpture expresses the social graph before opening individual people.
   const sculpture = new THREE.Group();
-  sculpture.position.set(0, 0, 8);
+  sculpture.position.set(WORLD_ANCHORS.plaza[0], 0, WORLD_ANCHORS.plaza[1]);
   scene.add(sculpture);
   cylinder(sculpture, 2.7, 3.3, 0.6, '#454549', [0, 0.35, 0]);
   const orbitA = ring(sculpture, 2.1, 0.12, '#C8FF03', [0, 4.6, 0]);
@@ -225,7 +243,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   sphere(sculpture, 0.85, '#EEEEF6', [0, 4.6, 0]);
   label(sculpture, 'social plaza', [0, 8.5, 0], 10);
   register(sculpture, { kind: 'zone', id: 'plaza' }, 'Explore the social constellation');
-  obstacle(0, 8, 2.5);
+  obstacle(sculpture.position.x, sculpture.position.z, 2.5);
 
   let dataGroup = new THREE.Group();
   scene.add(dataGroup);
@@ -245,7 +263,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     obstacles.splice(staticObstacleCount);
     isDynamic = true;
     data.tags.slice(0, 6).forEach((tag, tagIndex) => {
-      const [x, z] = TREE_POSITIONS[tagIndex];
+      const [x, z] = WORLD_TREE_POSITIONS[tagIndex];
       const tree = new THREE.Group();
       tree.position.set(x, 0, z);
       dataGroup.add(tree);
@@ -281,7 +299,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     data.people.slice(0, 6).forEach((person) => {
       const character = persona(person.color);
       character.group.position.set(person.position[0], 0.2, person.position[1]);
-      character.group.rotation.y = Math.atan2(-person.position[0], 8 - person.position[1]);
+      character.group.rotation.y = Math.atan2(
+        WORLD_ANCHORS.plaza[0] - person.position[0],
+        WORLD_ANCHORS.plaza[1] - person.position[1],
+      );
       dataGroup.add(character.group);
       cylinder(character.group, 1.3, 1.3, 0.16, person.color, [0, 0, 0]);
       label(character.group, person.name, [0, 3.5, 0], 4.8);
@@ -318,7 +339,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   for (let i = 0; i < 8; i++) {
     const collectible = new THREE.Group();
     const angle = (i / 8) * Math.PI * 2;
-    collectible.position.set(Math.sin(angle) * 19, 1.6, Math.cos(angle) * 19 + 5);
+    collectible.position.set(Math.sin(angle) * 27, 1.6, Math.cos(angle) * 27 + 5);
     ring(collectible, 0.45, 0.12, '#C8FF03', [0, 0.4, 0]).rotation.x = 0;
     box(collectible, [0.16, 0.75, 0.14], '#C8FF03', [0, -0.25, 0]);
     box(collectible, [0.36, 0.14, 0.14], '#C8FF03', [0.1, -0.55, 0]);
@@ -327,7 +348,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   }
 
   const balloon = new THREE.Group();
-  balloon.position.set(-45, 18, 25);
+  balloon.position.set(WORLD_ANCHORS.balloon[0], 18, WORLD_ANCHORS.balloon[1]);
   const envelope = sphere(balloon, 3.1, '#41414A', [0, 3, 0]);
   envelope.scale.y = 1.25;
   box(balloon, [1.5, 1, 1.5], '#25252C', [0, -2, 0]);
@@ -387,8 +408,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
     clearInput();
-    const approach = id === 'arena' ? 2 : id === 'theater' ? 7 : 11;
-    const spawn = resolvePosition(zone.position[0], zone.position[1] + approach, obstacles);
+    const arrival = worldArrival(id);
+    const spawn = resolvePosition(arrival.x, arrival.z, obstacles);
     player.group.position.set(spawn.x, 0.15, spawn.z);
     jumpHeight = 0;
     jumpVelocity = 0;
@@ -493,7 +514,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (selected) options.onInteract(selected.action);
     else {
       const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
-      if (point && Math.hypot(point.x, point.z) < 56) {
+      if (point && Math.hypot(point.x, point.z) < WORLD_RADIUS) {
         walkTarget = point;
         enterExplore();
       }
@@ -567,7 +588,11 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         jumpHeight = Math.max(0, jumpHeight + jumpVelocity * delta);
         if (jumpHeight === 0) jumpVelocity = 0;
       }
-      const onTrampoline = Math.hypot(player.group.position.x - 39, player.group.position.z + 8) < 2.3;
+      const onTrampoline =
+        Math.hypot(
+          player.group.position.x - WORLD_ANCHORS.trampoline[0],
+          player.group.position.z - WORLD_ANCHORS.trampoline[1],
+        ) < 2.3;
       if (onTrampoline && jumpHeight === 0 && moving) jumpVelocity = 18;
       collectibles.forEach((item) => {
         if (
@@ -621,11 +646,16 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const smoothing = reducedMotion ? 1 : 1 - Math.exp(-delta * 4);
     cameraTarget.lerp(desiredTarget, smoothing);
     const portraitScale = camera.aspect < 1 ? 1 / camera.aspect : 1;
-    const distance = (overview ? 156 * portraitScale : 42) * zoom;
+    const distance = (overview ? WORLD_DIMENSIONS.overviewDistance * portraitScale : 42) * zoom;
+    const far = worldCameraFar(distance);
+    if (camera.far !== far) {
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
     // Portrait screens pull the overview camera back; keep the island in front
     // of the fog instead of fading it out at the desktop's fixed distance.
     if (scene.fog instanceof THREE.Fog) {
-      scene.fog.near = Math.max(155, distance + 45);
+      scene.fog.near = Math.max(155, distance + 90);
       scene.fog.far = scene.fog.near + 175;
     }
     cameraGoal

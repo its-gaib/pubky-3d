@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { box, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 /**
@@ -14,7 +15,7 @@ export function createSatoshi(
   obstacle: (x: number, z: number, radius: number) => void,
 ) {
   const monument = new THREE.Group();
-  monument.position.set(-11, 0, -9);
+  monument.position.set(WORLD_ANCHORS.satoshi[0], 0, WORLD_ANCHORS.satoshi[1]);
   scene.add(monument);
   box(monument, [6.5, 0.25, 5.8], WORLD_PALETTE.neutral, [0, 0.12, 0]);
   box(monument, [5.6, 1.2, 4.8], WORLD_PALETTE.surface, [0, 0.82, 0]);
@@ -111,5 +112,5 @@ export function createSatoshi(
   label(monument, 'Satoshi, everywhere / nowhere', [0, 7.7, 0], 10.5);
   label(monument, 'WE ARE ALL SATOSHI', [0, 0.87, 2.52], 4.6, WORLD_PALETTE.lime);
   register(monument, { kind: 'fun', id: 'satoshi' }, 'Read the Satoshi monument plaque');
-  obstacle(-11, -9, 3.05);
+  obstacle(monument.position.x, monument.position.z, 3.05);
 }

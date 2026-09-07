@@ -44,6 +44,7 @@ import { Switch } from '@/atoms/Switch/Switch';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { Bitkit, Github, PubkyIcon } from '@/icons';
 import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_ZONES } from '@/libs/world/world-catalog';
+import { WORLD_RADIUS } from '@/libs/world/world-layout';
 import type {
   WorldController,
   WorldData,
@@ -65,6 +66,8 @@ const ZONE_ICONS = {
   theater: Theater,
 };
 const PERSONA_COLORS = ['#c8ff03', '#ff9155', '#b59bff', '#5fe5e7', '#ff89c8'];
+const MAP_SCALE = 39.2 / WORLD_RADIUS;
+const MAP_CENTER = WORLD_ZONES.find((zone) => zone.id === 'plaza')!.position;
 const SHORT_ZONE_NAMES: Record<WorldZoneId, string> = {
   plaza: 'Plaza',
   forest: 'Forest',
@@ -1035,7 +1038,14 @@ export function World() {
           <div className={styles.mapIsland}>
             <svg viewBox="0 0 180 130" aria-hidden="true">
               <path d="M30 14 113 8 159 37 171 90 120 120 39 112 9 67Z" />
-              <path d="M87 65 130 28M87 65 135 82M87 65 41 24M87 65 34 62M87 65 47 105" />
+              <path
+                d={WORLD_ZONES.filter((destination) => destination.id !== 'plaza')
+                  .map(
+                    (destination) =>
+                      `M${(50 + MAP_CENTER[0] * MAP_SCALE) * 1.8} ${(48 + MAP_CENTER[1] * MAP_SCALE) * 1.3} L${(50 + destination.position[0] * MAP_SCALE) * 1.8} ${(48 + destination.position[1] * MAP_SCALE) * 1.3}`,
+                  )
+                  .join(' ')}
+              />
             </svg>
             {WORLD_ZONES.map((destination) => (
               <Button
@@ -1043,8 +1053,8 @@ export function World() {
                 className={styles.mapPoint}
                 key={destination.id}
                 style={{
-                  left: `${50 + destination.position[0] * 0.7}%`,
-                  top: `${48 + destination.position[1] * 0.7}%`,
+                  left: `${50 + destination.position[0] * MAP_SCALE}%`,
+                  top: `${48 + destination.position[1] * MAP_SCALE}%`,
                   background: destination.color,
                 }}
                 aria-label={`Map: travel to ${destination.name}`}
@@ -1055,8 +1065,8 @@ export function World() {
             <span
               className={styles.mapPlayer}
               style={{
-                left: `${50 + worldStatus.position[0] * 0.7}%`,
-                top: `${48 + worldStatus.position[1] * 0.7}%`,
+                left: `${50 + worldStatus.position[0] * MAP_SCALE}%`,
+                top: `${48 + worldStatus.position[1] * MAP_SCALE}%`,
               }}
               aria-label="Your position"
             />

@@ -1,3 +1,4 @@
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldArticle, WorldData, WorldPost, WorldZone } from '@/libs/world/world-types';
 
 export const WORLD_ZONES: WorldZone[] = [
@@ -7,7 +8,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'A constellation of connections',
     description: 'People are little worlds. Follow the glowing threads and find out how theirs connect.',
     color: '#C8FF03',
-    position: [0, 8],
+    position: [...WORLD_ANCHORS.plaza],
   },
   {
     id: 'forest',
@@ -15,7 +16,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'Ideas grow on trees here',
     description: 'Every tree is a tag. Every leaf is a post. Wander between ideas and pick something good to read.',
     color: '#94C954',
-    position: [24, -24],
+    position: [...WORLD_ANCHORS.forest],
   },
   {
     id: 'arena',
@@ -23,7 +24,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'Extremely unserious competition',
     description: 'A very grand arena for very small victories. Challenge the local champion to rock, paper, scissors.',
     color: '#E98154',
-    position: [31, 13],
+    position: [...WORLD_ANCHORS.arena],
   },
   {
     id: 'university',
@@ -32,7 +33,7 @@ export const WORLD_ZONES: WorldZone[] = [
     description:
       'A tiny campus for big ideas: identity, your data, and a web you can leave without leaving yourself behind.',
     color: '#AA8BCD',
-    position: [-24, -27],
+    position: [...WORLD_ANCHORS.university],
   },
   {
     id: 'github',
@@ -41,7 +42,7 @@ export const WORLD_ZONES: WorldZone[] = [
     description:
       'Meet the projects that make Pubky possible. Every workshop has an open door and a link to its source.',
     color: '#71BEAA',
-    position: [-30, 4],
+    position: [...WORLD_ANCHORS.github],
   },
   {
     id: 'bitkit',
@@ -49,7 +50,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'A rather large orange idea',
     description: 'A monument to keeping your bitcoin in your own hands. Also a very good place to stand dramatically.',
     color: '#FF7040',
-    position: [-20, 31],
+    position: [...WORLD_ANCHORS.bitkit],
   },
   {
     id: 'theater',
@@ -57,7 +58,7 @@ export const WORLD_ZONES: WorldZone[] = [
     subtitle: 'Big ideas. Bigger screen.',
     description: 'Take a seat under the stars. The public Hot feed takes the stage, one post at a time.',
     color: '#C8FF03',
-    position: [-35, -15],
+    position: [...WORLD_ANCHORS.theater],
   },
 ];
 

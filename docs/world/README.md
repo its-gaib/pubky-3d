@@ -2,6 +2,8 @@
 
 A frontend experiment forked from `pubky/pubky-app` at the head of `dev`.
 The exact fork point and destination are in [fork.json](./fork.json).
+The project lives in the private `its-gaib/pubky-3d` repository. Its working
+branch retains the upstream history and is also this workspace repository's default branch.
 
 The root route is a walkable island. The existing Pubky feed remains at `/home`.
 The world begins with original, explicitly fictional example posts and inhabitants.
@@ -10,6 +12,9 @@ needed to explore the world.
 
 The world uses Pubky's near-black and graphite palette with acid-lime accents.
 **Classic Pubky** opens the public [pubky.app](https://pubky.app/) in a new tab.
+The expanded island gives districts separate grounds; walking paths are plain
+graphite surfaces without colored borders. Shared layout anchors keep fast travel,
+collisions and the pocket map aligned as the world grows.
 
 ![The Pubky World island](./screenshots/overview.png)
 
@@ -155,7 +160,7 @@ npm test -- src/components/templates/World/WorldCamera.test.tsx src/hooks/useWor
 npm run build
 ```
 
-See [the first increment's validation record](./validation.md) for completed checks,
+See [the validation record](./validation.md) for completed checks,
 browser evidence and the shared machine's full-build memory limitation.
 
 The world has no inherited visual baseline. Browser screenshots provide the first

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WORLD_ANCHORS } from './world-layout';
 import { movementStep, PERSONA_RADIUS, resolvePosition, WORLD_RADIUS } from './world-motion';
 
 describe('world movement', () => {
@@ -27,5 +28,10 @@ describe('world movement', () => {
   it('keeps the player within the coastline', () => {
     const result = resolvePosition(90, 90, []);
     expect(Math.hypot(result.x, result.z)).toBeCloseTo(WORLD_RADIUS);
+  });
+
+  it('lets visitors reach the relocated bank beyond the former island boundary', () => {
+    const [x, z] = WORLD_ANCHORS.bank;
+    expect(resolvePosition(x, z + 7, [])).toEqual({ x, z: z + 7 });
   });
 });

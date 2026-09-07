@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { box, cylinder, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
-export const BANK_POSITION = [46, 4] as const;
+export const BANK_POSITION = WORLD_ANCHORS.bank;
 export const BANK_BILL_COUNT = 30;
 const BILL_LIFETIME = 7;
 

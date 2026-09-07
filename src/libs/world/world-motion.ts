@@ -1,10 +1,12 @@
+import { WORLD_RADIUS } from '@/libs/world/world-layout';
+
 export interface WorldObstacle {
   x: number;
   z: number;
   radius: number;
 }
 
-export const WORLD_RADIUS = 56;
+export { WORLD_RADIUS } from '@/libs/world/world-layout';
 export const PERSONA_RADIUS = 0.65;
 
 /** Camera-relative movement with equal speed on diagonals and bounded frame time. */

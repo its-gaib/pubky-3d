@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { box, cylinder, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldData, WorldInteraction, WorldPost } from '@/libs/world/world-types';
 
 const SLIDE_SECONDS = 20;
@@ -36,14 +37,14 @@ export function createTheater(
   initialData: WorldData,
 ) {
   const theater = new THREE.Group();
-  theater.position.set(-35, 0, -15);
+  theater.position.set(WORLD_ANCHORS.theater[0], 0, WORLD_ANCHORS.theater[1]);
   scene.add(theater);
   box(theater, [18, 0.4, 14], WORLD_PALETTE.border, [0, 0.2, 1]);
   box(theater, [17.3, 0.16, 3.2], WORLD_PALETTE.neutral, [0, 0.48, -4]);
   for (const x of [-7.1, 7.1]) {
     box(theater, [0.6, 10.2, 0.8], '#656570', [x, 5.5, -4.45]);
     cylinder(theater, 0.7, 1, 0.6, WORLD_PALETTE.surface, [x, 0.7, -4.45]);
-    obstacle(-35 + x, -19.45, 0.8);
+    obstacle(theater.position.x + x, theater.position.z - 4.45, 0.8);
   }
   box(theater, [16.4, 9.5, 0.65], WORLD_PALETTE.background, [0, 7.3, -4.05]);
   for (const y of [2.65, 11.95]) box(theater, [16.6, 0.14, 0.2], WORLD_PALETTE.lime, [0, y, -3.63]);
@@ -58,7 +59,7 @@ export function createTheater(
       box(theater, [6.2, 1.05, 0.25], '#303034', [x, y + 1.45, z + 0.58]);
       for (const side of [-2.45, 2.45]) box(theater, [0.24, 0.7, 0.8], '#797985', [x + side, y + 0.4, z]);
       box(theater, [5.4, 0.06, 0.1], WORLD_PALETTE.lime, [x, y + 1.99, z + 0.44]);
-      obstacle(-35 + x, -15 + z, 1.45);
+      obstacle(theater.position.x + x, theater.position.z + z, 1.45);
     }
   }
   label(theater, 'Trending Theater', [0, 14.1, -3.8], 12);
