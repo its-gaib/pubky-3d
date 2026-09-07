@@ -2110,6 +2110,10 @@
     justify-content: space-between;
     pointer-events: none;
   }
+  .welcome ~ .touchControls {
+    display: none;
+  }
+
   .directionPad {
     display: grid;
     grid-template-areas: '. up .' 'left down right';

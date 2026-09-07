@@ -19,8 +19,23 @@ All eight focused tests passed: repeated generations, long 3D swimming runs,
 full-body boundary exit, fade behavior, paused/reduced motion, animated geometry
 clearance, fixed instance resources during recycling, and idempotent disposal.
 ESLint and formatting passed. Source and resource review found no remaining issues.
-The new full staging build is pending; the earlier verified expansion remains
-available on port 4321 while this increment is prepared.
+The complete production build and TypeScript passed at
+`971f972e79ed74e5e0617df6af859460b5849522` in
+[run 34168589341](https://github.com/its-gaib/pubky-3d/actions/runs/34168589341).
+Standalone packaging and staging smoke passed. Artifact `10035040786` matches the
+verified source/repository/workflow metadata and is about 62 MiB. The bounded
+extraction helper produced a fresh runtime; `/` and `/sign-in` both returned 200
+on its isolated loopback server.
+
+The actual 640×480 browser check passed scene readiness and two animation frames,
+with visible jellyfish, no JavaScript exceptions, and no console errors (including
+shader errors). All 35 completed Nexus responses returned 200. The browser closed
+normally after 11 seconds. The image confirms rendering but also exposed touch
+controls overlapping the welcome action in short windows; a small CSS fix is
+being verified. The verified jellyfish runtime is now on port 4321; both `/` and
+`/sign-in` returned 200 after replacement, and the temporary server was stopped.
+Local evidence: `world-jellyfish-mini-results.json` and
+`world-jellyfish-desktop-mini.png` in `/home/gaib/.cache/pubky-3d-browser/`.
 
 ## Social plaza, cinema and Roman arena — 2026-09-07
 
