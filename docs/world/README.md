@@ -107,8 +107,10 @@ before taking a photo you want to publish. Guests can download first; navigating
 away to sign in clears the in-memory photo. An opened draft is cleared on logout
 or account changes.
 
-The lightweight local visual preview supports capture and download. Posting,
-authentication and classic app routes need the full Next application.
+The current local preview runs the full Next application against staging. Live
+reads, photo capture/download and the guest sign-in flow have been checked in a
+browser. Completing login and publishing still require a disposable staging test
+account. The earlier lightweight visual harness supported capture/download only.
 
 ## Implementation boundaries
 
@@ -160,8 +162,11 @@ npm test -- src/components/templates/World/WorldCamera.test.tsx src/hooks/useWor
 npm run build
 ```
 
-See [the validation record](./validation.md) for completed checks,
-browser evidence and the shared machine's full-build memory limitation.
+See [the validation record](./validation.md) for the successful full CI build,
+browser evidence and the remaining authenticated-account check. The manual Build
+workflow packages a standalone runtime after staging HTTP smoke checks; its build
+step uses a bounded 4 GiB Node heap. This avoids compiling the full app on the
+memory-constrained preview host.
 
 The world has no inherited visual baseline. Browser screenshots provide the first
 visual review checkpoint; adding a dedicated VRT baseline is a possible next step

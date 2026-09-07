@@ -55,6 +55,8 @@ Use `Err.*` factories (never raw `Error`). Factories log automatically — don't
 
 ## Learned User Preferences
 
+- Before starting work on an issue, check the relevant repository and upstream for existing unmerged pull requests addressing it. Review relevant matches before implementing another solution.
+- Use the `its-gaib` GitHub identity for this project and the `its-gaib/pubky-3d` repository.
 - Bug fixes must not regress existing visible functionality (e.g., reducing displayed item count from 3 to 2)
 - For icon / circular nav matching Figma, confirm active vs inactive from the Shadcn button component variants (Selected vs Default: background, border, shadow), not only the parent frame or another surface’s pattern
 

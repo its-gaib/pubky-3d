@@ -1,5 +1,85 @@
 # Pubky World validation record
 
+## Expanded-world increment — 2026-09-07
+
+The project now lives in the private `its-gaib/pubky-3d` repository on
+`vibe/pubky-3d`. Both GitHub API access and Git pushes use `its-gaib`.
+
+Open PRs were checked in the fork (none) and upstream. The upstream
+[session consumer](https://github.com/pubky/pubky-app/pull/2483) and
+[session bridge](https://github.com/pubky/pubky-app/pull/2484) are relevant to future
+shared login, but require approved origins and a full deployed application. The
+[2D graph explorer](https://github.com/pubky/pubky-app/pull/2138) depends on an
+experimental Nexus graph API. None addresses this layout or standalone build work.
+
+The walkable radius increased from 56 to 76, giving about 84% more area. Districts,
+landmarks, coast trees, camera framing, fast travel, collision bounds and the pocket
+map share the expanded layout. Walking paths are plain graphite, without lime borders.
+
+| Check                                                   | Result                 |
+| ------------------------------------------------------- | ---------------------- |
+| Layout, movement, theater and bank unit tests           | 19 passed              |
+| World interface unit tests                              | 9 passed               |
+| Focused TypeScript, including imported dependencies     | Passed                 |
+| ESLint and Prettier for changed source                  | Passed                 |
+| Source, workflow and runtime-helper security review     | No actionable findings |
+| Full Next.js production build and TypeScript on Node 24 | Passed in CI           |
+| Packaged staging `/` and `/sign-in` HTTP smoke          | Passed in CI           |
+
+Desktop and 390×844 mobile browser checks show the separated districts and
+borderless paths, with no horizontal overflow or JavaScript exceptions. The
+relocated bank opens its BRRR dialog. Bitkit travel reaches `(-28, 59)`, and ground
+clicking moves to `(-29.14, 59.38)`: outside the old radius, inside the new boundary.
+The updated [overview](./screenshots/overview.png) and [mobile](./screenshots/mobile.png)
+show this expanded layout; other close-up screenshots below document earlier increments.
+These visual checks used the demo harness.
+
+The reviewed standalone workflow has been pushed through the `its-gaib` SSH
+identity. The old OAuth workflow-permission blocker is resolved. The
+[first manual build](https://github.com/its-gaib/pubky-3d/actions/runs/34139694301)
+reached webpack, then exhausted Node's roughly 2 GiB heap. No artifact was produced.
+A targeted check of unmerged fork and upstream PRs found no existing fix for this
+failure. The CI build step now allows a bounded 4 GiB heap; the local runtime limit
+remains 1 GiB.
+
+The [retry](https://github.com/its-gaib/pubky-3d/actions/runs/34140453887) passed the
+full Next.js build, TypeScript, packaging, staging HTTP smoke and artifact upload
+at exact commit `cfac49132f5ad7ff88b96c80517411e4dfeeb22f`. Artifact `10025827105`
+belongs to that successful manual run and is approximately 62 MiB. The repository,
+event, workflow, source SHA and artifact metadata were checked before download.
+Local runtime browser validation follows below. Local commits used the completed
+focused checks above; CI provides the full build validation that the shared host
+could not complete.
+
+### Full staging preview
+
+The verified archive was extracted into a fresh directory with bounded extraction,
+path/type filtering and link validation. The server runs unprivileged on loopback
+with a cleared inherited environment and the nine explicit staging runtime values.
+Both `/` and `/sign-in` returned HTTP 200 locally. After the isolated browser check
+on port 4323, the same runtime replaced the visual harness at `127.0.0.1:4321`.
+
+The browser loaded the actual Next assets and real staging data. All 37 sampled
+Nexus reads returned HTTP 200, with no partial-data or error notice. A world photo
+downloaded as a nonblank 1270×800 PNG (216,009 bytes), with the HUD excluded.
+**Sign in to post** opened **Join Pubky**, whose **Sign In** link navigated to the
+same local `/sign-in` route. The desktop QR card and enabled **Copy authentication
+link** control appeared; the mobile **Authorize with Pubky Ring** control was
+enabled with no horizontal overflow. No JavaScript exceptions occurred. Four
+requests were canceled during navigation or browser close; completed responses
+were all successful.
+
+This proves the live-data, capture and sign-in setup paths. No disposable staging
+identity was supplied for account approval, so completed login, account bootstrap
+and actual publishing remain unverified in this browser pass. No post was submitted.
+The existing camera/composer unit checks are recorded below. After signing in,
+return to `/` and take a new photo; guest photos are intentionally cleared by
+navigation to sign-in.
+
+Evidence: [full-app overview](./screenshots/staging-overview.png),
+[downloaded world PNG](./screenshots/staging-photo.png), and
+[photo review in the full app](./screenshots/staging-photo-dialog.png).
+
 ## Dark-world increment — 2026-09-07
 
 The current world uses Pubky's near-black/graphite/acid-lime palette, adds a
@@ -40,13 +120,11 @@ Current evidence: [overview](./screenshots/overview.png),
 [Satoshi](./screenshots/satoshi.png), [bank](./screenshots/bank.png),
 [later bank frame](./screenshots/bank-next.png), and [mobile](./screenshots/mobile.png).
 
-A prepared local build-workflow change can package a manual, exact-SHA standalone
-runtime after checking the root and `/sign-in` routes against staging. Its YAML, shell syntax,
-archive exclusions and unsafe-link fixtures passed. The local machine's memory
-limit still prevents a full Next build. The workflow change has not been
-published because GitHub requires the CLI login's additional `workflow`
-permission. The app changes are pushed separately. The running preview remains
-the visual harness described below, with authentication and posting unavailable there.
+At this checkpoint, a prepared standalone workflow passed local YAML, shell,
+archive-exclusion and unsafe-link fixtures. Its publication was blocked by the
+then-selected GitHub identity's workflow permission, and the preview used the demo
+harness without authentication or posting. The expanded-world checkpoint above
+records the corrected `its-gaib` owner and successful workflow publication.
 
 ## Earlier baseline
 
@@ -77,7 +155,7 @@ Full builds encountered host `SIGKILL` termination and an explicit 1536 MiB V8 h
 limit. Separating compiler workers allowed the root-only build to finish. No
 source compilation error preceded those memory failures. Later full development,
 updated root-only and lighter isolated Next builds also received host termination
-as available memory declined. There is no current completed Next build artifact.
+as available memory declined. There was no completed full Next build artifact at that checkpoint.
 Build and preview work must run sequentially because they share `.next` and compete
 for host memory. The host used Node 22.23.2; the repository recommends Node 24.
 
@@ -128,9 +206,9 @@ The source-focused security gate found no actionable issue in the world changes.
 Inherited dependency advisories remain documented in [README.md](./README.md);
 this result does not clear the entire upstream dependency tree.
 
-## Local preview scope
+## Earlier visual preview scope
 
-The final visual checkpoint uses a temporary Vite harness outside the repository,
+Before the full staging runtime above, visual checkpoints used a temporary Vite harness outside the repository,
 at `/home/gaib/.cache/pubky-world-visual`. It renders the actual `World.tsx`, Three.js
 engine, landmarks, styles and UI atoms. Its data-hook adapter supplies the example
 neighborhood, its photo-posting adapter disables publishing, and Next links become
@@ -138,11 +216,12 @@ plain anchors. The staging button and photo panel explain the full-application
 requirement. It does not simulate successful staging requests or supply fabricated
 records labelled as real data.
 
-This harness can validate the latest world appearance and controls. It cannot
+That harness validates world appearance and controls. It cannot
 validate the inherited Next layouts, authentication, live loader integration,
 classic feed, profile or post routes. Staging evidence above comes from the earlier
 real Next preview and subsequent API-boundary checks, not this visual harness.
 
 Use the normal commands in [README.md](./README.md) on a machine with sufficient
-free memory to run the full application. No preview adapter or reduced-validation
-configuration is part of the production source.
+free memory, or the verified standalone output of the manual Build workflow, to run
+the full application. No preview adapter or reduced-validation configuration is
+part of the production source.
