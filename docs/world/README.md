@@ -23,7 +23,9 @@ collisions and the pocket map aligned as the world grows.
 - **Social Plaza:** people become little characters, connected by curved ribbons.
   Arrowheads and moving lights point from a follower to the person they follow.
   These are example relationships in demo mode and sampled following records in
-  staging mode. Characters are graph representations, not online visitors.
+  staging mode. Interacting with a staging person shows their profile picture,
+  with the normal Pubky fallback if the picture is missing or unavailable.
+  Characters are graph representations, not online visitors.
 - **Tag Forest:** every tree represents a tag. Each paper leaf opens a post that
   carries that tag. A tag can also be opened as an accessible list.
 - **The Arena:** a deliberately silly local rock, paper, scissors challenge.
@@ -34,7 +36,10 @@ collisions and the pocket map aligned as the world grows.
   Pubky's public Hot feed, in total-engagement order. Each post stays on screen
   for 20 seconds. Opening the program pauses it for reading; controls resume,
   pause or skip. No date-window ranking is implied. The example program is
-  explicitly fictional; use Staging to load the current public lineup.
+  explicitly fictional; use Staging to load the current public lineup. The stage
+  and its reader show a loading screen while the lineup is being fetched.
+  Articles display readable text instead of their stored JSON;
+  malformed content gets an unavailable notice and a link to the original post.
 - **Satoshi monument:** an original seated, hooded laptop figure made of separated
   vertical steel contours. Walk around it to see the silhouette change. Its
   plaque is beside the plaza and also reachable from the Social Plaza reader.
@@ -109,8 +114,9 @@ or account changes.
 
 The current local preview runs the full Next application against staging. Live
 reads, photo capture/download and the guest sign-in flow have been checked in a
-browser. Completing login and publishing still require a disposable staging test
-account. The earlier lightweight visual harness supported capture/download only.
+browser, and the developer has confirmed that staging login works. An actual post
+submission has not been performed by the browser checks. The earlier lightweight
+visual harness supported capture/download only.
 
 ## Implementation boundaries
 
@@ -124,6 +130,8 @@ account. The earlier lightweight visual harness supported capture/download only.
 - `src/libs/world/world-motion.ts`: camera-relative movement and simple collision
   resolution. The map uses a flat walkable plane; this is not a full physics engine.
 - `src/libs/world/world-types.ts`: serializable world data and `PersonaState`.
+- `src/libs/world/world-post-preview.ts`: bounded text previews shared by post
+  leaves and the theater, with kind-aware article and collection parsing.
 - `src/hooks/useWorldData`: opt-in, bounded public reads through existing Pubky
   controllers. The normal cache and moderation behavior remains in those layers.
 - `src/components/templates/World/WorldCamera.tsx` and `src/hooks/useWorldPhotoPost`:
@@ -157,13 +165,13 @@ clients must never broadcast account keys or recovery phrases.
 ```sh
 npm run typecheck
 npm run lint -- src/libs/world src/components/templates/World src/hooks/useWorldData src/hooks/useWorldPhotoPost src/components/organisms/WorldAwareChrome
-npm test -- src/libs/world/world-motion.test.ts src/hooks/useWorldData/useWorldData.test.ts src/components/templates/World/World.test.tsx src/app/routes.test.ts src/providers/RouteGuardProvider/RouteGuardProvider.test.tsx
+npm test -- src/libs/world/world-motion.test.ts src/libs/world/world-post-preview.test.ts src/libs/world/world-theater.test.ts src/hooks/useWorldData/useWorldData.test.ts src/components/templates/World/World.test.tsx src/app/routes.test.ts src/providers/RouteGuardProvider/RouteGuardProvider.test.tsx
 npm test -- src/components/templates/World/WorldCamera.test.tsx src/hooks/useWorldPhotoPost/useWorldPhotoPost.test.tsx src/components/organisms/DialogNewPost/DialogNewPost.test.tsx src/components/organisms/PostInput/PostInput.test.tsx
 npm run build
 ```
 
 See [the validation record](./validation.md) for the successful full CI build,
-browser evidence and the remaining authenticated-account check. The manual Build
+browser evidence and the remaining automated publishing check. The manual Build
 workflow packages a standalone runtime after staging HTTP smoke checks; its build
 step uses a bounded 4 GiB Node heap. This avoids compiling the full app on the
 memory-constrained preview host.

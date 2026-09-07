@@ -1,5 +1,82 @@
 # Pubky World validation record
 
+## Profile pictures and readable theater posts — 2026-09-07
+
+Open PRs were checked before implementation: the fork had none, and no upstream
+PR addressed this world UI. The relevant candidates,
+[cache degradation handling](https://github.com/pubky/pubky-app/pull/2479) and
+[article end-to-end tests](https://github.com/pubky/pubky-app/pull/2445), cover
+different paths.
+
+Interacting with a staging person now uses Pubky's existing avatar component.
+The picture URL comes from the configured CDN and the validated profile ID;
+profile-supplied image URLs are never loaded directly. Missing and failed images
+use the existing fallback. Example characters retain their illustrated faces.
+
+The raw theater content came from article and collection JSON envelopes being
+treated as ordinary post text. Both tag leaves and Hot posts now parse by kind,
+remove Markdown/HTML presentation, and display bounded readable text. Malformed
+structured content gets an unavailable notice instead of its raw payload.
+Short posts that intentionally contain JSON remain ordinary text. The theater
+screen and reader now show a loading state until the complete lineup is ready;
+timers pause while loading and resume without changing the engagement ranking.
+
+| Check                                                    | Result                |
+| -------------------------------------------------------- | --------------------- |
+| World interface, images and loading transitions          | 16 passed             |
+| Public staging data, canonical avatars and post previews | 24 passed             |
+| Structured post preview boundaries                       | 8 passed              |
+| Theater loading, ordering and playback                   | 7 passed              |
+| Total unique focused tests                               | **55 passed**         |
+| Focused TypeScript, including imported dependencies      | Passed                |
+| ESLint, Prettier and whitespace checks                   | Passed                |
+| Source-focused security review                           | No remaining findings |
+| Full Next.js production build and TypeScript on Node 24  | Passed in CI          |
+| Packaged staging `/` and `/sign-in` HTTP smoke           | Passed in CI          |
+
+Security review identified excessive Markdown processing on adversarial long
+content. Each extracted field is now capped at 2,048 characters before cleanup;
+the complete JSON envelope is parsed within the existing 50,000-character
+protocol limit. The final preview is capped at 1,200 characters. A regression
+test uses a valid article with a 49,000-character adversarial body, and the
+targeted security verification confirmed the fix.
+
+Source commit: `30b771165fc2fd76af8a734f1be7d04f6d969991`.
+The [full build](https://github.com/its-gaib/pubky-3d/actions/runs/34146435676)
+passed compilation, TypeScript, standalone packaging and staging HTTP smoke.
+Artifact `10027911624` belongs to that successful manual run and is approximately
+62 MiB. Repository, event, workflow, source SHA and artifact metadata were checked
+before download.
+The developer has separately confirmed that staging login works; these checks
+do not use a real identity or submit a post.
+
+The archive was extracted into a fresh directory with the existing bounded
+runtime helper. Both `/` and `/sign-in` returned HTTP 200 on the isolated server.
+A normal WebGL browser probe reached a ready scene and an enabled Camera button,
+with no fallback UI or JavaScript exceptions. The verified runtime now serves
+the existing loopback preview at `127.0.0.1:4321`; both HTTP routes passed there
+after replacement. The earlier runtime remains available on disk for rollback.
+
+Extended headless checks encountered compositor and screenshot delays on the
+shared host. A separate, explicitly controlled context with WebGL unavailable
+checked the real Next application's accessible readers without that rendering
+load. It held live staging requests and confirmed that the theater showed its
+loading status with no old post cards or transport controls. Releasing the
+requests loaded all eight ranked posts, including two articles, and removed the
+loader when the reader was ready. A real profile image returned HTTP 200 from the
+staging CDN and decoded at 320×320. This context recorded no JavaScript exceptions.
+The regular 3D startup probe above and these reader checks are separate evidence;
+fresh compositor screenshots and another camera export were not completed in
+this increment. Earlier camera browser evidence and existing capture tests remain
+recorded below.
+
+A separate, labelled article response fixture also passed through the real
+reader as readable text. A proposed collection slide was excluded by the
+inherited Hot-stream collection filter, so it was not a valid browser fixture
+for this screen. Collection normalization is covered by the pure preview tests;
+no passing collection slide is claimed here. No fixture content was submitted
+to Pubky. All browser contexts were closed after these checks.
+
 ## Expanded-world increment — 2026-09-07
 
 The project now lives in the private `its-gaib/pubky-3d` repository on
