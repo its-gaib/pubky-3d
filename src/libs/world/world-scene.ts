@@ -16,6 +16,7 @@ import {
   sphere,
   WORLD_PALETTE,
 } from '@/libs/world/world-geometry';
+import { createGalacticJellyfish } from '@/libs/world/world-jellyfish';
 import { createLandmarks } from '@/libs/world/world-landmarks';
 import {
   WORLD_ANCHORS,
@@ -303,6 +304,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const landmarks = createLandmarks(scene, register, obstacle);
   const arena = createArena(scene, register, obstacle);
   const bank = createBank(scene, register, obstacle);
+  const jellyfish = createGalacticJellyfish(scene);
   createCinema(scene, register, obstacle);
   const tether = createTether(scene, register, obstacle);
   createSatoshi(scene, register, obstacle);
@@ -681,7 +683,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (dancing && !reducedMotion) player.group.rotation.y += delta * 3;
     playerHalo.position.set(player.group.position.x, 0.23, player.group.position.z);
     social.tick(delta, player.group.position, reducedMotion, overview);
-    if (!paused) bank.animate(time, reducedMotion);
+    if (!paused) {
+      bank.animate(time, reducedMotion);
+      jellyfish.animate(time, delta, reducedMotion);
+    }
 
     if (!paused && !reducedMotion) {
       orbitA.rotation.z = time * 0.2;
@@ -899,6 +904,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       player.dispose();
       tether.dispose();
       social.dispose();
+      jellyfish.dispose();
       disposeObject(scene);
       renderer.dispose();
       renderer.forceContextLoss();

@@ -62,6 +62,11 @@ teleport navigation. The pocket map shows locations and your position.
   **Where can I get Hard Money?** button beams you in front of Bitkit, facing its
   logo with the camera centered on the beacon. The bank reader is also available
   from the Arena panel.
+- **Galactic jellyfish:** a persistent population swims through the space beyond
+  the island in different colors, sizes, depths and directions. Their movement
+  and recycling use a fixed world-space envelope, independent of the current
+  camera direction or zoom. Bells pulse and tentacles trail; reduced motion
+  freezes the population. The normal world camera can photograph them.
 - **Other encounters:** giant duck, trampoline, portal, balloon, dancing and eight
   collectible keys. Keys and bills are local game props with no monetary value.
 

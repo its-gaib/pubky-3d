@@ -1,5 +1,27 @@
 # Pubky World validation record
 
+## Galactic jellyfish — 2026-09-07
+
+Open PRs were checked in the fork and upstream before this increment; none
+addressed galactic jellyfish or this world surface.
+
+Twenty-four jellyfish share four instanced draws beyond the island. Their colors,
+scales, heights and 3D swimming velocities vary. A fixed envelope derived from the
+coast controls their lifecycle; no camera direction, frustum or zoom value enters
+spawning or recycling. The full animated body clears the island and the ocean.
+Outer-boundary fades hide recycling; replacement jellyfish swim inward from the
+edge. The motion clock uses bounded elapsed steps and freezes for paused or
+reduced-motion viewing. Additive materials remain visible beyond the island's
+fog and respect depth testing; they cast no shadows and load no external assets.
+The scene explicitly releases their instance resources during teardown.
+
+All eight focused tests passed: repeated generations, long 3D swimming runs,
+full-body boundary exit, fade behavior, paused/reduced motion, animated geometry
+clearance, fixed instance resources during recycling, and idempotent disposal.
+ESLint and formatting passed. Source and resource review found no remaining issues.
+The new full staging build is pending; the earlier verified expansion remains
+available on port 4321 while this increment is prepared.
+
 ## Social plaza, cinema and Roman arena — 2026-09-07
 
 This increment always uses staging. The source switch and global destination menu
@@ -47,13 +69,41 @@ sign and 30 recycled bills with staggered 70-second lives; some land before fadi
 Reduced motion stops the sign shake and world animations. The Satoshi reader
 keeps the Lugano monument story and also links to satsymbol.org.
 
-Validation in progress: 43 interface/data/program tests, 37 social hook/graph/queue
-tests, and 70 renderer/camera/photo tests passed (150 unique checks). Security review found no remaining
-issues in the authenticated graph, native cinema iframe, automatic staging reads,
-and final renderer boundaries. ESLint, formatting and whitespace checks passed. Full and focused local TypeScript
-processes were killed by host memory pressure (exit 137, no compiler diagnostics).
-The remote full build and refreshed browser evidence will be recorded here after completion. Older sections below describe their historical
-checkpoints; their Example controls and smaller layouts are superseded.
+| Check                                        | Result                   |
+| -------------------------------------------- | ------------------------ |
+| Interface, staging data and cinema program   | 43 passed                |
+| Social hook, graph and queue                 | 37 passed                |
+| Renderer, camera and photo flow              | 70 passed                |
+| Total unique focused tests                   | **150 passed**           |
+| ESLint, formatting and whitespace            | Passed                   |
+| Final source security review                 | No remaining findings    |
+| Full Next.js production build and TypeScript | Passed in CI             |
+| Standalone staging `/` and `/sign-in` smoke  | Passed in CI and locally |
+
+Full and focused local TypeScript processes were killed by host memory pressure
+(exit 137, no compiler diagnostics). The complete remote build then passed at
+`2b771c4868f7da3603a152b8cc5699c7276ec3f6`:
+[build 34166507424](https://github.com/its-gaib/pubky-3d/actions/runs/34166507424).
+Artifact `10034407245` belongs to that successful manual workflow, is about
+62 MiB, and matches the repository, source SHA and workflow metadata. It was
+extracted with the bounded runtime helper into a fresh directory. The isolated
+runtime binds only to loopback and uses the nine explicit staging values.
+
+The actual runtime passed a bounded 640×480 browser check: root HTTP 200,
+WebGL scene ready with an enabled Camera and one canvas, no fallback, automatic
+staging requests returning 200, no source switch or Detour menu, and the correct
+Classic Pubky link. There were no JavaScript exceptions. The first browser
+attempt failed during page creation under host resource pressure; a smaller
+fresh-context retry completed in 39 seconds. The screenshot budget was exhausted,
+so this increment does not claim fresh screenshots, mobile verification, or
+playback verification of all 18 external videos. All browser contexts were closed.
+
+The verified runtime now serves `127.0.0.1:4321`. Both `/` and `/sign-in` returned
+200 after replacement, and the temporary server was stopped. The earlier runtime
+is retained on disk for rollback. Evidence is recorded locally in
+`/home/gaib/.cache/pubky-3d-browser/world-expansion-mini-results.json`.
+Older sections describe historical checkpoints; their Example controls and smaller
+layouts are superseded.
 
 ## Profile pictures and readable theater posts — 2026-09-07
 
