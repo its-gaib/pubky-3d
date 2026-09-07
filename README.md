@@ -1,6 +1,18 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pubky/pubky-app)
 
-# Pubky web app
+# Pubky World
+
+A playful 3D fork of Pubky: walk through a forest of tags, meet a social
+constellation, visit Pubky University and the builders' yard, or challenge the arena.
+
+The world lives at `/`; the familiar Pubky feed is at `/home`. Start with the
+fictional example world or opt into a sample of public staging content.
+
+See [the world guide](docs/world/README.md) for controls, local preview, sources,
+architecture and the future multiplayer boundary. The fork point is recorded in
+[fork.json](docs/world/fork.json). No vibe registry PR has been opened.
+
+# Upstream Pubky web app
 
 ## Prerequisites
 

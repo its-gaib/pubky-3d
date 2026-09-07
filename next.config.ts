@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: true,
   experimental: {
     serverSourceMaps: true,
+    // Keep local world previews and production builds usable on small self-hosted machines.
+    cpus: 2,
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
   },
   // Only use standalone output when building for Docker (set NEXT_STANDALONE=true)
   ...(process.env.NEXT_STANDALONE === 'true' && { output: 'standalone' }),

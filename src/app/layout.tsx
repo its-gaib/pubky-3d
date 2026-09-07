@@ -3,13 +3,12 @@ import type { Viewport } from 'next';
 import { TooltipProvider } from '@/atoms/Tooltip/Tooltip';
 import { TOOLTIP_DELAY_MS } from '@/config/ui';
 import { RootContainer } from '@/molecules/ContainerRoot/ContainerRoot';
-import { Fab } from '@/molecules/Fab/Fab';
 import { Metadata } from '@/molecules/Metadata/Metadata';
 import { StructuredData } from '@/molecules/StructuredData/StructuredData';
 import { Toaster } from '@/molecules/Toaster/Toaster';
 import { CoordinatorsManager } from '@/organisms/CoordinatorsManager/CoordinatorsManager';
 import { DialogSignIn } from '@/organisms/DialogSignIn/DialogSignIn';
-import { Header } from '@/organisms/Header/Header';
+import { WorldAwareChrome } from '@/organisms/WorldAwareChrome/WorldAwareChrome';
 import { DatabaseProvider } from '@/providers/DatabaseProvider/DatabaseProvider';
 import { ErrorBoundaryProvider } from '@/providers/ErrorBoundaryProvider/ErrorBoundaryProvider';
 import { GlobalErrorHandlerProvider } from '@/providers/GlobalErrorHandlerProvider/GlobalErrorHandlerProvider';
@@ -50,9 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <DatabaseProvider>
               <RouteGuardProvider>
                 <CoordinatorsManager />
-                <Header />
+                <WorldAwareChrome placement="header" />
                 {children}
-                <Fab />
+                <WorldAwareChrome placement="fab" />
                 <Toaster />
                 <DialogSignIn />
               </RouteGuardProvider>

@@ -20,9 +20,19 @@ import {
   matchSingleCollectionRoute,
   ONBOARDING_ROUTES,
   PROFILE_ROUTES,
+  PUBLIC_ROUTES,
+  ROOT_ROUTES,
   SETTINGS_ROUTES,
   UNAUTHENTICATED_ROUTES,
 } from './routes';
+
+describe('world route access', () => {
+  it('allows the world for every session state without making settings public', () => {
+    expect(PUBLIC_ROUTES).toContain(ROOT_ROUTES);
+    expect(PUBLIC_ROUTES).not.toContain(SETTINGS_ROUTES.ACCOUNT);
+    expect(matchesAllowedRoute(SETTINGS_ROUTES.ACCOUNT, ROOT_ROUTES)).toBe(false);
+  });
+});
 
 describe('getContentSearchUrl', () => {
   it('builds an encoded q-only search URL', () => {
