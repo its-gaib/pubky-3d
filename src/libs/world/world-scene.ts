@@ -633,8 +633,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   return {
     travelTo,
     setOverview(value) {
+      if (overview !== value) walkTarget = null;
       overview = value;
-      walkTarget = null;
       zoom = 1;
     },
     setPaused(value) {
