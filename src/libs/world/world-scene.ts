@@ -735,6 +735,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       theater.setPaused(value);
       lastStatus = -1;
     },
+    setTheaterLoading(value) {
+      theater.setLoading(value);
+    },
     stepTheater(delta) {
       theater.step(delta);
       lastStatus = -1;

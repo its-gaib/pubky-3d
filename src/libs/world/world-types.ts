@@ -27,6 +27,8 @@ export interface WorldTag {
 export interface WorldPerson {
   id: string;
   name: string;
+  /** Canonical Pubky CDN URL, derived from the validated profile ID. */
+  avatarUrl?: string;
   color: string;
   bio: string;
   position: [number, number];
@@ -91,6 +93,7 @@ export interface WorldController {
   setNight: (night: boolean) => void;
   setReducedMotion: (reduced: boolean) => void;
   setTheaterPaused: (paused: boolean) => void;
+  setTheaterLoading: (loading: boolean) => void;
   stepTheater: (delta: number) => void;
   setPersonaColor: (color: string) => void;
   setMove: (x: number, z: number) => void;

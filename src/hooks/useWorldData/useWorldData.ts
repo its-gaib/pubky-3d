@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { POST_ROUTES } from '@/app/routes';
 import { TAG_MAX_LENGTH } from '@/config/posts';
+import { FileController } from '@/controllers/file/file';
 import { HotController } from '@/controllers/hot/hot';
 import { PostController } from '@/controllers/post/post';
 import { StreamPostsController } from '@/controllers/stream/posts/posts';
@@ -14,6 +15,7 @@ import { ErrorService } from '@/libs/error/error.types';
 import { getDeployEnv, getNexusUrl } from '@/libs/runtime-config/runtime-config';
 import { isPubkyIdentifier } from '@/libs/utils/utils';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
+import { worldPostPreview } from '@/libs/world/world-post-preview';
 import type { WorldData, WorldPerson, WorldPost, WorldRelationship, WorldTag } from '@/libs/world/world-types';
 import { type PostStreamId, PostStreamTypes } from '@/models/stream/post/postStream.types';
 import { UserStreamTypes } from '@/models/stream/user/userStream.types';
@@ -138,7 +140,7 @@ async function readTag(label: string, signal: AbortSignal): Promise<WorldTag> {
     posts.push({
       id,
       author: parsed.author,
-      text: plainText(post.content, 1_200) || 'This post contains an attachment. Open it in the feed to view it.',
+      text: worldPostPreview(post),
       tags: labels.slice(0, 12),
       url: `${POST_ROUTES.POST}/${encodeURIComponent(parsed.author)}/${encodeURIComponent(parsed.postId)}`,
     });
@@ -184,7 +186,7 @@ async function readTrendingPosts(signal: AbortSignal): Promise<WorldPost[]> {
       {
         id,
         author: parsed.author,
-        text: plainText(post.content, 1_200) || 'This post contains an attachment. Open it in the feed to view it.',
+        text: worldPostPreview(post),
         tags: labels.slice(0, 12),
         url: `${POST_ROUTES.POST}/${encodeURIComponent(parsed.author)}/${encodeURIComponent(parsed.postId)}`,
       },
@@ -252,6 +254,12 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
       {
         id,
         name: plainText(profile.name, 48) || `${id.slice(0, 8)}…`,
+        avatarUrl: profile.image
+          ? FileController.getAvatarUrl(
+              id,
+              Number.isFinite(profile.indexed_at) && profile.indexed_at > 0 ? profile.indexed_at : undefined,
+            )
+          : undefined,
         bio: plainText(profile.bio, 320),
         color: slot?.color ?? '#a9dcd6',
         position: slot ? [...slot.position] : [Math.cos(index) * 8, 8 + Math.sin(index) * 8],

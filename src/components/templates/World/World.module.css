@@ -992,6 +992,12 @@
   background: #141419;
   border-radius: 13px;
 }
+.personAvatar {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border: 2px solid var(--world-border);
+}
 .personPortrait {
   width: 72px;
   height: 80px;
@@ -1450,7 +1456,8 @@
   color: var(--world-soft);
   white-space: nowrap;
 }
-.theaterEmpty {
+.theaterEmpty,
+.theaterLoading {
   display: grid;
   justify-items: center;
   gap: 14px;
@@ -1463,10 +1470,12 @@
   font-size: 13px;
   line-height: 1.7;
 }
-.theaterEmpty svg {
+.theaterEmpty svg,
+.theaterLoading svg {
   color: var(--world-lime);
 }
-.theaterEmpty h3 {
+.theaterEmpty h3,
+.theaterLoading h3 {
   color: var(--world-text);
   font-size: 16px;
 }

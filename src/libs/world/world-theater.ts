@@ -82,6 +82,7 @@ export function createTheater(
   let source = initialData.source;
   let index = 0;
   let paused = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let loading = false;
   let elapsed = 0;
 
   function paint() {
@@ -92,6 +93,30 @@ export function createTheater(
     context.fillRect(68, 70, 12, 46);
     context.font = '700 36px sans-serif';
     context.fillText('PUBKY / TRENDING THEATER', 105, 107);
+
+    if (loading) {
+      context.fillStyle = '#BABAC1';
+      context.font = '500 23px sans-serif';
+      context.fillText('PREPARING THE PROGRAM', 70, 160, 1350);
+      // A static segmented indicator stays readable without motion or redraws.
+      for (let segment = 0; segment < 8; segment++) {
+        const angle = (segment / 8) * Math.PI * 2;
+        context.fillStyle = segment < 3 ? WORLD_PALETTE.lime : WORLD_PALETTE.border;
+        context.fillRect(132 + Math.cos(angle) * 43, 397 + Math.sin(angle) * 43, 18, 18);
+      }
+      context.fillStyle = WORLD_PALETTE.text;
+      context.font = '600 60px sans-serif';
+      context.fillText('Loading the next show…', 238, 424, 1200);
+      context.fillStyle = '#BABAC1';
+      context.font = '500 31px sans-serif';
+      context.fillText('Gathering posts. Getting the screen ready.', 238, 485, 1200);
+      context.fillStyle = WORLD_PALETTE.border;
+      context.fillRect(76, 613, 1300, 15);
+      context.fillRect(76, 655, 1020, 15);
+      texture.needsUpdate = true;
+      return;
+    }
+
     context.font = '500 23px sans-serif';
     context.fillStyle = '#BABAC1';
     context.fillText(
@@ -117,19 +142,25 @@ export function createTheater(
 
   return {
     getStatus: () => ({ theaterIndex: index, theaterPaused: paused }),
+    setLoading(value: boolean) {
+      if (loading === value) return;
+      loading = value;
+      elapsed = 0;
+      paint();
+    },
     setPaused(value: boolean) {
       paused = value;
       elapsed = 0;
       paint();
     },
     step(delta: number) {
-      if (!Number.isFinite(delta) || !posts.length) return;
+      if (loading || !Number.isFinite(delta) || !posts.length) return;
       index = (((index + Math.trunc(delta)) % posts.length) + posts.length) % posts.length;
       elapsed = 0;
       paint();
     },
     tick(delta: number) {
-      if (paused || posts.length < 2) return false;
+      if (loading || paused || posts.length < 2) return false;
       elapsed += delta;
       if (elapsed < SLIDE_SECONDS) return false;
       index = (index + 1) % posts.length;

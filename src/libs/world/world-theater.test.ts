@@ -97,6 +97,46 @@ describe('Trending Theater program', () => {
     expect(fillText).toHaveBeenCalledWith('NO POSTS', 76, 808);
   });
 
+  it('hides pending program content and holds playback until the new ranked program is ready', () => {
+    const theater = mount();
+    theater.tick(18);
+    fillText.mockClear();
+    theater.setLoading(true);
+    expect(fillText).toHaveBeenCalledWith('Loading the next show…', 238, 424, 1200);
+    expect(fillText.mock.calls.map(([text]) => text).join(' ')).not.toMatch(/ranked post|author|ON AIR|PAUSED|1 \/ 3/);
+
+    fillText.mockClear();
+    expect(theater.tick(120)).toBe(false);
+    theater.step(1);
+    theater.setLoading(true);
+    expect(theater.getStatus()).toEqual({ theaterIndex: 0, theaterPaused: false });
+    expect(fillText).not.toHaveBeenCalled();
+
+    theater.updateData({ ...data, source: 'staging', trendingPosts: [posts[2], posts[0]] });
+    expect(fillText.mock.calls.map(([text]) => text).join(' ')).not.toMatch(/ranked post|author|ON AIR|PAUSED|1 \/ 2/);
+    fillText.mockClear();
+    theater.setLoading(false);
+    expect(fillText).toHaveBeenCalledWith('Third ranked post', 76, 285, 1360);
+    expect(theater.tick(19)).toBe(false);
+    expect(theater.tick(1)).toBe(true);
+    expect(fillText).toHaveBeenCalledWith('First ranked post', 76, 285, 1360);
+  });
+
+  it('restores the existing program after a failed load without changing pause intent', () => {
+    const theater = mount();
+    theater.step(1);
+    theater.setPaused(true);
+    theater.setLoading(true);
+    fillText.mockClear();
+    theater.setLoading(false);
+    expect(fillText).toHaveBeenCalledWith('Second ranked post', 76, 285, 1360);
+    expect(theater.getStatus()).toEqual({ theaterIndex: 1, theaterPaused: true });
+    expect(theater.tick(120)).toBe(false);
+    theater.setPaused(false);
+    expect(theater.tick(20)).toBe(true);
+    expect(theater.getStatus()).toEqual({ theaterIndex: 2, theaterPaused: false });
+  });
+
   it('renders hostile-looking post content as canvas text without creating markup', () => {
     const hostile = '<img src=x onerror=alert(1)>';
     mount({ ...data, trendingPosts: [{ ...posts[0], text: hostile }] });

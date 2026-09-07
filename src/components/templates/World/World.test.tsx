@@ -1,8 +1,8 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
-import type { WorldController, WorldOptions } from '@/libs/world/world-types';
+import type { WorldController, WorldData, WorldOptions } from '@/libs/world/world-types';
 import { World } from './World';
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     setPaused: vi.fn(),
     setNight: vi.fn(),
     setReducedMotion: vi.fn(),
+    setTheaterLoading: vi.fn(),
     setTheaterPaused: vi.fn(),
     stepTheater: vi.fn(),
     setPersonaColor: vi.fn(),
@@ -32,6 +33,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/libs/world/world-scene', () => ({ createWorld: mocks.createWorld }));
 vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWorldData }));
+vi.mock('@/controllers/moderation/moderation', () => ({
+  ModerationController: {
+    getModerationStatus: vi.fn().mockResolvedValue({ is_moderated: false, is_blurred: false }),
+    unBlur: vi.fn(),
+  },
+}));
 vi.mock('@/hooks/useWorldPhotoPost/useWorldPhotoPost', () => ({
   useWorldPhotoPost: () => ({
     openComposer: vi.fn(),
@@ -46,6 +53,43 @@ vi.mock('@/hooks/useWorldPhotoPost/useWorldPhotoPost', () => ({
 vi.mock('@/hooks/useDialogKeyboardOrchestrator/useDialogKeyboardOrchestrator', () => ({
   useDialogKeyboardOrchestrator: () => ({ isKeyboardVisible: false, spacerHeight: 0, contentStyle: undefined }),
 }));
+
+const STAGING_PERSON_ID = 'y'.repeat(52);
+const STAGING_AVATAR_URL = `https://nexus.staging.pubky.app/static/avatar/${STAGING_PERSON_ID}`;
+const STAGING_WORLD_DATA: WorldData = {
+  source: 'staging',
+  tags: [],
+  people: [
+    {
+      id: STAGING_PERSON_ID,
+      name: 'Avery',
+      bio: 'A public staging profile.',
+      color: '#c8ff03',
+      position: [0, 8],
+      avatarUrl: STAGING_AVATAR_URL,
+    },
+  ],
+  relationships: [],
+  trendingPosts: [
+    {
+      id: `${STAGING_PERSON_ID}:CURRENT_POST`,
+      author: 'Avery',
+      text: 'A public conversation for the current show.',
+      tags: ['pubky'],
+      url: `/post/${STAGING_PERSON_ID}/CURRENT_POST`,
+    },
+  ],
+};
+
+function mockWorldData(data: WorldData, status: 'demo' | 'loading' | 'staging' | 'error', error: string | null = null) {
+  mocks.useWorldData.mockReturnValue({
+    data,
+    status,
+    error,
+    loadStaging: mocks.loadStaging,
+    useDemo: mocks.resetExample,
+  });
+}
 
 beforeEach(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -63,6 +107,10 @@ beforeEach(() => {
     options.onReady();
     return mocks.controller;
   });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('World', () => {
@@ -130,6 +178,127 @@ describe('World', () => {
     await act(async () => mocks.createWorld.mock.calls[0][1].onInteract({ kind: 'person', id: 'moss' }));
     expect(screen.getByText(/This is a profile marker, not a player online/)).toBeInTheDocument();
     expect(screen.getByText(/Profile markers do not indicate live presence/)).toBeInTheDocument();
+  });
+
+  it('shows the sampled person’s profile picture through the real avatar and dialog components', async () => {
+    // jsdom does not fetch images. Simulate the browser's loaded-image metadata
+    // while keeping Radix and AvatarWithFallback's rendering behavior intact.
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(80);
+    mockWorldData(STAGING_WORLD_DATA, 'staging');
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    await act(async () => mocks.createWorld.mock.calls[0][1].onInteract({ kind: 'person', id: STAGING_PERSON_ID }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Avery' });
+    const picture = await within(dialog).findByRole('img', { name: 'Avery’s profile picture' });
+    expect(picture).toHaveAttribute('src', STAGING_AVATAR_URL);
+    expect(within(dialog).getByText('A public staging profile.')).toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+  });
+
+  it.each(['missing', 'failed'] as const)('keeps a profile fallback when the picture is %s', async (state) => {
+    if (state === 'failed') {
+      vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+      vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(0);
+    }
+    mockWorldData(
+      {
+        ...STAGING_WORLD_DATA,
+        people: [{ ...STAGING_WORLD_DATA.people[0], avatarUrl: state === 'missing' ? undefined : STAGING_AVATAR_URL }],
+      },
+      'staging',
+    );
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    await act(async () => mocks.createWorld.mock.calls[0][1].onInteract({ kind: 'person', id: STAGING_PERSON_ID }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Avery' });
+    expect(within(dialog).getByTestId('world-person-avatar')).toBeInTheDocument();
+    expect(await within(dialog).findByTestId('avatar-fallback-initial')).toHaveTextContent('A');
+    expect(within(dialog).queryByRole('img', { name: 'Avery’s profile picture' })).not.toBeInTheDocument();
+  });
+
+  it('preserves cartoon portraits for fictional example personas', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    const person = DEMO_WORLD_DATA.people[0];
+    await act(async () => mocks.createWorld.mock.calls[0][1].onInteract({ kind: 'person', id: person.id }));
+    const dialog = screen.getByRole('dialog', { name: person.name });
+    expect(within(dialog).queryByTestId('world-person-avatar')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('⌣')).toBeInTheDocument();
+    expect(within(dialog).getByText(/These fictional people/)).toBeInTheDocument();
+  });
+
+  it.each(['demo', 'staging'] as const)(
+    'replaces the previous %s program with a loader until staging resolves, including before scene readiness',
+    async (source) => {
+      const previousData = source === 'demo' ? DEMO_WORLD_DATA : STAGING_WORLD_DATA;
+      mockWorldData(previousData, 'loading');
+      // Scene creation is asynchronous, and onReady can happen later. Its initial
+      // loading state must be applied even though no controller existed at mount.
+      mocks.createWorld.mockImplementation(() => mocks.controller);
+      const user = userEvent.setup();
+      const { rerender } = render(<World />);
+      await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+      expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(true);
+      await user.click(screen.getByRole('button', { name: 'Read about Trending Theater' }));
+
+      const dialog = screen.getByRole('dialog', { name: 'Trending Theater' });
+      expect(within(dialog).getByRole('status', { name: 'Loading trending posts' })).toBeInTheDocument();
+      expect(within(dialog).queryByText(previousData.trendingPosts[0].text)).not.toBeInTheDocument();
+      expect(within(dialog).queryByText('The stage is taking a breather.')).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole('group', { name: 'Trending show controls' })).not.toBeInTheDocument();
+
+      const freshData: WorldData = {
+        ...STAGING_WORLD_DATA,
+        trendingPosts: [{ ...STAGING_WORLD_DATA.trendingPosts[0], text: 'A newly loaded staging post.' }],
+      };
+      mockWorldData(freshData, 'staging');
+      rerender(<World />);
+      expect(within(dialog).queryByRole('status', { name: 'Loading trending posts' })).not.toBeInTheDocument();
+      expect(within(dialog).getByText('A newly loaded staging post.')).toBeInTheDocument();
+      expect(mocks.controller.updateData).toHaveBeenLastCalledWith(freshData);
+      expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(false);
+      await act(async () => mocks.createWorld.mock.calls[0][1].onReady());
+      expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(false);
+    },
+  );
+
+  it('stops loading on failure, starts it again for retry, and clears it when returning to examples', async () => {
+    const emptyStaging: WorldData = { ...STAGING_WORLD_DATA, trendingPosts: [] };
+    mockWorldData(emptyStaging, 'loading');
+    const user = userEvent.setup();
+    const { rerender } = render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole('button', { name: 'Read about Trending Theater' }));
+    expect(screen.getByRole('status', { name: 'Loading trending posts' })).toBeInTheDocument();
+
+    mockWorldData(emptyStaging, 'error', 'The public staging sample could not be loaded.');
+    rerender(<World />);
+    expect(screen.queryByRole('status', { name: 'Loading trending posts' })).not.toBeInTheDocument();
+    expect(screen.getByText('The public staging sample could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The stage is taking a breather.')).toBeInTheDocument();
+    expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(false);
+
+    await user.click(screen.getByRole('button', { name: 'Close and return to world' }));
+    await user.click(screen.getByRole('button', { name: 'Staging' }));
+    expect(mocks.loadStaging).toHaveBeenCalledOnce();
+    mockWorldData(emptyStaging, 'loading');
+    rerender(<World />);
+    await user.click(screen.getByRole('button', { name: 'Read about Trending Theater' }));
+    expect(screen.getByRole('status', { name: 'Loading trending posts' })).toBeInTheDocument();
+    expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getByRole('button', { name: 'Close and return to world' }));
+    await user.click(screen.getByRole('button', { name: 'Example' }));
+    expect(mocks.resetExample).toHaveBeenCalledOnce();
+    mockWorldData(DEMO_WORLD_DATA, 'demo');
+    rerender(<World />);
+    await user.click(screen.getByRole('button', { name: 'Read about Trending Theater' }));
+    expect(screen.queryByRole('status', { name: 'Loading trending posts' })).not.toBeInTheDocument();
+    expect(screen.getByText(DEMO_WORLD_DATA.trendingPosts[0].text)).toBeInTheDocument();
+    expect(mocks.controller.setTheaterLoading).toHaveBeenLastCalledWith(false);
   });
 
   it('pauses the theater for reading and lets the reader resume or skip the program', async () => {

@@ -12,6 +12,7 @@ import { useWorldData } from './useWorldData';
 const mocks = vi.hoisted(() => ({
   getDeployEnv: vi.fn(),
   getNexusUrl: vi.fn(),
+  getCdnUrl: vi.fn(),
   getHotTags: vi.fn(),
   getPostStream: vi.fn(),
   preparePostStream: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/libs/runtime-config/runtime-config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/libs/runtime-config/runtime-config')>()),
   getDeployEnv: mocks.getDeployEnv,
   getNexusUrl: mocks.getNexusUrl,
+  getCdnUrl: mocks.getCdnUrl,
 }));
 vi.mock('@/controllers/hot/hot', () => ({ HotController: { getOrFetch: mocks.getHotTags } }));
 vi.mock('@/controllers/post/post', () => ({
@@ -77,6 +79,7 @@ describe('useWorldData', () => {
     vi.resetAllMocks();
     mocks.getDeployEnv.mockReturnValue('staging');
     mocks.getNexusUrl.mockReturnValue('https://nexus.staging.pubky.app');
+    mocks.getCdnUrl.mockReturnValue('https://nexus.staging.pubky.app/static');
     mocks.getHotTags.mockResolvedValue([hotTag('pubky')]);
     mocks.getUserStream.mockImplementation(async ({ streamId }: { streamId: string }) => ({
       nextPageIds:
@@ -175,6 +178,73 @@ describe('useWorldData', () => {
     expect(result.current.data.people.map((person) => person.id)).toEqual([ALICE, BOB, CAROL]);
     expect(result.current.data.relationships).toEqual([{ from: ALICE, to: BOB, label: 'follows' }]);
     expect(mocks.getPostDetails).toHaveBeenCalledWith({ compositeIds: [POST_ONE, POST_TWO] });
+  });
+
+  it('derives profile pictures from validated IDs instead of profile-supplied image URLs', async () => {
+    const profiles = new Map([
+      [ALICE, { ...profile(ALICE, 'Alice'), image: 'https://untrusted.example/tracker.png', indexed_at: 7 }],
+      [BOB, profile(BOB, 'Bob')],
+      [CAROL, { ...profile(BOB, 'Mismatched identity'), image: 'https://untrusted.example/another.png' }],
+    ]);
+    mocks.getUserDetails.mockResolvedValue(profiles);
+    const { result } = renderHook(() => useWorldData());
+    await act(() => result.current.loadStaging());
+
+    expect(result.current.data.people.map((person) => person.id)).toEqual([ALICE, BOB]);
+    expect(result.current.data.people[0].avatarUrl).toBe(`https://nexus.staging.pubky.app/static/avatar/${ALICE}?v=7`);
+    expect(result.current.data.people[1].avatarUrl).toBeUndefined();
+    expect(JSON.stringify(result.current.data.people)).not.toContain('untrusted.example');
+  });
+
+  it('commits readable article and collection previews for both ranked posts and tag leaves', async () => {
+    mocks.getPostDetails.mockImplementation(async ({ compositeIds }: { compositeIds: string[] }) =>
+      compositeIds.map((id) => ({
+        id,
+        kind: id === TRENDING_POST ? 'long' : 'collection',
+        content: JSON.stringify(
+          id === TRENDING_POST
+            ? { title: 'A better show', body: '<p>Readable **words** on stage.</p>' }
+            : { name: 'A reading list', description: '<p>Good things to read.</p>', items: ['pubky://metadata'] },
+        ),
+      })),
+    );
+    const { result } = renderHook(() => useWorldData());
+    await act(() => result.current.loadStaging());
+
+    expect(result.current.data.trendingPosts.map((post) => post.id)).toEqual([TRENDING_POST, POST_TWO]);
+    expect(result.current.data.trendingPosts[0].text).toBe('A better show\n\nReadable words on stage.');
+    expect(result.current.data.trendingPosts[1].text).toBe('A reading list\n\nGood things to read.');
+    expect(result.current.data.tags[0].posts[0].text).toBe('A reading list\n\nGood things to read.');
+  });
+
+  it('keeps loading active until delayed content is normalized, then replaces the program once', async () => {
+    const pending = deferred<Array<{ id: string; kind: string; content: string }>>();
+    mocks.getPostDetails.mockImplementation(async ({ compositeIds }: { compositeIds: string[] }) =>
+      compositeIds.includes(TRENDING_POST)
+        ? pending.promise
+        : compositeIds.map((id) => ({ id, kind: 'short', content: 'Already loaded.' })),
+    );
+    const { result } = renderHook(() => useWorldData());
+    const original = result.current.data;
+    let load!: Promise<void>;
+    act(() => {
+      load = result.current.loadStaging();
+    });
+    await waitFor(() => expect(mocks.getPostDetails).toHaveBeenCalledWith({ compositeIds: [TRENDING_POST, POST_TWO] }));
+    expect(result.current.status).toBe('loading');
+    expect(result.current.data).toBe(original);
+    await act(async () => {
+      pending.resolve([
+        { id: TRENDING_POST, kind: 'long', content: '{"title":"Ready now","body":"<p>A complete post.</p>"}' },
+        { id: POST_TWO, kind: 'long', content: '{"title":' },
+      ]);
+      await load;
+    });
+    expect(result.current.status).toBe('staging');
+    expect(result.current.data.trendingPosts.map((post) => post.text)).toEqual([
+      'Ready now\n\nA complete post.',
+      'Preview unavailable. Open this post in Pubky to read it.',
+    ]);
   });
 
   it('bounds the visible sample even when a service returns extra records', async () => {

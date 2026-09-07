@@ -53,6 +53,7 @@ import type {
   WorldStatus,
   WorldZoneId,
 } from '@/libs/world/world-types';
+import { AvatarWithFallback } from '@/organisms/AvatarWithFallback/AvatarWithFallback';
 import styles from './World.module.css';
 import { WorldCamera } from './WorldCamera';
 
@@ -223,6 +224,7 @@ function ArenaGame() {
 
 function TrendingShow({
   data,
+  loading,
   index,
   paused,
   canPlay,
@@ -230,6 +232,7 @@ function TrendingShow({
   onStep,
 }: {
   data: WorldData;
+  loading: boolean;
   index: number;
   paused: boolean;
   canPlay: boolean;
@@ -240,19 +243,25 @@ function TrendingShow({
   const postIndex = posts.length ? ((index % posts.length) + posts.length) % posts.length : 0;
   const post = posts[postIndex];
   return (
-    <div className={styles.theaterPanel}>
+    <div className={styles.theaterPanel} aria-busy={loading}>
       <div className={styles.theaterMarquee}>
         <Theater size={27} aria-hidden="true" />
         <div>
-          <strong>The feed has taken the stage.</strong>
+          <strong>{loading ? 'Setting the stage.' : 'The feed has taken the stage.'}</strong>
           <span>
-            {data.source === 'demo'
+            {!loading && data.source === 'demo'
               ? 'Example program · fictional posts'
               : 'Public staging · ranked by total engagement'}
           </span>
         </div>
       </div>
-      {post ? (
+      {loading ? (
+        <div className={styles.theaterLoading} role="status" aria-label="Loading trending posts">
+          <LoaderCircle size={36} className={styles.spin} aria-hidden="true" />
+          <h3>Loading trending posts…</h3>
+          <p>The next program is on its way from public staging.</p>
+        </div>
+      ) : post ? (
         <>
           <div className={styles.theaterTransport} role="group" aria-label="Trending show controls">
             <Button
@@ -303,11 +312,13 @@ function TrendingShow({
           <p>No public trending posts are available in this sample. Reload Staging to try the current program again.</p>
         </div>
       )}
-      <p className={styles.smallPrint}>
-        {data.source === 'demo'
-          ? 'Select Staging above to load the current public Hot feed.'
-          : 'This program uses Pubky’s Hot feed ranking, without a date filter. Reload Staging to refresh the lineup.'}
-      </p>
+      {!loading && (
+        <p className={styles.smallPrint}>
+          {data.source === 'demo'
+            ? 'Select Staging above to load the current public Hot feed.'
+            : 'This program uses Pubky’s Hot feed ranking, without a date filter. Reload Staging to refresh the lineup.'}
+        </p>
+      )}
     </div>
   );
 }
@@ -315,6 +326,7 @@ function TrendingShow({
 function WorldPanel({
   panel,
   data,
+  loading,
   onSelect,
   onDance,
   onJump,
@@ -327,6 +339,7 @@ function WorldPanel({
 }: {
   panel: WorldInteraction;
   data: WorldData;
+  loading: boolean;
   onSelect: (panel: Panel) => void;
   onDance: () => void;
   onJump: () => void;
@@ -380,10 +393,22 @@ function WorldPanel({
     return (
       <>
         <div className={styles.personProfile}>
-          <span className={styles.personPortrait} style={{ background: person?.color }}>
-            <span>• •</span>
-            <span>⌣</span>
-          </span>
+          {data.source === 'staging' && person ? (
+            <AvatarWithFallback
+              avatarUrl={person.avatarUrl}
+              name={person.name}
+              fallbackSeed={person.id}
+              alt={`${person.name}’s profile picture`}
+              size="xl"
+              className={styles.personAvatar}
+              data-testid="world-person-avatar"
+            />
+          ) : (
+            <span className={styles.personPortrait} style={{ background: person?.color }} aria-hidden="true">
+              <span>• •</span>
+              <span>⌣</span>
+            </span>
+          )}
           <p>{person?.bio || 'This explorer has not added a bio.'}</p>
         </div>
         <div className={styles.sectionLabel}>
@@ -590,6 +615,7 @@ function WorldPanel({
     return (
       <TrendingShow
         data={data}
+        loading={loading}
         index={theaterIndex}
         paused={theaterPaused}
         canPlay={theaterCanPlay}
@@ -665,6 +691,7 @@ export function World() {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WorldController | null>(null);
   const initialData = useRef(data);
+  const dataLoadingRef = useRef(dataStatus === 'loading');
   const [sceneState, setSceneState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [welcome, setWelcome] = useState(true);
@@ -706,6 +733,7 @@ export function World() {
           },
         });
         controllerRef.current = controller;
+        controller.setTheaterLoading(dataLoadingRef.current);
         controller.setOverview(true);
         controller.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       })
@@ -723,6 +751,10 @@ export function World() {
     initialData.current = data;
     controllerRef.current?.updateData(data);
   }, [data]);
+  useEffect(() => {
+    dataLoadingRef.current = dataStatus === 'loading';
+    controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
+  }, [dataStatus]);
   useEffect(() => {
     controllerRef.current?.setPaused(panel !== null || cameraOpen);
   }, [panel, cameraOpen, sceneState]);
@@ -1288,6 +1320,7 @@ export function World() {
               <WorldPanel
                 panel={panel}
                 data={data}
+                loading={dataStatus === 'loading'}
                 onSelect={selectPanel}
                 onDance={() => perform('dance')}
                 onJump={() => perform('jump')}
