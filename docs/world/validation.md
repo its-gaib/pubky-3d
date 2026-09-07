@@ -31,11 +31,27 @@ The actual 640×480 browser check passed scene readiness and two animation frame
 with visible jellyfish, no JavaScript exceptions, and no console errors (including
 shader errors). All 35 completed Nexus responses returned 200. The browser closed
 normally after 11 seconds. The image confirms rendering but also exposed touch
-controls overlapping the welcome action in short windows; a small CSS fix is
-being verified. The verified jellyfish runtime is now on port 4321; both `/` and
-`/sign-in` returned 200 after replacement, and the temporary server was stopped.
+controls overlapping the welcome action in short windows. The controls now stay
+hidden until the existing Let's wander action dismisses the welcome panel.
 Local evidence: `world-jellyfish-mini-results.json` and
 `world-jellyfish-desktop-mini.png` in `/home/gaib/.cache/pubky-3d-browser/`.
+
+The final source `3a3ebd2f7665905cdcb1054fb77a32015ad1b658` passed the full
+production build, TypeScript, standalone packaging and staging smoke in
+[run 34169312975](https://github.com/its-gaib/pubky-3d/actions/runs/34169312975).
+Artifact `10035253762` matches the source, repository and manual workflow. Its
+fresh runtime passed another actual 640×480 browser check: scene and Camera ready,
+two animation frames, no fallback, no JavaScript exceptions or console/shader
+errors, and 35 completed Nexus responses all returning 200. The actual welcome
+button handler was invoked with a native DOM click; movement controls had no
+client rectangles during welcome and became visible after dismissal. The browser
+closed after 12.4 seconds. The optional screenshot timed out, so the earlier
+jellyfish image remains the visual evidence. Results are in
+`/home/gaib/.cache/pubky-3d-browser/world-welcome-controls-mini-results.json`.
+
+The verified final runtime serves `127.0.0.1:4321`; `/` and `/sign-in` both returned
+200 after replacement. The temporary server was stopped. Earlier runtimes remain
+on disk for rollback. Later documentation-only commits do not change this runtime.
 
 ## Social plaza, cinema and Roman arena — 2026-09-07
 
