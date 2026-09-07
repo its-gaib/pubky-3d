@@ -41,6 +41,7 @@ jobs:
       - name: Build prod
         env:
           NEXT_STANDALONE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run build
 
       - name: Package standalone runtime
