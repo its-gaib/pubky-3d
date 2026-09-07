@@ -1,212 +1,257 @@
 # Pubky World
 
 A frontend experiment forked from `pubky/pubky-app` at the head of `dev`.
-The exact fork point and destination are in [fork.json](./fork.json).
-The project lives in the private `its-gaib/pubky-3d` repository. Its working
-branch retains the upstream history and is also this workspace repository's default branch.
+The exact fork point and destination are in [fork.json](./fork.json). The project
+lives in the private `its-gaib/pubky-3d` repository, on `vibe/pubky-3d`, retaining
+upstream history.
 
-The root route is a walkable island. The existing Pubky feed remains at `/home`.
-The world begins with original, explicitly fictional example posts and inhabitants.
-Use the staging switch to populate it from the public staging Nexus. No sign-in is
-needed to explore the world.
+The root route is a walkable island connected to **public staging**. Public data
+loads automatically; there is no Example/Staging switch. Guests can explore and
+read public profiles. Signing in adds the current user's personal social circle.
+The inherited feed remains at `/home`; **Classic Pubky** opens
+[pubky.app](https://pubky.app/) in a new tab.
 
-The world uses Pubky's near-black and graphite palette with acid-lime accents.
-**Classic Pubky** opens the public [pubky.app](https://pubky.app/) in a new tab.
-The expanded island gives districts separate grounds; walking paths are plain
-graphite surfaces without colored borders. Shared layout anchors keep fast travel,
-collisions and the pocket map aligned as the world grows.
-
-![The Pubky World island](./screenshots/overview.png)
+Pubky's near-black and graphite palette sets the scene, with acid-lime accents and
+plain graphite walking paths. Your character wears a black hoodie with the
+bundled Pubky logo on its chest and back, with no backpack. Sneaker accents are
+customizable. Walk to discover places: there is no global destination menu or map
+teleport navigation. The pocket map shows locations and your position.
 
 ## Places
 
-- **Social Plaza:** people become little characters, connected by curved ribbons.
-  Arrowheads and moving lights point from a follower to the person they follow.
-  These are example relationships in demo mode and sampled following records in
-  staging mode. Interacting with a staging person shows their profile picture,
-  with the normal Pubky fallback if the picture is missing or unavailable.
-  Characters are graph representations, not online visitors.
-- **Tag Forest:** every tree represents a tag. Each paper leaf opens a post that
-  carries that tag. A tag can also be opened as an accessible list.
-- **The Arena:** a deliberately silly local rock, paper, scissors challenge.
-- **Pubky University:** short lessons with links to the official Pubky documentation.
-- **Open Source Yard:** linked workshops introducing the organization's projects.
-- **Bitkit Beacon:** the official Bitkit logo extruded into a large 3D landmark.
-- **Trending Theater:** an outdoor stage cycles through up to eight posts from
-  Pubky's public Hot feed, in total-engagement order. Each post stays on screen
-  for 20 seconds. Opening the program pauses it for reading; controls resume,
-  pause or skip. No date-window ranking is implied. The example program is
-  explicitly fictional; use Staging to load the current public lineup. The stage
-  and its reader show a loading screen while the lineup is being fetched.
-  Articles display readable text instead of their stored JSON;
-  malformed content gets an unavailable notice and a link to the original post.
+- **Social Plaza:** a broad circle of people and real follow connections. Your
+  follows stand larger and brighter; people they follow appear at roughly half
+  that size. Large circles resolve into eight selectable neighborhoods. Each
+  neighborhood has pages of up to 96 figures, with nearby and selected names.
+  The plaza directory searches every discovered public key and loaded name, with
+  separate filters and 20-row pages. A person panel shows their profile picture,
+  bio and latest readable post, plus Follow/Unfollow and **Meet in the plaza**;
+  it does not list their connections. Missing images use Pubky's normal fallback.
+  Follow changes update the scene as they sync, including size changes and
+  discoveries that remain reachable through another followed person.
+- **Tag Forest:** each tree represents a tag, and each paper leaf opens a post
+  carrying it. A tree also opens an accessible list of its sampled posts.
+- **The Arena:** a larger Roman amphitheater with two arcaded levels, oval seating
+  tiers, sand, fire bowls and separate Pubky and Synonym symbol banners. Its wide
+  entrance and center stay walkable. The local challenge is rock, paper, scissors.
+- **Pubky University:** short lessons linking to the official Pubky documentation.
+- **Open Source Yard:** workshops introducing the organization's GitHub projects.
+- **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark.
+- **Trending Theater:** an open-air stage showing up to eight public Hot posts in
+  total-engagement order, with no date-window claim. Each slide lasts 20 seconds.
+  Opening its reader pauses the program; controls pause, resume or skip. The
+  screen and reader show a loader while fetching. Articles become readable text,
+  with unavailable notices for malformed content. Eight seated spectators are
+  decorative scenery, not online users.
+- **Midnight Cinema:** a separate crimson Art Deco movie
+  house beside Trending Theater, with a marquee, posters and a toy projector.
+  **Start screening** loads a native YouTube player in its reader, using the 18
+  supplied videos in shuffled order. The player handles advancing, skipping,
+  pausing and fullscreen; **Shuffle a fresh program** creates another order.
+  No player loads before that click. Video pixels never enter the 3D canvas.
+- **Tether monument:** a metallic extrusion of the official Tether company
+  wordmark, lit green on its own pedestal. Its reader links to
+  [Tether Ventures](https://tether.io/ventures/).
 - **Satoshi monument:** an original seated, hooded laptop figure made of separated
-  vertical steel contours. Walk around it to see the silhouette change. Its
-  plaque is beside the plaza and also reachable from the Social Plaza reader.
-- **Brrr Bank:** an east-side bank continually prints dollar confetti. Thirty
-  reusable bills drift, shrink and fade independently, with a visual BRRR sign
-  and no audio. Reduced motion keeps the scattered bills still. Its reader is
-  also available from the Arena panel.
-- **Detours:** giant duck, trampoline, portal, floating balloon, dancing, and eight
-  collectible keys. Collected keys are local game props with no monetary value.
-- **Camera:** frame a picture, keep a PNG postcard, or send it to Pubky's post
-  composer with the photo attached and an editable caption.
+  vertical steel contours. Its silhouette changes as you walk around it. The
+  plaque is also reachable from the Social Plaza reader.
+- **Brrr Bank:** one mounted **BRRR** facade sign gently shakes. Thirty reusable
+  dollar bills each live about 70 seconds, drift farther across the grounds, and
+  independently shrink and fade; some rest on the floor first. Reduced motion
+  keeps the sign and scattered bills still. There is no bank audio. The reader's
+  **Where can I get Hard Money?** button beams you in front of Bitkit, facing its
+  logo with the camera centered on the beacon. The bank reader is also available
+  from the Arena panel.
+- **Other encounters:** giant duck, trampoline, portal, balloon, dancing and eight
+  collectible keys. Keys and bills are local game props with no monetary value.
+
+Profile markers, theater spectators and the walking persona are separate concepts.
+The world does not show other connected players or claim live presence.
+
+## Layout
+
+The walkable radius is **112 world units**, with land radius 120, coast radius 124
+and overview distance 312. The Social Plaza has radius 32. Model sizes stay
+independent of the larger grounds. Shared anchors in `world-layout.ts` align
+buildings, paths, collisions, interactions, arrival poses and the pocket map.
+The cinema and Trending Theater are 41 units apart.
+
+| Place            | Ground X, Z |
+| ---------------- | ----------- |
+| Social Plaza     | 0, 8        |
+| Tag Forest       | 44, -40     |
+| Arena            | 52, 42      |
+| University       | -28, -66    |
+| Open Source Yard | -65, 27     |
+| Bitkit Beacon    | -36, 73     |
+| Trending Theater | -69, -24    |
+| Cinema entrance  | -72, -65    |
+| Tether monument  | 34, -88     |
+| Brrr Bank        | 88, 8       |
+| Trampoline       | 77, -24     |
+| Duck pond        | 24, 80      |
+| Portal           | -4, -96     |
+| Satoshi monument | -21, -29    |
+| Balloon          | -86, 47     |
 
 ## Local preview
 
 Use the Node version in `.nvmrc`, then install dependencies with `npm ci`.
-The dependency installation and local test commands do not need real account keys.
 
 ```sh
 npm run dev:webpack -- --hostname 127.0.0.1 --port 4321
 ```
 
-Open `http://127.0.0.1:4321/`. On a host connected to this workspace over SSH:
+Open `http://127.0.0.1:4321/`. From a host connected to this workspace over SSH:
 
 ```sh
 ssh -fN -o ExitOnForwardFailure=yes -L 127.0.0.1:4321:127.0.0.1:4321 gaib
 ```
 
-`-fN` leaves a background tunnel running on the host.
-
-Default development runtime configuration targets staging. The world's staging
-loader requires both the staging environment label and the exact official staging
-Nexus URL. It refuses a production or mismatched endpoint. The world never asks
-for a recovery phrase; use test keys only if trying the inherited account flows.
+`-fN` leaves a background tunnel running on the host. Development runtime
+configuration defaults to staging. World loaders require the staging environment
+label and exact official staging Nexus URL; they reject mismatched or production
+endpoints. Use test keys for the inherited account flows.
 
 ## Controls
 
-| Input                                   | Action                           |
-| --------------------------------------- | -------------------------------- |
-| W A S D / arrows                        | Walk relative to the camera      |
-| Shift                                   | Run                              |
-| Space                                   | Jump                             |
-| E                                       | Interact with the nearby object  |
-| F                                       | Dance                            |
-| R                                       | Return to the plaza              |
-| Drag the scene                          | Orbit the camera                 |
-| Scroll                                  | Zoom                             |
-| Click ground                            | Walk to that spot                |
-| Click a landmark, person, tree, or leaf | Open it                          |
-| Destination navigation                  | Travel directly to a district    |
-| Camera button                           | Capture and review a world photo |
+| Input                                  | Action                                          |
+| -------------------------------------- | ----------------------------------------------- |
+| W A S D / arrows                       | Walk relative to the camera                     |
+| Shift                                  | Run                                             |
+| Space                                  | Jump                                            |
+| E                                      | Interact with a nearby object                   |
+| F                                      | Dance                                           |
+| R                                      | Return to the plaza                             |
+| Drag the scene                         | Orbit the camera                                |
+| Scroll                                 | Zoom                                            |
+| Click ground                           | Walk to that spot                               |
+| Click a landmark, person, tree or leaf | Open its reader                                 |
+| Click a social neighborhood            | Show its figures and contextual paging controls |
+| Camera button                          | Capture and review a world photo                |
 
-Touch controls, overview, nighttime lighting, reduced motion, and avatar colors
-are available in the interface. Reading panels pause world movement. The world
-also exposes its contents through buttons when WebGL is unavailable.
+Touch movement, overview, moonlight, reduced motion, pocket-map visibility and
+sneaker colors are available in the interface. Reading panels pause movement.
+The in-zone Explore/read interaction opens the plaza directory; neighborhood
+paging and the return-to-neighborhood-overview control appear after selecting a
+3D neighborhood. Accessible readers remain available if WebGL cannot start.
 
 ## Camera and posting
 
-Orbit and zoom to frame the scene, then press the camera button beside the view
-controls. The photo contains the rendered world, including your persona, with the
-HUD excluded. Review it, download a PNG, or open the normal Pubky post composer.
-The composer starts with the photo attached and an editable postcard caption.
-Publishing uses its existing **Post** button, attachment validation, authenticated
-write path and image sanitization. The destination is visibly labelled staging or
-production according to the app's runtime configuration; development defaults to
-staging.
+Orbit and zoom, then use the camera button. The photo contains the rendered world
+and your persona, with the HUD excluded. Review it, download a PNG, or hand it to
+the existing Pubky post composer with an editable postcard caption. Publishing
+uses that composer's **Post** button, authentication, attachment checks and image
+sanitization. This experiment targets staging.
 
-The capture is bounded to a 2048-pixel longest edge. Photos and drafts stay in
-memory, and preview object URLs are released when closed or replaced. Sign in
-before taking a photo you want to publish. Guests can download first; navigating
-away to sign in clears the in-memory photo. An opened draft is cleared on logout
-or account changes.
-
-The current local preview runs the full Next application against staging. Live
-reads, photo capture/download and the guest sign-in flow have been checked in a
-browser, and the developer has confirmed that staging login works. An actual post
-submission has not been performed by the browser checks. The earlier lightweight
-visual harness supported capture/download only.
+Capture is bounded to a 2048-pixel longest edge. Photos and drafts stay in memory;
+preview object URLs are released when closed or replaced. Guests can download
+first, then sign in. Navigating away to sign in clears the in-memory photo, and
+an opened draft is cleared on logout or account changes. Profile photos and the
+YouTube iframe stay in the DOM, keeping their pixels out of world captures.
 
 ## Implementation boundaries
 
-- `src/components/templates/World`: HUD, reading dialogs, local arena game,
-  keyboard-accessible alternatives and touch controls.
-- `src/libs/world/world-scene.ts`: Three.js lifecycle, island, forest, relationships,
-  player input and camera. Loaded only when the world mounts.
-- `src/libs/world/world-landmarks.ts`: original procedural buildings and props.
-- `src/libs/world/world-theater.ts`, `world-satoshi.ts` and `world-bank.ts`:
-  the rotating public-post screen, steel monument, and bounded confetti animation.
-- `src/libs/world/world-motion.ts`: camera-relative movement and simple collision
-  resolution. The map uses a flat walkable plane; this is not a full physics engine.
-- `src/libs/world/world-types.ts`: serializable world data and `PersonaState`.
-- `src/libs/world/world-post-preview.ts`: bounded text previews shared by post
-  leaves and the theater, with kind-aware article and collection parsing.
-- `src/hooks/useWorldData`: opt-in, bounded public reads through existing Pubky
-  controllers. The normal cache and moderation behavior remains in those layers.
-- `src/components/templates/World/WorldCamera.tsx` and `src/hooks/useWorldPhotoPost`:
-  local photo review and an explicit handoff to the existing post composer.
+- `src/components/templates/World`: HUD, readers, person directory, local arena
+  game, cinema player, photo review, keyboard alternatives and touch controls.
+- `world-scene.ts`: Three.js lifecycle, island, tag forest, hoodie persona, input
+  and camera. Dynamic social updates do not rebuild the forest or reset the show.
+- `world-social-layout.ts`: deterministic ID-based sectors, direct/secondary
+  placement, pages and lookup of every discovered person.
+- `world-social.ts`: shared instanced body meshes, bounded entry/exit transitions,
+  nearby labels, real relationship lines, cluster counts and instance picking.
+  An individual page contains at most 96 people; a second 96-slot pool permits
+  outgoing figures to shrink away. The complete graph is retained outside that
+  render window. Reduced motion applies transitions immediately.
+- `world-layout.ts` and `world-motion.ts`: shared anchors, bounds, monument camera
+  poses, camera-relative walking and simple collision resolution on a flat plane.
+- `world-landmarks.ts`, `world-arena.ts`, `world-theater.ts`, `world-cinema.ts`,
+  `world-satoshi.ts`, `world-tether.ts` and `world-bank.ts`: procedural places,
+  local text/brand geometry and bounded decorative animation.
+- `world-cinema-program.ts`: the 18-video allowlist, shuffle and validated native
+  `youtube-nocookie.com` playlist URL. It is separate from the cinema geometry.
+- `world-post-preview.ts`: bounded, kind-aware readable previews shared by leaves,
+  the post theater and selected profiles.
+- `src/hooks/useWorldData`: automatic public staging samples through existing
+  controllers: up to six tag trees, four verified posts per tree, eight ranked
+  posts and a small guest profile sample. Existing cache and moderation rules
+  remain in those layers. A 20-second deadline bounds the sample loader.
+- `src/hooks/useWorldSocial`: the signed-in viewer's complete two-hop graph target.
+  It paginates direct follows first, then those people's follows, in bounded
+  request batches with explicit progress, continuation and retry. There is no
+  fixed total ID cap. Profiles load as the directory is browsed or a person is
+  selected; latest posts load on selection. Follow writes wrap the existing
+  application flow and update graph membership as they sync.
+- `world-types.ts`: serializable data and `PersonaState`, independent of a future
+  multiplayer transport. `src/hooks/useWorldPhotoPost` hands photos to the
+  inherited composer.
 
-The data loader renders at most six tag trees, four verified posts per staging
-tree, eight trending posts, six people and twelve confirmed follow edges. Counts describe the displayed
-sample. Missing results are left empty, never replaced with fictional records in
-staging mode. A 20-second deadline bounds the loading UI. Existing controllers do
-not expose transport cancellation, so reads already issued may finish filling
-their shared cache after cancellation; they cannot replace world state afterward.
+Discovered IDs remain usable placeholders if profile hydration fails. Shared
+second-degree people appear once and retain their known parents; direct membership
+wins. Following/unfollowing updates the active graph, and only real loaded edges
+are asserted. Incomplete discovery is labelled rather than presented as a complete
+circle. Account changes invalidate pending graph/profile results. Already-issued
+controller reads may still finish populating their shared cache after cancellation,
+but cannot overwrite an obsolete world scope.
 
-The existing auth guard, database provider, account routes and write flows are
-preserved. `/` is explicitly public, with the world's HUD replacing the normal
-header and floating action button only on that exact route.
+The inherited auth guard, database provider, account routes and write flows remain
+in place. `/` is public; world chrome replaces the normal header and floating
+button only on that route. Demo catalog data remains available for isolated tests,
+with no example-mode control in the running world.
 
 ## Next multiplayer increment
 
-`WorldController.getPersonaState()` returns position, heading and an animation
-state without depending on a Pubky session. Keep that state contract when adding
-a presence transport and separate remote avatars from graph-person characters.
-The current world has no presence server, networking claims, or online-user count.
-
-A future presence service needs its own design for session-bound identity, room
-limits, update frequency, interpolation, disconnect handling and position
-validation. Authentication must be handled by the existing account boundary;
-clients must never broadcast account keys or recovery phrases.
+`WorldController.getPersonaState()` returns position, heading and animation
+without depending on a Pubky session. Preserve that contract when adding presence,
+and keep remote players separate from social-graph figures and decorative extras.
+A future service needs session-bound identity, room limits, update frequency,
+interpolation, disconnect handling and position validation. Account keys and
+recovery phrases must never become presence messages.
 
 ## Validation
 
 ```sh
 npm run typecheck
-npm run lint -- src/libs/world src/components/templates/World src/hooks/useWorldData src/hooks/useWorldPhotoPost src/components/organisms/WorldAwareChrome
-npm test -- src/libs/world/world-motion.test.ts src/libs/world/world-post-preview.test.ts src/libs/world/world-theater.test.ts src/hooks/useWorldData/useWorldData.test.ts src/components/templates/World/World.test.tsx src/app/routes.test.ts src/providers/RouteGuardProvider/RouteGuardProvider.test.tsx
-npm test -- src/components/templates/World/WorldCamera.test.tsx src/hooks/useWorldPhotoPost/useWorldPhotoPost.test.tsx src/components/organisms/DialogNewPost/DialogNewPost.test.tsx src/components/organisms/PostInput/PostInput.test.tsx
+npm run lint -- src/libs/world src/components/templates/World src/hooks/useWorldData src/hooks/useWorldSocial src/hooks/useWorldPhotoPost
+npm test -- --maxWorkers=1 src/libs/world src/hooks/useWorldData src/hooks/useWorldSocial src/components/templates/World
+npm test -- --maxWorkers=1 src/hooks/useWorldPhotoPost/useWorldPhotoPost.test.tsx src/components/organisms/DialogNewPost/DialogNewPost.test.tsx src/components/organisms/PostInput/PostInput.test.tsx
 npm run build
 ```
 
-See [the validation record](./validation.md) for the successful full CI build,
-browser evidence and the remaining automated publishing check. The manual Build
-workflow packages a standalone runtime after staging HTTP smoke checks; its build
-step uses a bounded 4 GiB Node heap. This avoids compiling the full app on the
-memory-constrained preview host.
+These are validation commands, not a claim that the newest source has passed them.
+See [the validation record](./validation.md) for exact build revisions, browser
+checkpoints, security reviews and outstanding checks. The manual Build workflow
+packages a standalone runtime; its bounded heap avoids compiling the full app on
+the constrained preview host. Run local builds and a dev server sequentially when
+they share `.next`. Screenshots are commit-specific checkpoints until refreshed.
 
-The world has no inherited visual baseline. Browser screenshots provide the first
-visual review checkpoint; adding a dedicated VRT baseline is a possible next step
-once the visual direction is accepted. Keep production builds and the running dev
-server sequential because they share `.next`.
-
-No public deployment or registry PR is part of this increment.
-
-The source-focused security review found no actionable issue in the world changes.
-The upstream dependency tree still has npm audit advisories, including Next.js and
-its nested Sharp/PostCSS dependencies and build/test tooling. No matching high or
-critical exploitable world path was identified. Update and validate those inherited
-dependencies before public deployment; adding a 3D view does not resolve them.
+No public deployment or Vibes registry PR is included in this increment.
 
 ## Sources and assets
 
-The high-level inspiration is the explorable island at
-[miguelmedeiros.dev](https://miguelmedeiros.dev/). No source code or visual assets
-from that site are copied into this fork. The island and all of its toy buildings,
-characters and vegetation are generated from original code.
+The explorable island at [miguelmedeiros.dev](https://miguelmedeiros.dev/) supplied
+the high-level inspiration. Its source code and assets are not copied. Buildings,
+characters, vegetation and sculptures are generated from original procedural code.
 
-University summaries link to [pubky.org](https://pubky.org/), and project exhibits
-link to [the Pubky GitHub organization](https://github.com/pubky/).
+University lessons link to [pubky.org](https://pubky.org/); workshops link to the
+[Pubky GitHub organization](https://github.com/pubky/). The hoodie reuses the
+inherited `public/pubky-logo.svg`. Arena banners use the exact inherited Pubky and
+Synonym symbol paths from `src/libs/icons/icons.tsx`, without their wordmarks.
 
 The Satoshi sculpture is an original procedural homage to Valentina Picozzi's
 [Lugano monument](https://tether.io/news/plan-b-initiative-unveils-satoshi-nakamoto-statue-at-3rd-annual-plan-forum-in-lugano/).
-No photograph or third-party model of that artwork is bundled. Its separated
-vertical contours echo the original's disappearing-angle concept.
+Its separated vertical contours echo the disappearing-angle concept; no photograph
+or third-party model of the artwork is bundled.
 
 `public/world/bitkit-logo.svg` comes from the
-[official Bitkit logo](https://bitkit.to/images/brands/logo-header-bitkit.svg).
-Its colors and usage derive from the [Bitkit brand manual](https://bitkit.to/brand-manual).
-Bitkit branding remains the property of its owner; the repository's MIT license
-does not grant separate trademark rights or relicense that asset. The logo is
-bundled locally, parsed from a fixed path and extruded using Three.js's SVGLoader.
+[official Bitkit logo](https://bitkit.to/images/brands/logo-header-bitkit.svg), with
+usage described by the [Bitkit brand manual](https://bitkit.to/brand-manual).
+The Tether monument reuses the inherited `public/images/tether-text.svg` company
+wordmark; [Tether's media assets](https://tether.io/media/) provide the official
+brand reference. Both logos are parsed from fixed local paths and extruded with
+Three.js SVGLoader. Brand ownership remains with the respective owners; the
+repository's MIT license does not grant separate trademark rights.
+
+Cinema videos are the 18 user-supplied YouTube IDs listed in
+`world-cinema-program.ts`. Their content is played by YouTube after interaction,
+not downloaded or bundled with the world.

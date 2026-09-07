@@ -6,7 +6,7 @@ export const WORLD_ZONES: WorldZone[] = [
     id: 'plaza',
     name: 'Social Plaza',
     subtitle: 'A constellation of connections',
-    description: 'People are little worlds. Follow the glowing threads and find out how theirs connect.',
+    description: 'Your follows stand tall. Their circles gather quietly around them. Walk closer and meet someone new.',
     color: '#C8FF03',
     position: [...WORLD_ANCHORS.plaza],
   },
@@ -22,7 +22,8 @@ export const WORLD_ZONES: WorldZone[] = [
     id: 'arena',
     name: 'The Arena',
     subtitle: 'Extremely unserious competition',
-    description: 'A very grand arena for very small victories. Challenge the local champion to rock, paper, scissors.',
+    description:
+      'Roman grandeur. Questionable gladiators. Enter the amphitheater and challenge a duck to rock, paper, scissors.',
     color: '#E98154',
     position: [...WORLD_ANCHORS.arena],
   },
@@ -59,6 +60,15 @@ export const WORLD_ZONES: WorldZone[] = [
     description: 'Take a seat under the stars. The public Hot feed takes the stage, one post at a time.',
     color: '#C8FF03',
     position: [...WORLD_ANCHORS.theater],
+  },
+  {
+    id: 'cinema',
+    name: 'Midnight Cinema',
+    subtitle: 'A different kind of feed',
+    description:
+      'Step through the red curtains. Eighteen films, a shuffled program, and a projectionist who accepts popcorn.',
+    color: '#E97B9D',
+    position: [...WORLD_ANCHORS.cinema],
   },
 ];
 

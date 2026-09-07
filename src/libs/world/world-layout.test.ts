@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD_ZONES } from './world-catalog';
+import { CINEMA_DIMENSIONS } from './world-cinema';
 import {
   WORLD_ANCHORS,
   WORLD_DIMENSIONS,
@@ -7,6 +8,7 @@ import {
   WORLD_TREE_POSITIONS,
   worldArrival,
   worldCameraFar,
+  worldLandmarkPose,
 } from './world-layout';
 import { resolvePosition } from './world-motion';
 
@@ -29,6 +31,8 @@ describe('expanded world layout', () => {
       ['theater', 'github'],
       ['bank', 'arena'],
       ['bank', 'forest'],
+      ['theater', 'cinema'],
+      ['university', 'cinema'],
     ] as const) {
       const a = WORLD_ANCHORS[left];
       const b = WORLD_ANCHORS[right];
@@ -47,15 +51,41 @@ describe('expanded world layout', () => {
   });
 
   it('keeps peripheral props and their decoration on the island', () => {
-    for (const id of ['bank', 'duck', 'portal', 'trampoline', 'satoshi', 'balloon'] as const) {
+    for (const id of ['bank', 'duck', 'portal', 'trampoline', 'satoshi', 'balloon', 'tether'] as const) {
       expect(Math.hypot(...WORLD_ANCHORS[id]) + 8).toBeLessThan(WORLD_DIMENSIONS.landRadius);
     }
+  });
+
+  it('adds walkable new ground around the cinema, its front entry and the Tether monument', () => {
+    expect(WORLD_RADIUS).toBeGreaterThanOrEqual(110);
+    for (const side of [-1, 1])
+      for (const z of [-CINEMA_DIMENSIONS.back, CINEMA_DIMENSIONS.front]) {
+        expect(
+          Math.hypot(WORLD_ANCHORS.cinema[0] + side * CINEMA_DIMENSIONS.halfWidth, WORLD_ANCHORS.cinema[1] + z),
+        ).toBeLessThan(WORLD_DIMENSIONS.landRadius);
+      }
+    const arrival = worldArrival('cinema');
+    expect(arrival.z).toBeGreaterThan(WORLD_ANCHORS.cinema[1] + CINEMA_DIMENSIONS.front);
+    expect(Math.hypot(WORLD_ANCHORS.tether[0], WORLD_ANCHORS.tether[1]) + 10).toBeLessThan(WORLD_RADIUS);
   });
 
   it('keeps the far coastline visible when portrait views pull the overview camera back', () => {
     for (const aspect of [1.6, 390 / 844, 0.25]) {
       const distance = WORLD_DIMENSIONS.overviewDistance * Math.max(1, 1 / aspect) * 1.5;
       expect(worldCameraFar(distance)).toBeGreaterThan(distance + WORLD_DIMENSIONS.coastRadius);
+    }
+  });
+
+  it('beams in front of Bitkit with the avatar and portrait-safe camera facing the actual beacon', () => {
+    for (const aspect of [1.6, 390 / 844]) {
+      const pose = worldLandmarkPose('bitkit', aspect);
+      expect(pose.arrival).toEqual(worldArrival('bitkit'));
+      expect(pose.arrival.z).toBeGreaterThan(WORLD_ANCHORS.bitkit[1] + 5);
+      expect(Math.sin(pose.facing)).toBeCloseTo(0);
+      expect(Math.cos(pose.facing)).toBeCloseTo(-1);
+      expect(pose.target).toEqual([WORLD_ANCHORS.bitkit[0], 6, WORLD_ANCHORS.bitkit[1]]);
+      expect(pose.cameraPosition[2]).toBeGreaterThan(pose.arrival.z);
+      expect(2 * Math.tan(Math.PI / 9) * pose.distance * aspect).toBeGreaterThanOrEqual(17);
     }
   });
 });

@@ -32,17 +32,16 @@ const RELATIONSHIP_LIMIT = 12;
 const LOAD_TIMEOUT_MS = 20_000;
 const CANCELLED = Symbol('world-load-cancelled');
 
-type WorldDataStatus = 'demo' | 'loading' | 'staging' | 'error';
+type WorldDataStatus = 'loading' | 'staging' | 'error';
 
 interface UseWorldDataResult {
   data: WorldData;
   status: WorldDataStatus;
   error: string | null;
   loadStaging: () => Promise<void>;
-  useDemo: () => void;
 }
 
-/** Only the named public staging service is eligible for the opt-in staging button. */
+/** This world reads only from the named public staging service. */
 function isStagingConfigured(): boolean {
   try {
     return getDeployEnv() === 'staging' && getNexusUrl().replace(/\/$/, '') === 'https://nexus.staging.pubky.app';
@@ -286,10 +285,16 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
   };
 }
 
-/** A walkable demo first; public staging samples load only after an explicit action. */
+/** Public staging data; the World mounts this loader automatically and can retry it. */
 export function useWorldData(): UseWorldDataResult {
-  const [data, setData] = useState<WorldData>(DEMO_WORLD_DATA);
-  const [status, setStatus] = useState<WorldDataStatus>('demo');
+  const [data, setData] = useState<WorldData>({
+    source: 'staging',
+    tags: [],
+    trendingPosts: [],
+    people: [],
+    relationships: [],
+  });
+  const [status, setStatus] = useState<WorldDataStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const activeLoad = useRef<AbortController | null>(null);
 
@@ -345,13 +350,5 @@ export function useWorldData(): UseWorldDataResult {
     }
   }
 
-  function useDemo(): void {
-    activeLoad.current?.abort(CANCELLED);
-    activeLoad.current = null;
-    setData(DEMO_WORLD_DATA);
-    setStatus('demo');
-    setError(null);
-  }
-
-  return { data, status, error, loadStaging, useDemo };
+  return { data, status, error, loadStaging };
 }

@@ -1,5 +1,5 @@
 /** Serializable world state, independent of rendering or a future presence transport. */
-export type WorldZoneId = 'plaza' | 'forest' | 'arena' | 'university' | 'github' | 'bitkit' | 'theater';
+export type WorldZoneId = 'plaza' | 'forest' | 'arena' | 'university' | 'github' | 'bitkit' | 'theater' | 'cinema';
 
 export interface WorldZone {
   id: WorldZoneId;
@@ -29,6 +29,11 @@ export interface WorldPerson {
   name: string;
   /** Canonical Pubky CDN URL, derived from the validated profile ID. */
   avatarUrl?: string;
+  /** One is followed by the viewer; two is a quieter one-hop discovery. */
+  degree?: 1 | 2;
+  /** Known direct follows introducing this person; never invented relationships. */
+  parentIds?: string[];
+  profileLoaded?: boolean;
   color: string;
   bio: string;
   position: [number, number];
@@ -60,7 +65,8 @@ export type WorldInteraction =
   | { kind: 'tag'; index: number }
   | { kind: 'post'; tagIndex: number; postIndex: number }
   | { kind: 'person'; id: string }
-  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'portal' | 'satoshi' | 'bank' };
+  | { kind: 'social-cluster'; sector: number }
+  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'portal' | 'satoshi' | 'bank' | 'tether' };
 
 export interface PersonaState {
   position: [number, number, number];
@@ -85,9 +91,17 @@ export interface WorldOptions {
   onExplore?: () => void;
 }
 
+export interface WorldSocialView {
+  sector: number | null;
+  page: number;
+}
+
 export interface WorldController {
   dispose: () => void;
-  travelTo: (zone: WorldZoneId) => void;
+  travelTo: (zone: WorldZoneId, options?: { faceLandmark?: boolean }) => void;
+  setSocialView: (view: WorldSocialView) => void;
+  setSocialFocus: (personId: string | null) => void;
+  travelToPerson: (personId: string) => void;
   setOverview: (overview: boolean) => void;
   setPaused: (paused: boolean) => void;
   setNight: (night: boolean) => void;

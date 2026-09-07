@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
+import { ARENA_DIMENSIONS, createArena } from '@/libs/world/world-arena';
 import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
+import { createCinema } from '@/libs/world/world-cinema';
 import {
   box,
   cylinder,
@@ -21,9 +24,13 @@ import {
   WORLD_TREE_POSITIONS,
   worldArrival,
   worldCameraFar,
+  worldLandmarkPose,
 } from '@/libs/world/world-layout';
 import { movementStep, resolvePosition, type WorldObstacle } from '@/libs/world/world-motion';
 import { createSatoshi } from '@/libs/world/world-satoshi';
+import { createSocialPlaza } from '@/libs/world/world-social';
+import { SOCIAL_PLAZA_RADIUS } from '@/libs/world/world-social-layout';
+import { createTether } from '@/libs/world/world-tether';
 import { createTheater } from '@/libs/world/world-theater';
 import type {
   PersonaState,
@@ -31,7 +38,6 @@ import type {
   WorldData,
   WorldInteraction,
   WorldOptions,
-  WorldZoneId,
 } from '@/libs/world/world-types';
 
 interface Interactive {
@@ -45,20 +51,66 @@ const TREE_COLORS = ['#79A63B', '#276A55', '#976631', '#8B405D', '#5E497E', '#33
 
 function persona(color: string) {
   const group = new THREE.Group();
-  const coat = material(color);
-  const body = mesh(group, new THREE.CapsuleGeometry(0.48, 0.6, 3, 8), coat, [0, 1.22, 0]);
+  const coat = material('#111114');
+  const accent = material(color);
+  const body = mesh(group, new THREE.CapsuleGeometry(0.55, 0.68, 3, 8), coat, [0, 1.22, 0]);
   body.scale.z = 0.8;
-  sphere(group, 0.46, '#D4BCA4', [0, 2.08, 0]);
-  cylinder(group, 0.48, 0.53, 0.2, color, [0, 2.38, 0], 10);
-  sphere(group, 0.1, '#C8FF03', [0, 2.57, 0]);
-  box(group, [0.08, 0.09, 0.06], '#101014', [-0.16, 2.12, 0.41]);
-  box(group, [0.08, 0.09, 0.06], '#101014', [0.16, 2.12, 0.41]);
+  const hood = mesh(group, new THREE.IcosahedronGeometry(0.6, 1), coat, [0, 2.1, -0.04]);
+  hood.scale.set(1, 1.1, 0.86);
+  sphere(group, 0.4, '#D4BCA4', [0, 2.1, 0.19]);
+  const opening = mesh(group, new THREE.TorusGeometry(0.47, 0.105, 6, 18), coat, [0, 2.12, 0.29]);
+  opening.scale.set(0.9, 1.1, 1);
+  box(group, [0.07, 0.085, 0.05], '#101014', [-0.14, 2.14, 0.56]);
+  box(group, [0.07, 0.085, 0.05], '#101014', [0.14, 2.14, 0.56]);
+  for (const x of [-0.14, 0.14]) {
+    cylinder(group, 0.019, 0.019, 0.28, '#DADAE0', [x, 1.65, 0.42], 5);
+    cylinder(group, 0.027, 0.027, 0.07, '#92929D', [x, 1.48, 0.42], 5);
+  }
+  box(group, [0.7, 0.29, 0.085], '#202026', [0, 0.87, 0.4]);
+  const pocketSeam = box(group, [0.48, 0.018, 0.02], '#4A4A54', [0, 0.99, 0.45]);
+  pocketSeam.rotation.z = -0.02;
   const leftLeg = box(group, [0.3, 0.65, 0.36], '#303034', [-0.25, 0.43, 0]);
   const rightLeg = box(group, [0.3, 0.65, 0.36], '#303034', [0.25, 0.43, 0]);
-  const leftArm = box(group, [0.23, 0.7, 0.26], color, [-0.61, 1.18, 0]);
-  const rightArm = box(group, [0.23, 0.7, 0.26], color, [0.61, 1.18, 0]);
-  box(group, [0.65, 0.65, 0.3], '#56565F', [0, 1.25, -0.43]);
-  return { group, coat, leftLeg, rightLeg, leftArm, rightArm };
+  for (const leg of [leftLeg, rightLeg]) {
+    mesh(leg, new THREE.BoxGeometry(0.35, 0.15, 0.55), accent, [0, -0.29, 0.13]);
+    box(leg, [0.36, 0.065, 0.57], '#DADAE0', [0, -0.37, 0.13]);
+  }
+  const leftArm = mesh(group, new THREE.BoxGeometry(0.28, 0.72, 0.3), coat, [-0.64, 1.18, 0]);
+  const rightArm = mesh(group, new THREE.BoxGeometry(0.28, 0.72, 0.3), coat, [0.64, 1.18, 0]);
+  for (const arm of [leftArm, rightArm]) sphere(arm, 0.13, '#D4BCA4', [0, -0.43, 0]);
+
+  // Reuse the app's official, bundled SVG as shallow chest embroidery.
+  const abort = new AbortController();
+  void fetch('/pubky-logo.svg', { signal: abort.signal, credentials: 'omit' })
+    .then((response) => (response.ok ? response.text() : null))
+    .then((source) => {
+      if (!source || abort.signal.aborted) return;
+      const logo = new THREE.Group();
+      for (const path of new SVGLoader().parse(source).paths) {
+        const shapes = SVGLoader.createShapes(path);
+        const geometry = new THREE.ShapeGeometry(shapes, 8);
+        const embroidery = new THREE.MeshBasicMaterial({
+          color: path.color,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+        });
+        mesh(logo, geometry, embroidery).castShadow = false;
+      }
+      logo.scale.set(0.0074, -0.0074, 0.0074);
+      logo.position.set(-0.403, 1.46, 0.445);
+      logo.name = 'official-pubky-hoodie-logo';
+      group.add(logo);
+      const backPrint = logo.clone(true);
+      backPrint.name = 'official-pubky-hoodie-back-logo';
+      backPrint.scale.set(0.009, -0.009, 0.009);
+      backPrint.rotation.y = Math.PI;
+      backPrint.position.set(0.4905, 1.6, -0.448);
+      group.add(backPrint);
+    })
+    .catch(() => {
+      /* The black hoodie remains usable if the bundled embroidery cannot load. */
+    });
+  return { group, accent, leftLeg, rightLeg, leftArm, rightArm, dispose: () => abort.abort() };
 }
 
 function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
@@ -160,46 +212,73 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const groundPoint = ([x, z]: readonly [number, number]) => new THREE.Vector3(x, 0, z);
   const addPath = (points: THREE.Vector3[]) => pathSamples.push(...makePath(scene, points).getSpacedPoints(35));
   const plazaGround = groundPoint(WORLD_ANCHORS.plaza);
-  const arenaEntrance = new THREE.Vector3(WORLD_ANCHORS.arena[0], 0, WORLD_ANCHORS.arena[1] + 11);
+  const arenaEntrance = new THREE.Vector3(
+    WORLD_ANCHORS.arena[0],
+    0,
+    WORLD_ANCHORS.arena[1] + ARENA_DIMENSIONS.entranceZ,
+  );
 
   WORLD_ZONES.forEach((zone) => {
     const [x, z] = zone.position;
     if (zone.id === 'arena') {
-      addPath([plazaGround, new THREE.Vector3(28, 0, 43), arenaEntrance, groundPoint(zone.position)]);
+      addPath([plazaGround, new THREE.Vector3(34, 0, 57), arenaEntrance, groundPoint(zone.position)]);
     } else if (zone.id === 'university') {
       // Leave the Satoshi plinth clear on the university approach.
-      addPath([plazaGround, new THREE.Vector3(-4, 0, -22), groundPoint(zone.position)]);
+      addPath([plazaGround, new THREE.Vector3(-5, 0, -32), groundPoint(zone.position)]);
+    } else if (zone.id === 'cinema') {
+      const arrival = worldArrival('cinema');
+      addPath([plazaGround, new THREE.Vector3(-45, 0, -42), new THREE.Vector3(arrival.x, 0, arrival.z)]);
     } else if (zone.id !== 'plaza') {
       addPath([plazaGround, new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4), groundPoint(zone.position)]);
     }
     cylinder(
       scene,
-      zone.id === 'plaza' ? 12 : 10,
-      zone.id === 'plaza' ? 12 : 10,
+      zone.id === 'plaza' ? SOCIAL_PLAZA_RADIUS : 10,
+      zone.id === 'plaza' ? SOCIAL_PLAZA_RADIUS : 10,
       0.16,
       zone.id === 'plaza' ? '#3B3B42' : '#2A2A30',
       [x, 0.04, z],
       48,
     );
   });
-  addPath([groundPoint(WORLD_ANCHORS.bitkit), new THREE.Vector3(4, 0, 44), arenaEntrance]);
-  addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(4, 0, -54), groundPoint(WORLD_ANCHORS.forest)]);
-  addPath([groundPoint(WORLD_ANCHORS.github), new THREE.Vector3(-69, 0, -10), groundPoint(WORLD_ANCHORS.university)]);
+  addPath([groundPoint(WORLD_ANCHORS.bitkit), new THREE.Vector3(5, 0, 71), arenaEntrance]);
+  addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(7, 0, -74), groundPoint(WORLD_ANCHORS.forest)]);
+  addPath([
+    groundPoint(WORLD_ANCHORS.github),
+    new THREE.Vector3(-42, 0, 4),
+    new THREE.Vector3(-43, 0, -31),
+    groundPoint(WORLD_ANCHORS.university),
+  ]);
+  addPath([
+    groundPoint(WORLD_ANCHORS.theater),
+    new THREE.Vector3(-85, 0, -37),
+    new THREE.Vector3(WORLD_ANCHORS.cinema[0], 0, WORLD_ANCHORS.cinema[1] + 9),
+  ]);
+  addPath([groundPoint(WORLD_ANCHORS.forest), new THREE.Vector3(46, 0, -70), groundPoint(WORLD_ANCHORS.tether)]);
+  addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(-22, 0, -86), groundPoint(WORLD_ANCHORS.portal)]);
   addPath([
     arenaEntrance,
-    new THREE.Vector3(56, 0, 42),
-    new THREE.Vector3(67, 0, 24),
+    new THREE.Vector3(76, 0, 60),
+    new THREE.Vector3(92, 0, 32),
     new THREE.Vector3(BANK_POSITION[0], 0, BANK_POSITION[1] + 7),
   ]);
 
   // Tiny trees around the coast leave the central paths clear.
   for (let i = 0; i < 38; i++) {
     const angle = i * 2.39996;
-    const radius = 64 + Math.sin(i * 7.1) * 11;
+    const radius = 94 + Math.sin(i * 7.1) * 14;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
-    if (WORLD_ZONES.some((zone) => Math.hypot(x - zone.position[0], z - zone.position[1]) < 15)) continue;
+    if (
+      WORLD_ZONES.some(
+        (zone) =>
+          Math.hypot(x - zone.position[0], z - zone.position[1]) <
+          (zone.id === 'cinema' ? 22 : zone.id === 'arena' ? 25 : 15),
+      )
+    )
+      continue;
     if (Math.hypot(x - BANK_POSITION[0], z - BANK_POSITION[1]) < 7) continue;
+    if (Math.hypot(x - WORLD_ANCHORS.tether[0], z - WORLD_ANCHORS.tether[1]) < 10) continue;
     if (pathSamples.some((point) => Math.hypot(x - point.x, z - point.z) < 3.2)) continue;
     const height = 2.3 + (i % 4) * 0.55;
     cylinder(scene, 0.2, 0.32, height, '#4F4844', [x, height / 2, z], 5);
@@ -212,7 +291,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const dummy = new THREE.Object3D();
   for (let i = 0; i < 160; i++) {
     const angle = i * 2.39996;
-    const radius = 24 + (Math.sin(i * 16.4) * 0.5 + 0.5) * 51;
+    const radius = 40 + (Math.sin(i * 16.4) * 0.5 + 0.5) * 69;
     dummy.position.set(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
     dummy.scale.set(1, 1.5 + (i % 3), 1);
     dummy.updateMatrix();
@@ -222,7 +301,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   scene.add(flowers);
 
   const landmarks = createLandmarks(scene, register, obstacle);
+  const arena = createArena(scene, register, obstacle);
   const bank = createBank(scene, register, obstacle);
+  createCinema(scene, register, obstacle);
+  const tether = createTether(scene, register, obstacle);
   createSatoshi(scene, register, obstacle);
   const theater = createTheater(scene, register, obstacle, options.data);
   const player = persona('#C8FF03');
@@ -248,18 +330,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let dataGroup = new THREE.Group();
   scene.add(dataGroup);
   let floatingLeaves: { object: THREE.Object3D; baseY: number; phase: number }[] = [];
-  let graphParticles: { mesh: THREE.Mesh; curve: THREE.QuadraticBezierCurve3; phase: number }[] = [];
-  let networkPeople: ReturnType<typeof persona>[] = [];
   const staticObstacleCount = obstacles.length;
 
-  const populateData = (data: WorldData) => {
+  const populateForest = (data: WorldData) => {
     for (let i = interactives.length - 1; i >= 0; i--) if (interactives[i].dynamic) interactives.splice(i, 1);
     disposeObject(dataGroup);
     dataGroup = new THREE.Group();
     scene.add(dataGroup);
     floatingLeaves = [];
-    graphParticles = [];
-    networkPeople = [];
     obstacles.splice(staticObstacleCount);
     isDynamic = true;
     data.tags.slice(0, 6).forEach((tag, tagIndex) => {
@@ -296,43 +374,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         floatingLeaves.push({ object: leaf, baseY: leaf.position.y, phase: tagIndex + postIndex });
       });
     });
-    data.people.slice(0, 6).forEach((person) => {
-      const character = persona(person.color);
-      character.group.position.set(person.position[0], 0.2, person.position[1]);
-      character.group.rotation.y = Math.atan2(
-        WORLD_ANCHORS.plaza[0] - person.position[0],
-        WORLD_ANCHORS.plaza[1] - person.position[1],
-      );
-      dataGroup.add(character.group);
-      cylinder(character.group, 1.3, 1.3, 0.16, person.color, [0, 0, 0]);
-      label(character.group, person.name, [0, 3.5, 0], 4.8);
-      register(character.group, { kind: 'person', id: person.id }, `Meet ${person.name.slice(0, 24)}`);
-      networkPeople.push(character);
-    });
-    data.relationships.slice(0, 18).forEach((relationship, index) => {
-      const from = data.people.find((person) => person.id === relationship.from);
-      const to = data.people.find((person) => person.id === relationship.to);
-      if (!from || !to) return;
-      const start = new THREE.Vector3(from.position[0], 2.1, from.position[1]);
-      const end = new THREE.Vector3(to.position[0], 2.1, to.position[1]);
-      const middle = start.clone().lerp(end, 0.5);
-      middle.y = 5 + (index % 3) * 1.3;
-      const curve = new THREE.QuadraticBezierCurve3(start, middle, end);
-      mesh(
-        dataGroup,
-        new THREE.TubeGeometry(curve, 24, 0.045, 4, false),
-        material(index % 3 === 0 ? WORLD_PALETTE.text : WORLD_PALETTE.lime, true),
-      );
-      const particle = sphere(dataGroup, 0.14, '#EEEEF6');
-      particle.position.copy(curve.getPoint(index / 18));
-      graphParticles.push({ mesh: particle, curve, phase: index / 8 });
-      const arrow = mesh(dataGroup, new THREE.ConeGeometry(0.18, 0.55, 5), material(WORLD_PALETTE.lime, true));
-      arrow.position.copy(curve.getPoint(0.88));
-      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), curve.getTangent(0.88).normalize());
-    });
     isDynamic = false;
   };
-  populateData(options.data);
+  populateForest(options.data);
+  const social = createSocialPlaza(scene, options.data);
+  let forestTags = options.data.tags;
+  let theaterPosts = options.data.trendingPosts;
+  let dataSource = options.data.source;
 
   // Local collectibles are clearly game props, with no token or monetary semantics.
   const collectibles: THREE.Group[] = [];
@@ -375,6 +423,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let walkTarget: THREE.Vector3 | null = null;
   let animation: PersonaState['animation'] = 'idle';
   let capturingPhoto = false;
+  let landmarkPose: ReturnType<typeof worldLandmarkPose> | null = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   const cameraGoal = new THREE.Vector3();
   const desiredTarget = new THREE.Vector3();
@@ -392,6 +441,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const enterExplore = () => {
     if (overview) options.onExplore?.();
     overview = false;
+    landmarkPose = null;
   };
   const jump = () => {
     if (!paused && jumpHeight === 0) jumpVelocity = 10;
@@ -404,7 +454,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (nearby.action.kind === 'fun' && nearby.action.id === 'trampoline') jumpVelocity = 20;
     options.onInteract(nearby.action);
   };
-  const travelTo = (id: WorldZoneId) => {
+  const travelTo: WorldController['travelTo'] = (id, travelOptions) => {
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
     clearInput();
@@ -414,6 +464,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     jumpHeight = 0;
     jumpVelocity = 0;
     overview = false;
+    landmarkPose = travelOptions?.faceLandmark ? worldLandmarkPose(id, camera.aspect) : null;
+    if (landmarkPose) {
+      player.group.rotation.y = landmarkPose.facing;
+      yaw = landmarkPose.yaw;
+      pitch = landmarkPose.pitch;
+      zoom = 1;
+      cameraTarget.set(...landmarkPose.target);
+      camera.position.set(...landmarkPose.cameraPosition);
+    }
     lastStatus = -1;
   };
   const handleKey = (event: KeyboardEvent) => {
@@ -468,6 +527,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     raycaster.setFromCamera(pointer, camera);
   };
   const pick = () => {
+    const socialHit = social.pick(raycaster);
     const hits = raycaster.intersectObjects(
       interactives.map((item) => item.object),
       true,
@@ -475,11 +535,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     for (const hit of hits) {
       let object: THREE.Object3D | null = hit.object;
       while (object) {
-        if (object.userData.worldInteraction) return object.userData.worldInteraction as Interactive;
+        if (object.userData.worldInteraction)
+          return socialHit && socialHit.distance < hit.distance
+            ? socialHit
+            : (object.userData.worldInteraction as Interactive);
         object = object.parent;
       }
     }
-    return null;
+    return socialHit;
   };
   const pointerDown = (event: PointerEvent) => {
     if (paused || event.button !== 0) return;
@@ -538,6 +601,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const { width, height } = container.getBoundingClientRect();
     renderer.setSize(Math.max(1, width), Math.max(1, height));
     camera.aspect = Math.max(1, width) / Math.max(1, height);
+    if (landmarkPose) landmarkPose = worldLandmarkPose(landmarkPose.zone, camera.aspect);
     camera.updateProjectionMatrix();
   };
   const resizeObserver = new ResizeObserver(resize);
@@ -616,6 +680,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     player.group.position.y = 0.15 + jumpHeight + (!reducedMotion && dancing ? Math.abs(Math.sin(time * 8)) * 0.4 : 0);
     if (dancing && !reducedMotion) player.group.rotation.y += delta * 3;
     playerHalo.position.set(player.group.position.x, 0.23, player.group.position.z);
+    social.tick(delta, player.group.position, reducedMotion, overview);
     if (!paused) bank.animate(time, reducedMotion);
 
     if (!paused && !reducedMotion) {
@@ -624,29 +689,26 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       floatingLeaves.forEach((leaf) => {
         leaf.object.position.y = leaf.baseY + Math.sin(time * 1.5 + leaf.phase) * 0.16;
       });
-      graphParticles.forEach((particle) => {
-        particle.mesh.position.copy(particle.curve.getPoint((time * 0.13 + particle.phase) % 1));
-      });
-      networkPeople.forEach((person, index) => {
-        person.group.position.y = 0.2 + Math.sin(time * 1.4 + index) * 0.04;
-      });
       collectibles.forEach((item, index) => {
         item.rotation.y = time + index;
         item.position.y = 1.6 + Math.sin(time * 2 + index) * 0.2;
       });
       balloon.position.y = 18 + Math.sin(time * 0.6) * 0.8;
       landmarks.animate(time, delta);
+      arena.animate(time);
       surf.forEach((wave, index) => {
         const scale = 1 + Math.sin(time * 0.5 + index) * 0.009;
         wave.scale.set(scale, scale, 0.7);
       });
     }
 
-    desiredTarget.copy(overview ? new THREE.Vector3(0, 0, 0) : player.group.position).setY(overview ? 0 : 1.3);
+    if (landmarkPose && !overview) desiredTarget.set(...landmarkPose.target);
+    else desiredTarget.copy(overview ? new THREE.Vector3(0, 0, 0) : player.group.position).setY(overview ? 0 : 1.3);
     const smoothing = reducedMotion ? 1 : 1 - Math.exp(-delta * 4);
     cameraTarget.lerp(desiredTarget, smoothing);
     const portraitScale = camera.aspect < 1 ? 1 / camera.aspect : 1;
-    const distance = (overview ? WORLD_DIMENSIONS.overviewDistance * portraitScale : 42) * zoom;
+    const distance =
+      (overview ? WORLD_DIMENSIONS.overviewDistance * portraitScale : (landmarkPose?.distance ?? 42)) * zoom;
     const far = worldCameraFar(distance);
     if (camera.far !== far) {
       camera.far = far;
@@ -684,6 +746,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           nearestDistance = distanceTo;
         }
       }
+      const personNearby = social.nearest(player.group.position.x, player.group.position.z, nearestDistance);
+      if (personNearby) nearby = personNearby;
       const zone = WORLD_ZONES.reduce((nearest, candidate) =>
         Math.hypot(candidate.position[0] - player.group.position.x, candidate.position[1] - player.group.position.z) <
         Math.hypot(nearest.position[0] - player.group.position.x, nearest.position[1] - player.group.position.z)
@@ -705,8 +769,30 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
 
   return {
     travelTo,
+    setSocialView(value) {
+      social.setView(value);
+      nearby = null;
+      lastStatus = -1;
+    },
+    setSocialFocus(id) {
+      social.setFocus(id);
+    },
+    travelToPerson(id) {
+      const person = social.findPerson(id);
+      if (!person) return;
+      clearInput();
+      const [x, z] = person.position;
+      const spawn = resolvePosition(x, z + 4, obstacles);
+      player.group.position.set(spawn.x, 0.15, spawn.z);
+      player.group.rotation.y = Math.atan2(x - spawn.x, z - spawn.z);
+      jumpHeight = 0;
+      jumpVelocity = 0;
+      enterExplore();
+      lastStatus = -1;
+    },
     setOverview(value) {
       if (overview !== value) walkTarget = null;
+      if (value) landmarkPose = null;
       overview = value;
       zoom = 1;
     },
@@ -743,7 +829,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       lastStatus = -1;
     },
     setPersonaColor(color) {
-      if (/^#[0-9a-f]{6}$/i.test(color)) player.coat.color.set(color);
+      if (/^#[0-9a-f]{6}$/i.test(color)) player.accent.color.set(color);
     },
     setMove(x, z) {
       if (!paused) {
@@ -783,8 +869,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       }
     },
     updateData(data) {
-      populateData(data);
-      theater.updateData(data);
+      social.updateData(data);
+      // Live follows change independently from the forest and the current show.
+      if (forestTags !== data.tags || dataSource !== data.source) populateForest(data);
+      if (theaterPosts !== data.trendingPosts || dataSource !== data.source) theater.updateData(data);
+      forestTags = data.tags;
+      theaterPosts = data.trendingPosts;
+      dataSource = data.source;
       nearby = null;
       lastStatus = -1;
     },
@@ -805,6 +896,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       renderer.domElement.removeEventListener('pointercancel', pointerCancel);
       renderer.domElement.removeEventListener('wheel', wheel);
       landmarks.dispose();
+      player.dispose();
+      tether.dispose();
+      social.dispose();
       disposeObject(scene);
       renderer.dispose();
       renderer.forceContextLoss();

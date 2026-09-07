@@ -1,0 +1,72 @@
+import * as THREE from 'three';
+import { box, cylinder, label, material, mesh, sphere } from '@/libs/world/world-geometry';
+import { WORLD_ANCHORS } from '@/libs/world/world-layout';
+import type { WorldInteraction } from '@/libs/world/world-types';
+
+export const CINEMA_DIMENSIONS = { halfWidth: 12.5, back: 15.5, front: 3.5 } as const;
+
+/** Original Art Deco movie house. Playback belongs to the DOM reader, never a canvas texture. */
+export function createCinema(
+  scene: THREE.Scene,
+  register: (object: THREE.Object3D, interaction: WorldInteraction, title: string) => void,
+  obstacle: (x: number, z: number, radius: number) => void,
+) {
+  const cinema = new THREE.Group();
+  cinema.name = 'midnight-cinema';
+  cinema.position.set(WORLD_ANCHORS.cinema[0], 0, WORLD_ANCHORS.cinema[1]);
+  scene.add(cinema);
+  box(cinema, [25, 0.45, 18], '#3E2A32', [0, 0.23, -6.5]);
+  box(cinema, [22, 8.5, 13], '#251B25', [0, 4.7, -7]);
+  box(cinema, [23, 0.55, 14], '#3B2737', [0, 9.1, -7]);
+  for (const x of [-9.6, 9.6]) {
+    box(cinema, [2.5, 10.6, 2.6], '#70273E', [x, 5.6, -1.5]);
+    box(cinema, [1.7, 11.5, 1.8], '#89354F', [x, 6, -1.1]);
+    for (const offset of [-0.5, 0, 0.5]) box(cinema, [0.12, 10.7, 0.13], '#C5A779', [x + offset, 5.9, -0.15]);
+    box(cinema, [2.8, 0.3, 3], '#C5A779', [x, 11.05, -1.5]);
+  }
+  // Warm, low marquee bulbs distinguish this from the open-air lime theater.
+  box(cinema, [18.5, 1.6, 4.8], '#70273E', [0, 6.3, 0.8]);
+  for (const y of [5.55, 7.05]) box(cinema, [19, 0.14, 5], '#DBBA86', [0, y, 0.8]);
+  for (let index = 0; index < 16; index++) {
+    for (const y of [5.65, 6.95])
+      mesh(cinema, new THREE.IcosahedronGeometry(0.1, 0), material('#F7CE83', true), [-8.5 + index * 1.13, y, 3.35]);
+  }
+  label(cinema, 'MIDNIGHT CINEMA', [0, 6.32, 3.55], 14.5, '#F8DCA3', '#5B2036');
+  for (const x of [-1.2, 1.2]) {
+    box(cinema, [2.2, 3.9, 0.22], '#111017', [x, 2.5, -0.2]);
+    box(cinema, [0.07, 0.7, 0.14], '#D3B582', [x + (x < 0 ? 0.72 : -0.72), 2.3, -0.03]);
+  }
+  box(cinema, [5.1, 0.08, 3.6], '#9F3F53', [0, 0.51, 1.7]);
+  for (const x of [-6.2, 6.2]) {
+    box(cinema, [3.3, 4.3, 0.25], '#CAA779', [x, 2.8, -0.35]);
+    box(cinema, [2.9, 3.9, 0.18], x < 0 ? '#365358' : '#6F354D', [x, 2.8, -0.17]);
+    sphere(cinema, 0.7, '#E7C894', [x, 3.5, 0]).scale.z = 0.12;
+    for (let line = 0; line < 3; line++)
+      box(cinema, [2 - line * 0.3, 0.08, 0.14], '#E7C894', [x, 2.3 - line * 0.35, 0]);
+  }
+  box(cinema, [12, 6.8, 0.5], '#17121C', [0, 11.4, -0.25]);
+  box(cinema, [11.3, 6.15, 0.13], '#D8B77F', [0, 11.4, 0.07]);
+  const play = new THREE.Shape();
+  play.moveTo(-0.8, -1.2);
+  play.lineTo(1.15, 0);
+  play.lineTo(-0.8, 1.2);
+  play.closePath();
+  mesh(cinema, new THREE.ShapeGeometry(play), '#64283E', [0, 11.6, 0.17]);
+  for (const x of [-5.25, 5.25])
+    for (let y = 0; y < 5; y++) box(cinema, [0.32, 0.6, 0.14], '#6A3B43', [x, 9.1 + y * 1.14, 0.16]);
+  label(cinema, '18 films · one more?', [0, 16.25, -0.3], 12, '#F4D49E', '#3E2132');
+  // A giant toy projector on the roof makes the silhouette readable from above.
+  box(cinema, [3.4, 2, 2], '#A29382', [-5.6, 10.55, -8]);
+  const lens = cylinder(cinema, 0.62, 0.8, 1.5, '#D5BA8B', [-5.6, 10.65, -6.4], 12);
+  lens.rotation.x = Math.PI / 2;
+  for (const x of [-6.7, -4.5]) {
+    const reel = mesh(cinema, new THREE.TorusGeometry(0.95, 0.2, 6, 16), '#7E717A', [x, 12.25, -8]);
+    for (let spoke = 0; spoke < 3; spoke++) {
+      const bar = box(reel, [1.5, 0.14, 0.12], '#C7B9A7');
+      bar.rotation.z = (spoke / 3) * Math.PI;
+    }
+  }
+  register(cinema, { kind: 'zone', id: 'cinema' }, 'Watch a film at Midnight Cinema');
+  obstacle(cinema.position.x, cinema.position.z - 7.5, 7);
+  for (const x of [-8, 8]) obstacle(cinema.position.x + x, cinema.position.z - 6.2, 4.4);
+}

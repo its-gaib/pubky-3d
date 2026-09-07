@@ -1,31 +1,35 @@
 import * as THREE from 'three';
-import { box, cylinder, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { box, cylinder, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 export const BANK_POSITION = WORLD_ANCHORS.bank;
 export const BANK_BILL_COUNT = 30;
-const BILL_LIFETIME = 7;
+export const BANK_BILL_LIFETIME = 70;
 
 /** Each bill owns an offset life: launch, drift, then independently evaporate. */
 export function bankBillFrame(time: number, index: number) {
-  const age = (((time / BILL_LIFETIME + index / BANK_BILL_COUNT) % 1) + 1) % 1;
+  const age = (((time / BANK_BILL_LIFETIME + index / BANK_BILL_COUNT) % 1) + 1) % 1;
   const angle = index * 2.39996;
-  const spread = 0.4 + age * 4.7;
-  const fade = THREE.MathUtils.smoothstep(age, 0.62, 1);
+  const lands = index % 3 !== 2;
+  const flight = lands ? 0.48 + (index % 4) * 0.035 : 1;
+  const progress = Math.min(1, age / flight);
+  const spread = 0.4 + progress * (12 + (index % 5) * 2.2);
+  const fade = THREE.MathUtils.smoothstep(age, 0.78, 1);
+  const landing = lands ? THREE.MathUtils.smoothstep(progress, 0.86, 1) : 0;
+  const y = lands
+    ? 0.24 + 5.56 * (1 - progress) + Math.sin(progress * Math.PI) * 7
+    : 5.8 + Math.sin(age * Math.PI) * 7 - age * 3.7;
   return {
-    position: [
-      1.8 + Math.cos(angle) * spread,
-      5.8 + Math.sin(age * Math.PI) * 4.8 - age * 1.8,
-      -0.4 + Math.sin(angle) * spread,
+    position: [1.8 + Math.cos(angle) * spread, y, -0.4 + Math.sin(angle) * spread] as [number, number, number],
+    rotation: [
+      Math.sin(age * 8 + index) * 0.5 * (1 - landing) - (landing * Math.PI) / 2,
+      (angle + progress * 4) * (1 - landing),
+      Math.sin(age * 12 + index) * 0.7 * (1 - landing) + (angle + progress * 4) * landing,
     ] as [number, number, number],
-    rotation: [Math.sin(age * 8 + index) * 0.5, angle + age * 4, Math.sin(age * 12 + index) * 0.7] as [
-      number,
-      number,
-      number,
-    ],
     scale: 1 - fade * 0.85,
-    opacity: Math.min(1, age / 0.06) * (1 - fade),
+    opacity: Math.min(1, age / 0.015) * (1 - fade),
+    settled: lands && progress === 1,
   };
 }
 
@@ -60,8 +64,30 @@ export function createBank(
   // A deliberately oversize printer exhaust gives the paper an obvious origin.
   box(bank, [1.8, 1.1, 1.8], '#71717A', [1.8, 5.95, -0.4]);
   box(bank, [1.4, 0.12, 0.7], WORLD_PALETTE.background, [1.8, 6.55, -0.4]);
-  label(bank, 'BANK', [0, 7.95, 1.4], 6.3, WORLD_PALETTE.lime);
-  label(bank, 'BRRR', [3.8, 4.05, 3.1], 3.6, WORLD_PALETTE.background, WORLD_PALETTE.lime);
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 640;
+  signCanvas.height = 160;
+  const signContext = signCanvas.getContext('2d');
+  if (signContext) {
+    signContext.fillStyle = WORLD_PALETTE.surface;
+    signContext.fillRect(0, 0, 640, 160);
+    signContext.fillStyle = WORLD_PALETTE.lime;
+    signContext.font = '900 116px sans-serif';
+    signContext.textAlign = 'center';
+    signContext.textBaseline = 'middle';
+    signContext.fillText('BRRR', 320, 88, 580);
+  }
+  const signTexture = new THREE.CanvasTexture(signCanvas);
+  signTexture.colorSpace = THREE.SRGBColorSpace;
+  box(bank, [6.7, 1.75, 0.18], '#858590', [0, 4.2, 2.48]);
+  const sign = mesh(
+    bank,
+    new THREE.PlaneGeometry(6.35, 1.58),
+    new THREE.MeshBasicMaterial({ map: signTexture, toneMapped: false }),
+    [0, 4.2, 2.59],
+  );
+  sign.name = 'bank-facade-brrr';
+  sign.castShadow = false;
   register(bank, { kind: 'fun', id: 'bank' }, 'Visit the bank that goes BRRR');
   obstacle(BANK_POSITION[0], BANK_POSITION[1] - 0.6, 3.7);
 
@@ -108,6 +134,8 @@ export function createBank(
   });
 
   function animate(time: number, reducedMotion: boolean) {
+    sign.rotation.z = reducedMotion ? 0 : Math.sin(time * 28) * 0.025 + Math.sin(time * 43) * 0.012;
+    sign.position.x = reducedMotion ? 0 : Math.sin(time * 31) * 0.035;
     bills.forEach((bill, index) => {
       const frame = bankBillFrame(reducedMotion ? 0 : time, index);
       bill.position.set(...frame.position);

@@ -17,6 +17,48 @@ import { useAuthStore } from '@/stores/auth/auth.store';
 export class StreamUserController {
   private constructor() {}
 
+  /** Read graph membership without downloading a full profile for every node. */
+  static async getOrFetchStreamIds({
+    streamId,
+    limit = NEXUS_USERS_PER_PAGE,
+    skip,
+    allowPartialCache,
+  }: TReadUserStreamChunkParams): Promise<TReadUserStreamChunkResponse> {
+    const viewerId = useAuthStore.getState().currentUserPubky;
+    const {
+      nextPageIds,
+      skip: nextSkip,
+      isExhausted,
+    } = await UserStreamApplication.getOrFetchStreamSlice({
+      streamId,
+      limit,
+      skip,
+      viewerId: viewerId ?? undefined,
+      ...(allowPartialCache !== undefined && { allowPartialCache }),
+    });
+    return { nextPageIds, skip: nextSkip, isExhausted };
+  }
+
+  /** Refresh graph membership through the normal stream cache, without profile hydration. */
+  static async refreshStreamIds({
+    streamId,
+    limit = NEXUS_USERS_PER_PAGE,
+    skip,
+  }: TReadUserStreamChunkParams): Promise<TReadUserStreamChunkResponse> {
+    const viewerId = useAuthStore.getState().currentUserPubky;
+    const {
+      nextPageIds,
+      skip: nextSkip,
+      isExhausted,
+    } = await UserStreamApplication.refreshStreamSlice({
+      streamId,
+      limit,
+      skip,
+      viewerId: viewerId ?? undefined,
+    });
+    return { nextPageIds, skip: nextSkip, isExhausted };
+  }
+
   /**
    * Get or fetch a slice of a user stream (followers, following, friends, etc.)
    *

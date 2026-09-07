@@ -1,5 +1,60 @@
 # Pubky World validation record
 
+## Social plaza, cinema and Roman arena — 2026-09-07
+
+This increment always uses staging. The source switch and global destination menu
+are removed; walking and nearby interactions reveal the world. The pocket map is
+informational. The bank's contextual Hard Money action beams the persona in front
+of the Bitkit beacon and deliberately frames the logo.
+
+The fork had no open PRs before implementation. Relevant upstream work was read:
+[graph explorer #2138](https://github.com/pubky/pubky-app/pull/2138),
+[follow synchronization #2474](https://github.com/pubky/pubky-app/pull/2474), and
+[social status #2471](https://github.com/pubky/pubky-app/pull/2471). These do not
+implement this world. The graph explorer needs an experimental API; the broader
+cross-device reconciliation subsystem is not duplicated by this UI.
+
+The personal plaza paginates the viewer's full following stream and exactly one
+further hop. It keeps every discovered key, with placeholders and lazy profile
+hydration. Direct follows stand tall; discoveries are smaller and quieter. Large
+circles use eight spatial neighborhoods and windows of at most 96 figures, while
+the directory pages through every discovered key in groups of 20. Reads use two
+concurrent slots and explicit continuation after 100 pages; a paused or incomplete
+graph is labelled rather than presented as complete. Names become searchable as
+profiles load; public keys are searchable immediately.
+
+Follow and unfollow reuse the existing signed publication path. The world records
+local intent immediately, fences results to the current account/selection, prevents
+same-tick double submissions, and offers an explicit retry of the same intent if
+publication fails. Tests mock the publication boundary; no real account was used
+to follow, unfollow or publish. Broad cross-device reconciliation remains the
+upstream concern linked above. A person panel shows a canonical avatar and latest
+post, without a connections list.
+
+The walkable radius grows from 76 to 112 (about 117% more area). New grounds hold
+a distinct crimson Art Deco cinema beside the open-air Trending Theater, a Tether
+monument, and a larger Roman amphitheater. The arena alternates the exact local
+Pubky and Synonym symbol paths on its banners, without wordmarks. The Tether
+monument uses the bundled official wordmark and links to Ventures. The cinema
+uses all 18 requested video IDs in a shuffled native YouTube playlist; it loads
+only after Start screening. The iframe's load event does not prove that a video
+is playable. Native player controls and explicit reshuffling remain available;
+closing the reader removes the player.
+
+Eight decorative visitors sit in the Trending Theater. The main persona wears a
+black Pubky hoodie without a backpack. The bank has one vibrating facade BRRR
+sign and 30 recycled bills with staggered 70-second lives; some land before fading.
+Reduced motion stops the sign shake and world animations. The Satoshi reader
+keeps the Lugano monument story and also links to satsymbol.org.
+
+Validation in progress: 43 interface/data/program tests, 37 social hook/graph/queue
+tests, and 70 renderer/camera/photo tests passed (150 unique checks). Security review found no remaining
+issues in the authenticated graph, native cinema iframe, automatic staging reads,
+and final renderer boundaries. ESLint, formatting and whitespace checks passed. Full and focused local TypeScript
+processes were killed by host memory pressure (exit 137, no compiler diagnostics).
+The remote full build and refreshed browser evidence will be recorded here after completion. Older sections below describe their historical
+checkpoints; their Example controls and smaller layouts are superseded.
+
 ## Profile pictures and readable theater posts — 2026-09-07
 
 Open PRs were checked before implementation: the fork had none, and no upstream

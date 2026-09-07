@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, cylinder, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { box, cylinder, label, mesh, sphere, WORLD_PALETTE } from '@/libs/world/world-geometry';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldData, WorldInteraction, WorldPost } from '@/libs/world/world-types';
 
@@ -61,6 +61,23 @@ export function createTheater(
       box(theater, [5.4, 0.06, 0.1], WORLD_PALETTE.lime, [x, y + 1.99, z + 0.44]);
       obstacle(theater.position.x + x, theater.position.z + z, 1.45);
     }
+  }
+  // These seated spectators are scenery, never an assertion that a profile is online.
+  for (let index = 0; index < 8; index++) {
+    const row = index < 4 ? 0 : 2;
+    const spectator = new THREE.Group();
+    spectator.name = 'theater-decorative-spectator';
+    spectator.position.set([-5.7, -3.3, 3.3, 5.7][index % 4], row * 0.25, row * 2.5 + 1);
+    spectator.rotation.y = Math.PI;
+    theater.add(spectator);
+    const coat = ['#56566B', '#738251', '#84715F', '#5C7876'][index % 4];
+    cylinder(spectator, 0.34, 0.45, 0.75, coat, [0, 1.45, 0], 8);
+    sphere(spectator, 0.32, '#C2AB97', [0, 2.12, 0]);
+    for (const x of [-0.22, 0.22]) {
+      box(spectator, [0.24, 0.22, 0.68], '#232329', [x, 1.04, 0.3]);
+      box(spectator, [0.24, 0.67, 0.23], '#232329', [x, 0.62, 0.55]);
+    }
+    for (const x of [-0.43, 0.43]) box(spectator, [0.18, 0.5, 0.2], coat, [x, 1.33, 0.15]);
   }
   label(theater, 'Trending Theater', [0, 14.1, -3.8], 12);
   register(theater, { kind: 'zone', id: 'theater' }, 'Read the Trending Theater program');

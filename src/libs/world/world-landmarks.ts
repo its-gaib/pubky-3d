@@ -61,52 +61,6 @@ export function createLandmarks(
   register(university, { kind: 'zone', id: 'university' }, 'Visit Pubky University');
   obstacle(university.position.x, university.position.z - 1.2, 4.7);
 
-  const arena = group(...WORLD_ANCHORS.arena);
-  cylinder(arena, 10, 10.2, 0.22, '#29292F', [0, 0.12, 0], 48);
-  ring(arena, 4.9, 0.08, '#C8FF03', [0, 0.26, 0]);
-  // A horseshoe keeps the front entrance open and the arena floor walkable.
-  for (let tier = 0; tier < 3; tier++) {
-    const outer = 7.8 + tier * 0.85;
-    const inner = outer - 0.85;
-    const shape = new THREE.Shape();
-    for (let i = 0; i <= 40; i++) {
-      const angle = 0.55 + (i / 40) * (Math.PI * 2 - 1.1);
-      const point = [Math.sin(angle) * outer, -Math.cos(angle) * outer];
-      if (i === 0) shape.moveTo(point[0], point[1]);
-      else shape.lineTo(point[0], point[1]);
-    }
-    for (let i = 40; i >= 0; i--) {
-      const angle = 0.55 + (i / 40) * (Math.PI * 2 - 1.1);
-      shape.lineTo(Math.sin(angle) * inner, -Math.cos(angle) * inner);
-    }
-    shape.closePath();
-    const stand = mesh(
-      arena,
-      new THREE.ExtrudeGeometry(shape, { depth: 0.9 + tier * 0.65, bevelEnabled: false }),
-      ['#484047', '#615257', '#786067'][tier],
-      [0, 0.2, 0],
-    );
-    stand.rotation.x = -Math.PI / 2;
-  }
-  for (let i = 0; i < 12; i++) {
-    const angle = 0.8 + (i / 11) * (Math.PI * 2 - 1.6);
-    const x = Math.sin(angle) * 9;
-    const z = Math.cos(angle) * 9;
-    box(arena, [0.7, 3.5, 0.9], cream, [x, 3.6, z]).rotation.y = angle;
-    box(arena, [1.9, 0.45, 1.1], '#BF5C39', [x, 5.15, z]).rotation.y = angle;
-    obstacle(arena.position.x + x, arena.position.z + z, 0.65);
-  }
-  for (const x of [-5.8, 5.8]) {
-    cylinder(arena, 0.09, 0.09, 5.6, '#7E7E89', [x, 2.8, 6]);
-    box(arena, [1.65, 1.05, 0.08], '#DE6339', [x + 0.72, 5.1, 6]);
-  }
-  cylinder(arena, 1.3, 1.5, 0.5, '#35353B', [0, 0.4, -2]);
-  cylinder(arena, 0.12, 0.35, 1.1, '#AD7929', [0, 1.15, -2]);
-  cylinder(arena, 0.72, 0.22, 0.8, '#F6B948', [0, 1.95, -2], 12);
-  label(arena, 'The Arena', [0, 7.5, -1], 10.5);
-  label(arena, 'BIG STADIUM. TINY VICTORIES.', [0, 0.8, 6], 7.5, '#F6B948');
-  register(arena, { kind: 'zone', id: 'arena' }, 'Enter the Arena');
-
   const yard = group(...WORLD_ANCHORS.github);
   box(yard, [15, 0.25, 11], '#303034', [0, 0.12, 0]);
   const workshops = [

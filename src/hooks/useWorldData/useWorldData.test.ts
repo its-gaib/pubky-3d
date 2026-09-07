@@ -119,10 +119,10 @@ describe('useWorldData', () => {
     vi.useRealTimers();
   });
 
-  it('starts with demo data and makes no network reads before the explicit action', () => {
+  it('starts with an empty staging world for the mounting component to load', () => {
     const { result } = renderHook(() => useWorldData());
-    expect(result.current.data.source).toBe('demo');
-    expect(result.current.status).toBe('demo');
+    expect(result.current.data.source).toBe('staging');
+    expect(result.current.status).toBe('loading');
     expect(mocks.getHotTags).not.toHaveBeenCalled();
     expect(mocks.getUserStream).not.toHaveBeenCalled();
     expect(mocks.preparePostStream).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe('useWorldData', () => {
     const { result } = renderHook(() => useWorldData());
     await act(() => result.current.loadStaging());
     expect(result.current.status).toBe('error');
-    expect(result.current.data.source).toBe('demo');
+    expect(result.current.data.source).toBe('staging');
     expect(mocks.getHotTags).not.toHaveBeenCalled();
     expect(mocks.getUserStream).not.toHaveBeenCalled();
     expect(mocks.preparePostStream).not.toHaveBeenCalled();
@@ -316,26 +316,6 @@ describe('useWorldData', () => {
     expect(result.current.data.tags).toEqual([{ label: 'good', count: 0, posts: [] }]);
   });
 
-  it('keeps demo selected after an earlier staging request completes', async () => {
-    const pending = deferred<NexusHotTag[]>();
-    mocks.getHotTags.mockReturnValue(pending.promise);
-    const { result } = renderHook(() => useWorldData());
-    let load!: Promise<void>;
-    act(() => {
-      load = result.current.loadStaging();
-    });
-    expect(result.current.status).toBe('loading');
-    act(() => result.current.useDemo());
-    await act(async () => {
-      pending.resolve([hotTag('pubky')]);
-      await load;
-    });
-    expect(result.current.status).toBe('demo');
-    expect(result.current.data.source).toBe('demo');
-    expect(result.current.error).toBeNull();
-    expect(mocks.getPostStream).not.toHaveBeenCalled();
-  });
-
   it('cancels an unmounted load before any later phase can start', async () => {
     const pending = deferred<NexusHotTag[]>();
     mocks.getHotTags.mockReturnValue(pending.promise);
@@ -364,7 +344,7 @@ describe('useWorldData', () => {
       await load;
     });
     expect(result.current.status).toBe('error');
-    expect(result.current.data.source).toBe('demo');
+    expect(result.current.data.source).toBe('staging');
     expect(result.current.error).toContain('try again');
     expect(mocks.getPostStream).not.toHaveBeenCalled();
   });
@@ -501,12 +481,12 @@ describe('useWorldData', () => {
     expect(result.current.data.people).toEqual([]);
   });
 
-  it('does not restore staging when a canceled theater request completes later', async () => {
+  it('does not hydrate posts when an unmounted theater request completes later', async () => {
     const pending = deferred<{ nextPageIds: string[] }>();
     mocks.getPostStream.mockImplementation(async ({ streamId }: { streamId: PostStreamId }) =>
       streamId === PostStreamTypes.POPULARITY_ALL_ALL ? pending.promise : { nextPageIds: [POST_ONE] },
     );
-    const { result } = renderHook(() => useWorldData());
+    const { result, unmount } = renderHook(() => useWorldData());
     let load!: Promise<void>;
     act(() => {
       load = result.current.loadStaging();
@@ -518,13 +498,13 @@ describe('useWorldData', () => {
         limit: 8,
       }),
     );
-    act(() => result.current.useDemo());
+    unmount();
     await act(async () => {
       pending.resolve({ nextPageIds: [TRENDING_POST] });
       await load;
     });
-    expect(result.current.status).toBe('demo');
-    expect(result.current.data.source).toBe('demo');
+    expect(result.current.status).toBe('loading');
+    expect(result.current.data.source).toBe('staging');
     expect(result.current.data.trendingPosts.some((post) => post.id === TRENDING_POST)).toBe(false);
     expect(mocks.getPostDetails).not.toHaveBeenCalledWith({ compositeIds: [TRENDING_POST] });
   });

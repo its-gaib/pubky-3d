@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowDown,
@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Compass,
   Footprints,
-  GraduationCap,
   Hand,
   Info,
   Leaf,
@@ -22,7 +21,6 @@ import {
   Moon,
   MousePointer2,
   MoveUp,
-  Network,
   Orbit,
   Pause,
   Play,
@@ -30,54 +28,50 @@ import {
   Settings2,
   Sparkles,
   Sun,
-  Swords,
   Theater,
   TreePine,
   Trophy,
   VolumeX,
   X,
-  Zap,
 } from 'lucide-react';
 import { Button } from '@/atoms/Button/Button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/atoms/Dialog/Dialog';
 import { Switch } from '@/atoms/Switch/Switch';
+import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
+import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
 import { Bitkit, Github, PubkyIcon } from '@/icons';
 import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_ZONES } from '@/libs/world/world-catalog';
 import { WORLD_RADIUS } from '@/libs/world/world-layout';
+import {
+  SOCIAL_PAGE_SIZE,
+  socialViewForPerson,
+  socialViewPageCount,
+  socialViewPeople,
+} from '@/libs/world/world-social-layout';
 import type {
   WorldController,
   WorldData,
   WorldInteraction,
   WorldPost,
+  WorldSocialView,
   WorldStatus,
   WorldZoneId,
 } from '@/libs/world/world-types';
-import { AvatarWithFallback } from '@/organisms/AvatarWithFallback/AvatarWithFallback';
 import styles from './World.module.css';
 import { WorldCamera } from './WorldCamera';
+import { WorldCinema } from './WorldCinema';
+import {
+  worldDirectoryPage,
+  type WorldDirectoryScope,
+  WorldPeopleDirectory,
+  WorldPersonPanel,
+  type WorldSocialState,
+} from './WorldSocialPanel';
 
-const ZONE_ICONS = {
-  plaza: Network,
-  forest: TreePine,
-  arena: Swords,
-  university: GraduationCap,
-  github: Github,
-  bitkit: Zap,
-  theater: Theater,
-};
 const PERSONA_COLORS = ['#c8ff03', '#ff9155', '#b59bff', '#5fe5e7', '#ff89c8'];
 const MAP_SCALE = 39.2 / WORLD_RADIUS;
 const MAP_CENTER = WORLD_ZONES.find((zone) => zone.id === 'plaza')!.position;
-const SHORT_ZONE_NAMES: Record<WorldZoneId, string> = {
-  plaza: 'Plaza',
-  forest: 'Forest',
-  arena: 'Arena',
-  university: 'Uni',
-  github: 'Builders',
-  bitkit: 'Bitkit',
-  theater: 'Show',
-};
 const INITIAL_STATUS: WorldStatus = {
   zone: 'plaza',
   position: [0, 8],
@@ -125,6 +119,8 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
             ? 'A fictional neighbor in our example social graph.'
             : 'A public profile from Pubky staging. This is a profile marker, not a player online.',
       };
+    case 'social-cluster':
+      return { title: `Neighborhood ${panel.sector + 1}`, subtitle: 'A closer look at your social constellation.' };
     case 'fun':
       return {
         duck: {
@@ -139,7 +135,11 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
         },
         bank: {
           title: 'Brrr. There it goes.',
-          subtitle: 'The bank where money is always in the air. Briefly.',
+          subtitle: 'The bank where money is always in the air. And occasionally on your shoes.',
+        },
+        tether: {
+          title: 'The Tether monument.',
+          subtitle: 'A green-lit landmark with a view toward what comes next.',
         },
       }[panel.id];
   }
@@ -309,14 +309,14 @@ function TrendingShow({
         <div className={styles.theaterEmpty}>
           <Theater size={36} aria-hidden="true" />
           <h3>The stage is taking a breather.</h3>
-          <p>No public trending posts are available in this sample. Reload Staging to try the current program again.</p>
+          <p>No public trending posts are available in this sample. You can refresh public posts in World settings.</p>
         </div>
       )}
       {!loading && (
         <p className={styles.smallPrint}>
           {data.source === 'demo'
-            ? 'Select Staging above to load the current public Hot feed.'
-            : 'This program uses Pubky’s Hot feed ranking, without a date filter. Reload Staging to refresh the lineup.'}
+            ? 'The program is loading from public staging.'
+            : 'This program uses Pubky’s Hot feed ranking, without a date filter.'}
         </p>
       )}
     </div>
@@ -331,6 +331,10 @@ function WorldPanel({
   onDance,
   onJump,
   onTravel,
+  social,
+  directory,
+  onVisitPerson,
+  onSignIn,
   theaterIndex,
   theaterPaused,
   theaterCanPlay,
@@ -343,13 +347,25 @@ function WorldPanel({
   onSelect: (panel: Panel) => void;
   onDance: () => void;
   onJump: () => void;
-  onTravel: (zone: WorldZoneId) => void;
+  onTravel: (zone: WorldZoneId, options?: { faceLandmark?: boolean }) => void;
+  social: WorldSocialState;
+  directory: {
+    query: string;
+    scope: WorldDirectoryScope;
+    page: number;
+    onQuery: (value: string) => void;
+    onScope: (scope: WorldDirectoryScope) => void;
+    onPage: (page: number) => void;
+  };
+  onVisitPerson: (id: string) => void;
+  onSignIn: () => void;
   theaterIndex: number;
   theaterPaused: boolean;
   theaterCanPlay: boolean;
   onTheaterPause: (paused: boolean) => void;
   onTheaterStep: (delta: number) => void;
 }) {
+  if (panel.kind === 'social-cluster') return null;
   if (panel.kind === 'post') {
     const post = data.tags[panel.tagIndex]?.posts[panel.postIndex];
     return (
@@ -389,56 +405,29 @@ function WorldPanel({
   }
   if (panel.kind === 'person') {
     const person = data.people.find((item) => item.id === panel.id);
-    const relationships = data.relationships.filter((edge) => edge.from === panel.id || edge.to === panel.id);
+    if (!person) return <p>This person is no longer in this circle. Browse the plaza to find someone else.</p>;
+    const latestPost = social.profile.latestPost;
     return (
-      <>
-        <div className={styles.personProfile}>
-          {data.source === 'staging' && person ? (
-            <AvatarWithFallback
-              avatarUrl={person.avatarUrl}
-              name={person.name}
-              fallbackSeed={person.id}
-              alt={`${person.name}’s profile picture`}
-              size="xl"
-              className={styles.personAvatar}
-              data-testid="world-person-avatar"
-            />
-          ) : (
-            <span className={styles.personPortrait} style={{ background: person?.color }} aria-hidden="true">
-              <span>• •</span>
-              <span>⌣</span>
-            </span>
-          )}
-          <p>{person?.bio || 'This explorer has not added a bio.'}</p>
-        </div>
-        <div className={styles.sectionLabel}>
-          <Network size={14} />
-          Connections in this sample
-        </div>
-        <div className={styles.relationshipList}>
-          {relationships.map((edge, index) => (
-            <div key={`${edge.from}-${edge.to}-${index}`}>
-              <span>{data.people.find((item) => item.id === edge.from)?.name ?? 'Explorer'}</span>
-              <span className={styles.relationshipArrow}>
-                {edge.label}
-                <ArrowRight size={13} />
-              </span>
-              <span>{data.people.find((item) => item.id === edge.to)?.name ?? 'Explorer'}</span>
-            </div>
-          ))}
-          {!relationships.length && (
-            <p>No follow connections were found between this profile and the other displayed people.</p>
-          )}
-        </div>
-        <p className={styles.smallPrint}>
-          {data.source === 'demo'
-            ? 'These fictional people and follow relationships illustrate the concept. They are not real users or online players.'
-            : 'Lines represent public follow relationships between the sampled profiles. Profile markers do not indicate live presence.'}
-        </p>
-      </>
+      <WorldPersonPanel
+        person={person}
+        social={social}
+        post={latestPost ? <PostLeaf post={latestPost} source={data.source} /> : null}
+        onSignIn={onSignIn}
+        onVisit={onVisitPerson}
+      />
     );
   }
   if (panel.kind === 'fun') {
+    if (panel.id === 'tether')
+      return (
+        <div className={styles.satoshiPanel}>
+          <blockquote>A solid place to contemplate new ventures.</blockquote>
+          <p>A sculptural tribute to Tether, standing in its own garden at the northern edge of the island.</p>
+          <ExternalWorldLink href="https://tether.io/ventures/" className={styles.textLink}>
+            Explore Tether Ventures
+          </ExternalWorldLink>
+        </div>
+      );
     if (panel.id === 'bank')
       return (
         <div className={styles.satoshiPanel}>
@@ -447,15 +436,19 @@ function WorldPanel({
           </span>
           <blockquote>Unlimited supply. Extremely limited shelf life.</blockquote>
           <p>
-            The printer never clocks out. Fresh dollars flutter out of the bank, take a little victory lap, and
-            evaporate one bill at a time. Finally, a bank with transparent assets.
+            The printer never clocks out. Fresh dollars take a long ride on the wind. Some settle at your feet before
+            evaporating, one bill at a time. Finally, a bank with transparent assets.
           </p>
           <p className={styles.smallPrint}>
             Find the Brrr Bank on the east side of the island, beside the Arena. The bills are decorative confetti. The
             printer’s noise is just a sign; your speakers can relax.
           </p>
-          <Button overrideDefaults className={styles.primaryButton} onClick={() => onTravel('arena')}>
-            Head toward the bank
+          <Button
+            overrideDefaults
+            className={styles.primaryButton}
+            onClick={() => onTravel('bitkit', { faceLandmark: true })}
+          >
+            Where can I get Hard Money?
             <ArrowRight size={18} />
           </Button>
         </div>
@@ -475,6 +468,9 @@ function WorldPanel({
             An original 3D tribute inspired by Valentina Picozzi’s Satoshi Nakamoto monument in Lugano: a seated figure,
             a laptop, and a disappearing silhouette.
           </p>
+          <ExternalWorldLink href="https://satsymbol.org/" className={styles.textLink}>
+            Explore the Satoshi symbol
+          </ExternalWorldLink>
           <ExternalWorldLink
             href="https://tether.io/news/plan-b-initiative-unveils-satoshi-nakamoto-statue-at-3rd-annual-plan-forum-in-lugano/"
             className={styles.textLink}
@@ -559,30 +555,13 @@ function WorldPanel({
   if (panel.id === 'plaza')
     return (
       <>
-        <div className={styles.connectionNote}>
-          <Network size={27} />
-          <p>The luminous ribbons show who follows whom. Walk up to a profile marker to explore its connections.</p>
-        </div>
-        <div className={styles.peopleGrid}>
-          {data.people.map((person) => (
-            <Button
-              key={person.id}
-              overrideDefaults
-              className={styles.personButton}
-              onClick={() => onSelect({ kind: 'person', id: person.id })}
-            >
-              <span style={{ background: person.color }}>••</span>
-              <strong>{person.name}</strong>
-              <ChevronRight size={16} />
-            </Button>
-          ))}
-        </div>
-        <p className={styles.smallPrint}>
-          {data.source === 'demo'
-            ? 'Example world: all six neighbors and their relationships are fictional.'
-            : 'Public staging sample. Only follow connections between the displayed profiles are shown.'}{' '}
-          You are the only player on this island for now.
-        </p>
+        <WorldPeopleDirectory
+          people={data.people}
+          social={social}
+          {...directory}
+          onSelect={(id) => onSelect({ kind: 'person', id })}
+          onSignIn={onSignIn}
+        />
         <Button
           overrideDefaults
           className={styles.monumentLink}
@@ -611,6 +590,7 @@ function WorldPanel({
         </Button>
       </>
     );
+  if (panel.id === 'cinema') return <WorldCinema />;
   if (panel.id === 'theater')
     return (
       <TrendingShow
@@ -687,7 +667,25 @@ function WorldPanel({
 }
 
 export function World() {
-  const { data, status: dataStatus, error: dataError, loadStaging, useDemo: resetExample } = useWorldData();
+  const { data: baseData, status: dataStatus, error: dataError, loadStaging } = useWorldData();
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [directoryScope, setDirectoryScope] = useState<WorldDirectoryScope>('all');
+  const [directoryPage, setDirectoryPage] = useState(0);
+  const [directoryIds, setDirectoryIds] = useState<string[]>([]);
+  const social = useWorldSocial({
+    enabled: true,
+    selectedId: panel?.kind === 'person' ? panel.id : null,
+    directoryIds,
+  });
+  const { requireAuth } = useRequireAuth();
+  const personal = baseData.source === 'staging' && Boolean(social.viewerId);
+  const data: WorldData = personal
+    ? { ...baseData, people: social.people, relationships: social.relationships }
+    : baseData;
+  const firstLoad = useRef(loadStaging);
+  const autoActorRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WorldController | null>(null);
   const initialData = useRef(data);
@@ -700,9 +698,31 @@ export function World() {
   const [night, setNight] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [personaColor, setPersonaColor] = useState(PERSONA_COLORS[0]);
-  const [panel, setPanel] = useState<Panel | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
+
+  useEffect(() => {
+    if (autoActorRef.current === social.viewerId) return;
+    autoActorRef.current = social.viewerId;
+    setPanel(null);
+    setSocialView({ sector: null, page: 0 });
+    setDirectoryQuery('');
+    setDirectoryPage(0);
+    setDirectoryScope('all');
+  }, [social.viewerId]);
+
+  useEffect(() => {
+    void firstLoad.current();
+  }, []);
+
+  useEffect(() => {
+    const visible =
+      panel?.kind === 'zone' && panel.id === 'plaza'
+        ? worldDirectoryPage(data.people, directoryQuery, directoryScope, directoryPage).people
+        : socialViewPeople(data.people, socialView).slice(0, 20);
+    const nextIds = visible.map((person) => person.id);
+    setDirectoryIds((current) => (current.join(',') === nextIds.join(',') ? current : nextIds));
+  }, [data.people, panel, socialView, directoryQuery, directoryScope, directoryPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -715,6 +735,13 @@ export function World() {
           data: initialData.current,
           onInteract: (interaction) => {
             if (!cancelled) {
+              if (interaction.kind === 'social-cluster') {
+                setSocialView({ sector: interaction.sector, page: 0 });
+                setWelcome(false);
+                setOverview(false);
+                controller?.travelTo('plaza');
+                return;
+              }
               controller?.setPaused(true);
               setPanel(interaction);
             }
@@ -748,9 +775,18 @@ export function World() {
   }, [attempt]);
 
   useEffect(() => {
-    initialData.current = data;
-    controllerRef.current?.updateData(data);
-  }, [data]);
+    const currentData = personal
+      ? { ...baseData, people: social.people, relationships: social.relationships }
+      : baseData;
+    initialData.current = currentData;
+    controllerRef.current?.updateData(currentData);
+  }, [baseData, personal, social.people, social.relationships]);
+  useEffect(() => {
+    controllerRef.current?.setSocialView(socialView);
+  }, [socialView, sceneState]);
+  useEffect(() => {
+    controllerRef.current?.setSocialFocus(panel?.kind === 'person' ? panel.id : null);
+  }, [panel, sceneState]);
   useEffect(() => {
     dataLoadingRef.current = dataStatus === 'loading';
     controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
@@ -786,7 +822,8 @@ export function World() {
 
   const zone = WORLD_ZONES.find((item) => item.id === worldStatus.zone) ?? WORLD_ZONES[0];
   const heading = panel ? panelHeading(panel, data) : null;
-  const isDemo = data.source === 'demo';
+  const socialPages = socialViewPageCount(data.people, socialView);
+  const socialPage = Math.min(socialView.page, socialPages - 1);
 
   function wander() {
     setWelcome(false);
@@ -797,7 +834,7 @@ export function World() {
     controllerRef.current?.setPaused(true);
     setPanel(nextPanel);
   }
-  function travelTo(destination: WorldZoneId) {
+  function travelTo(destination: WorldZoneId, options?: { faceLandmark?: boolean }) {
     setWelcome(false);
     setOverview(false);
     setPanel(null);
@@ -806,8 +843,23 @@ export function World() {
       selectPanel({ kind: 'zone', id: destination });
       return;
     }
-    controllerRef.current?.travelTo(destination);
+    if (options) controllerRef.current?.travelTo(destination, options);
+    else controllerRef.current?.travelTo(destination);
     containerRef.current?.focus({ preventScroll: true });
+  }
+  function visitPerson(id: string) {
+    const view = socialViewForPerson(data.people, id);
+    if (!view) return;
+    setSocialView(view);
+    setWelcome(false);
+    setOverview(false);
+    setPanel(null);
+    controllerRef.current?.setPaused(false);
+    controllerRef.current?.travelToPerson(id);
+    containerRef.current?.focus({ preventScroll: true });
+  }
+  function signInToFollow() {
+    requireAuth(() => undefined);
   }
   function move(x: number, z: number) {
     if (!panel) controllerRef.current?.setMove(x, z);
@@ -863,41 +915,17 @@ export function World() {
           <span className={styles.experiment}>EXPERIMENT</span>
         </div>
         <div className={styles.topActions}>
-          <div className={styles.dataSwitch} role="group" aria-label="World data source">
-            <Button
-              overrideDefaults
-              aria-pressed={isDemo}
-              className={isDemo ? styles.dataSelected : ''}
-              onClick={() => {
-                resetExample();
-                setPanel(null);
-              }}
-            >
-              <span className={styles.sourceDot} />
-              Example
-            </Button>
-            <Button
-              overrideDefaults
-              aria-pressed={!isDemo}
-              disabled={dataStatus === 'loading'}
-              className={!isDemo ? styles.dataSelected : ''}
-              onClick={() => void loadStaging()}
-            >
-              {dataStatus === 'loading' ? (
-                <LoaderCircle size={12} className={styles.spin} />
-              ) : (
-                <span className={styles.stagingDot} />
-              )}
-              Staging
-            </Button>
-          </div>
+          <span className={styles.stagingBadge}>
+            <span className={styles.stagingDot} />
+            Staging
+          </span>
           <div className={styles.identity}>
             <span className={styles.identityFace} style={{ background: personaColor }}>
               ••
             </span>
             <div>
-              <strong>Curious explorer</strong>
-              <span>Guest persona</span>
+              <strong>{social.viewerId ? 'Your Pubky persona' : 'Curious explorer'}</strong>
+              <span>{social.viewerId ? 'Your social circle' : 'Guest persona'}</span>
             </div>
           </div>
           <a href="https://pubky.app/" target="_blank" rel="noopener noreferrer" className={styles.classicLink}>
@@ -911,8 +939,13 @@ export function World() {
         <div className={styles.dataNotice} role="status">
           <Info size={15} />
           <span>{dataError}</span>
-          <Button overrideDefaults aria-label="Use example data" onClick={resetExample}>
-            Use example world
+          <Button
+            overrideDefaults
+            aria-label="Retry staging data"
+            disabled={dataStatus === 'loading'}
+            onClick={() => void loadStaging()}
+          >
+            Retry staging
           </Button>
         </div>
       )}
@@ -943,66 +976,6 @@ export function World() {
         </section>
       )}
 
-      <nav className={styles.destinations} aria-label="World destinations">
-        <div className={styles.dockHeading}>
-          <Compass size={15} />
-          <span>YOUR NEXT DETOUR</span>
-          <span>{String(WORLD_ZONES.length).padStart(2, '0')}</span>
-        </div>
-        {WORLD_ZONES.map((destination, index) => {
-          const Icon = ZONE_ICONS[destination.id];
-          return (
-            <div
-              key={destination.id}
-              className={`${styles.destinationRow} ${worldStatus.zone === destination.id ? styles.currentDestination : ''}`}
-            >
-              <Button
-                overrideDefaults
-                className={styles.destinationButton}
-                onClick={() => travelTo(destination.id)}
-                aria-label={`Travel to ${destination.name}`}
-              >
-                <span className={styles.destinationIcon} style={{ '--zone-color': destination.color } as CSSProperties}>
-                  <Icon size={20} />
-                </span>
-                <span>
-                  <strong>
-                    <span className={styles.destinationFullName}>{destination.name}</span>
-                    <span className={styles.destinationShortName}>{SHORT_ZONE_NAMES[destination.id]}</span>
-                  </strong>
-                  <small>
-                    {
-                      [
-                        'Make a connection',
-                        'Pick a conversation',
-                        'Challenge a duck',
-                        'Learn a little',
-                        'Meet the builders',
-                        'Follow the orange',
-                        'Catch the trending show',
-                      ][index]
-                    }
-                  </small>
-                </span>
-              </Button>
-              <Button
-                overrideDefaults
-                className={styles.destinationInfo}
-                aria-label={`Read about ${destination.name}`}
-                title={`Read about ${destination.name}`}
-                onClick={() => selectPanel({ kind: 'zone', id: destination.id })}
-              >
-                <ChevronRight size={15} />
-              </Button>
-            </div>
-          );
-        })}
-        <div className={styles.dockFootnote}>
-          <span />
-          {isDemo ? 'A world of example data' : 'Public staging · sampled data'}
-        </div>
-      </nav>
-
       {sceneState !== 'ready' && (
         <div className={`${styles.loadingCard} ${sceneState === 'error' ? styles.errorCard : ''}`} role="status">
           {sceneState === 'loading' ? (
@@ -1017,10 +990,7 @@ export function World() {
             <>
               <Compass size={30} />
               <strong>The island needs a different view.</strong>
-              <p>
-                Your browser could not start the 3D scene. You can still explore every destination using the reading
-                buttons.
-              </p>
+              <p>Your browser could not start the 3D scene. You can still read the tag forest while you try again.</p>
               <div className={styles.fallbackActions}>
                 <Button
                   overrideDefaults
@@ -1080,8 +1050,8 @@ export function World() {
               />
             </svg>
             {WORLD_ZONES.map((destination) => (
-              <Button
-                overrideDefaults
+              <span
+                role="img"
                 className={styles.mapPoint}
                 key={destination.id}
                 style={{
@@ -1089,9 +1059,8 @@ export function World() {
                   top: `${48 + destination.position[1] * MAP_SCALE}%`,
                   background: destination.color,
                 }}
-                aria-label={`Map: travel to ${destination.name}`}
+                aria-label={destination.name}
                 title={destination.name}
-                onClick={() => travelTo(destination.id)}
               />
             ))}
             <span
@@ -1107,6 +1076,70 @@ export function World() {
             <span className={styles.playerDot} />
             You, here and now<small>{worldStatus.collected} discoveries</small>
           </div>
+        </aside>
+      )}
+
+      {!welcome && !panel && !cameraOpen && worldStatus.zone === 'plaza' && (
+        <aside className={styles.socialHud} aria-label="Social plaza view">
+          <div className={styles.socialHudLegend}>
+            <span>
+              <i className={styles.followingMarker} />
+              {personal ? `${social.directCount.toLocaleString()} following` : 'Public profiles'}
+            </span>
+            {personal && (
+              <span>
+                <i className={styles.discoveryMarker} />
+                {social.discoveryCount.toLocaleString()} one hop away
+              </span>
+            )}
+          </div>
+          {social.status === 'loading' && personal && (
+            <span className={styles.socialHudStatus}>
+              <LoaderCircle size={12} className={styles.spin} />
+              Discovering your circle…
+            </span>
+          )}
+          {social.status === 'paused' && personal && (
+            <Button overrideDefaults className={styles.textLink} onClick={social.loadMore}>
+              Continue discovering
+              <ArrowRight size={13} />
+            </Button>
+          )}
+          {socialView.sector !== null && data.people.length > SOCIAL_PAGE_SIZE && (
+            <div className={styles.socialPaging} role="group" aria-label="Neighborhood pages">
+              <Button
+                overrideDefaults
+                aria-label="Previous neighborhood page"
+                disabled={socialPage === 0}
+                onClick={() => setSocialView({ ...socialView, page: socialPage - 1 })}
+              >
+                <ArrowLeft size={15} />
+              </Button>
+              <span>
+                Neighborhood {socialView.sector + 1} · {socialPage + 1}/{socialPages}
+              </span>
+              <Button
+                overrideDefaults
+                aria-label="Next neighborhood page"
+                disabled={socialPage + 1 >= socialPages}
+                onClick={() => setSocialView({ ...socialView, page: socialPage + 1 })}
+              >
+                <ArrowRight size={15} />
+              </Button>
+              <Button
+                overrideDefaults
+                aria-label="Show all social neighborhoods"
+                onClick={() => setSocialView({ sector: null, page: 0 })}
+              >
+                <Orbit size={16} />
+              </Button>
+            </div>
+          )}
+          {!personal && (
+            <Button overrideDefaults className={styles.textLink} onClick={signInToFollow}>
+              Sign in to see your circle
+            </Button>
+          )}
         </aside>
       )}
 
@@ -1259,9 +1292,9 @@ export function World() {
               ? 'YOUR WORLD, YOUR WAY'
               : panel?.kind === 'zone' && (panel.id === 'university' || panel.id === 'github' || panel.id === 'bitkit')
                 ? 'A LITTLE PUBKY EXPLORATION'
-                : isDemo
-                  ? 'EXAMPLE WORLD · FICTIONAL SOCIAL DATA'
-                  : 'PUBLIC STAGING · READ ONLY'}
+                : personal
+                  ? 'YOUR PUBKY CIRCLE · STAGING'
+                  : 'PUBLIC STAGING'}
           </div>
           <DialogTitle className={styles.dialogTitle}>{heading?.title ?? 'Explore the world'}</DialogTitle>
           <DialogDescription className={styles.dialogDescription}>{heading?.subtitle}</DialogDescription>
@@ -1289,7 +1322,7 @@ export function World() {
                 <Switch aria-label="Show pocket map" checked={showMap} onCheckedChange={setShowMap} />
               </div>
               <div className={styles.colorSetting}>
-                <strong>Your explorer’s color</strong>
+                <strong>Your sneaker glow</strong>
                 <div className={styles.colorChoices}>
                   {PERSONA_COLORS.map((color, index) => (
                     <Button
@@ -1297,7 +1330,7 @@ export function World() {
                       key={color}
                       className={styles.colorChoice}
                       style={{ background: color }}
-                      aria-label={`Explorer color ${['lime', 'orange', 'violet', 'cyan', 'pink'][index]}`}
+                      aria-label={`Sneaker glow ${['lime', 'orange', 'violet', 'cyan', 'pink'][index]}`}
                       aria-pressed={color === personaColor}
                       onClick={() => setPersonaColor(color)}
                     >
@@ -1310,6 +1343,14 @@ export function World() {
                 <VolumeX size={18} />
                 <p>This world is quiet by design. Your imaginary footsteps are your own.</p>
               </div>
+              <Button
+                overrideDefaults
+                className={styles.secondaryButton}
+                disabled={dataStatus === 'loading'}
+                onClick={() => void loadStaging()}
+              >
+                {dataStatus === 'loading' ? 'Loading public posts…' : 'Refresh public posts'}
+              </Button>
               <Button overrideDefaults className={styles.secondaryButton} onClick={() => perform('dance')}>
                 Test your new look with a dance
                 <Sparkles size={16} />
@@ -1325,6 +1366,23 @@ export function World() {
                 onDance={() => perform('dance')}
                 onJump={() => perform('jump')}
                 onTravel={travelTo}
+                social={social}
+                directory={{
+                  query: directoryQuery,
+                  scope: directoryScope,
+                  page: directoryPage,
+                  onQuery: (query) => {
+                    setDirectoryQuery(query);
+                    setDirectoryPage(0);
+                  },
+                  onScope: (scope) => {
+                    setDirectoryScope(scope);
+                    setDirectoryPage(0);
+                  },
+                  onPage: setDirectoryPage,
+                }}
+                onVisitPerson={visitPerson}
+                onSignIn={signInToFollow}
                 theaterIndex={worldStatus.theaterIndex}
                 theaterPaused={worldStatus.theaterPaused}
                 theaterCanPlay={sceneState === 'ready'}
