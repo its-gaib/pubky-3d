@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DialogContent } from '@/atoms/Dialog/Dialog';
+import { PostInput } from '@/organisms/PostInput/PostInput';
 import { PostMainLayoutProvider } from '@/organisms/PostMain/PostMainLayoutContext';
 import { DialogNewPost } from './DialogNewPost';
 
@@ -169,6 +170,30 @@ describe('DialogNewPost', () => {
     expect(screen.getByTestId('dialog-content')).toBeInTheDocument();
     expect(screen.getByTestId('dialog-title')).toHaveTextContent('New Post');
     expect(screen.getByTestId('post-input')).toBeInTheDocument();
+  });
+
+  it('forwards a supplied photo draft through the existing composer and shows its destination', () => {
+    const photo = new File(['photo'], 'pubky-world.png', { type: 'image/png' });
+    const onPostCreated = vi.fn();
+    render(
+      <DialogNewPost
+        open
+        onOpenChangeAction={vi.fn()}
+        onPostCreated={onPostCreated}
+        initialContent="A postcard from Pubky World."
+        initialAttachments={[photo]}
+        description="Posting to Pubky staging. Review your photo and choose Post to publish."
+      />,
+    );
+
+    expect(vi.mocked(PostInput).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        initialContent: 'A postcard from Pubky World.',
+        initialAttachments: [photo],
+      }),
+    );
+    expect(screen.getByTestId('dialog-description')).toHaveTextContent('Posting to Pubky staging.');
+    expect(onPostCreated).not.toHaveBeenCalled();
   });
 
   it('uses inline post styling when rendered inside a List feed', () => {

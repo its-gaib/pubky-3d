@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
 import { box, cylinder, disposeObject, label, material, mesh, ring, sphere } from '@/libs/world/world-geometry';
 import { createLandmarks } from '@/libs/world/world-landmarks';
@@ -317,6 +318,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let nearby: Interactive | null = null;
   let walkTarget: THREE.Vector3 | null = null;
   let animation: PersonaState['animation'] = 'idle';
+  let capturingPhoto = false;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   const cameraGoal = new THREE.Vector3();
   const desiredTarget = new THREE.Vector3();
@@ -665,6 +667,34 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     jump,
     dance,
     interact,
+    async capturePhoto() {
+      if (disposed || capturingPhoto) return null;
+      capturingPhoto = true;
+      const frame = document.createElement('canvas');
+      try {
+        const source = renderer.domElement;
+        if (!source.width || !source.height) return null;
+        const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(source.width, source.height));
+        frame.width = Math.max(1, Math.floor(source.width * scale));
+        frame.height = Math.max(1, Math.floor(source.height * scale));
+        const context = frame.getContext('2d');
+        if (!context) return null;
+        // Copy immediately after rendering; the WebGL drawing buffer need not be
+        // preserved between frames. The HUD lives outside this canvas.
+        renderer.render(scene, camera);
+        context.drawImage(source, 0, 0, frame.width, frame.height);
+        const blob = await new Promise<Blob | null>((resolve) => frame.toBlob(resolve, 'image/png'));
+        return !disposed && blob?.type === 'image/png' && blob.size > 0 && blob.size <= IMAGE_MAX_RAW_SIZE
+          ? blob
+          : null;
+      } catch {
+        return null;
+      } finally {
+        frame.width = 0;
+        frame.height = 0;
+        capturingPhoto = false;
+      }
+    },
     updateData(data) {
       populateData(data);
       nearby = null;

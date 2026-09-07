@@ -250,7 +250,11 @@ export function PostInput({
   }, []);
 
   // Pre-fill attachments from share target or other external sources
+  const didPrefillAttachments = React.useRef(false);
   React.useEffect(() => {
+    // Mount effects replay in Strict Mode; appending twice would duplicate a photo.
+    if (didPrefillAttachments.current) return;
+    didPrefillAttachments.current = true;
     if (initialAttachments && initialAttachments.length > 0 && !isEdit) {
       handleFilesAdded(initialAttachments);
     }

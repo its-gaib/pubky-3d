@@ -51,6 +51,7 @@ import type {
   WorldZoneId,
 } from '@/libs/world/world-types';
 import styles from './World.module.css';
+import { WorldCamera } from './WorldCamera';
 
 const ZONE_ICONS = {
   plaza: Network,
@@ -459,6 +460,7 @@ export function World() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [personaColor, setPersonaColor] = useState(PERSONA_COLORS[0]);
   const [panel, setPanel] = useState<Panel | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
 
   useEffect(() => {
@@ -508,8 +510,8 @@ export function World() {
     controllerRef.current?.updateData(data);
   }, [data]);
   useEffect(() => {
-    controllerRef.current?.setPaused(panel !== null);
-  }, [panel, sceneState]);
+    controllerRef.current?.setPaused(panel !== null || cameraOpen);
+  }, [panel, cameraOpen, sceneState]);
   useEffect(() => {
     controllerRef.current?.setNight(night);
   }, [night, sceneState]);
@@ -725,7 +727,7 @@ export function World() {
         })}
         <div className={styles.dockFootnote}>
           <span />
-          {isDemo ? 'A world of example data' : 'Public staging · read only'}
+          {isDemo ? 'A world of example data' : 'Public staging · sampled data'}
         </div>
       </nav>
 
@@ -904,6 +906,12 @@ export function World() {
           </span>
         </div>
         <div className={styles.viewControls}>
+          <WorldCamera
+            disabled={sceneState !== 'ready' || panel !== null}
+            onCapture={() => controllerRef.current?.capturePhoto() ?? Promise.resolve(null)}
+            onOpenChange={setCameraOpen}
+            onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
+          />
           <Button
             overrideDefaults
             aria-label={overview ? 'Follow my persona' : 'Show island overview'}

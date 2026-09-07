@@ -646,6 +646,77 @@
   color: #30543a;
   background: #e3eacb;
 }
+
+.viewControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.captureNotice {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  z-index: 40;
+  width: min(420px, calc(100vw - 32px));
+  padding: 14px 18px;
+  transform: translateX(-50%);
+  border: 1px solid #d4dbca;
+  border-radius: 16px;
+  background: #faf9ef;
+  color: #27453e;
+  font-size: 14px;
+  box-shadow: 0 8px 32px #27453e20;
+}
+
+.dialog.photoDialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.photoPreview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(48dvh, 540px);
+  margin: 20px 0 16px;
+  border: 1px solid #d4dbca;
+  border-radius: 16px;
+  background: #9bcfca;
+  object-fit: contain;
+}
+
+.photoDestination,
+.photoError {
+  margin: 10px 0;
+  color: #657b70;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.photoError {
+  color: #934f35;
+}
+
+.photoActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.photoActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.reframeButton {
+  display: block;
+  margin: 18px auto 0;
+  color: #657b70;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .viewControls > span {
   width: 1px;
   height: 17px;

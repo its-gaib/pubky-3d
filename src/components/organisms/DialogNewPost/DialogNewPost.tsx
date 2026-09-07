@@ -11,6 +11,11 @@ import { PostInput } from '../PostInput/PostInput';
 interface DialogNewPostProps {
   open: boolean;
   onOpenChangeAction: (open: boolean) => void;
+  /** Optional draft values, validated by the existing PostInput attachment flow. */
+  initialContent?: string;
+  initialAttachments?: File[];
+  /** Visible context for a draft supplied by another surface, such as its destination network. */
+  description?: string;
   /**
    * Optional side effect run after a post is created, before the dialog closes.
    * Receives the new post's composite id. Used by the FAB to save the post to a
@@ -19,7 +24,14 @@ interface DialogNewPostProps {
   onPostCreated?: (createdPostId: string) => void | Promise<void>;
 }
 
-export function DialogNewPost({ open, onOpenChangeAction, onPostCreated }: DialogNewPostProps) {
+export function DialogNewPost({
+  open,
+  onOpenChangeAction,
+  onPostCreated,
+  initialContent,
+  initialAttachments,
+  description,
+}: DialogNewPostProps) {
   const [isArticle, setIsArticle] = useState(false);
   const title = isArticle ? 'New Article' : 'New Post';
   const { showConfirmDialog, setShowConfirmDialog, resetKey, handleContentChange, handleOpenChange, handleDiscard } =
@@ -38,7 +50,9 @@ export function DialogNewPost({ open, onOpenChangeAction, onPostCreated }: Dialo
       <DialogContent avoidKeyboard className={isArticle ? 'w-4xl' : 'w-3xl'} hiddenTitle={title}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">{`${title} dialog`}</DialogDescription>
+          <DialogDescription className={description ? undefined : 'sr-only'}>
+            {description ?? `${title} dialog`}
+          </DialogDescription>
         </DialogHeader>
         <Container className="gap-3">
           <PostInput
@@ -50,6 +64,8 @@ export function DialogNewPost({ open, onOpenChangeAction, onPostCreated }: Dialo
             onContentChange={handleContentChange}
             onArticleModeChange={setIsArticle}
             layoutOverride="inline"
+            initialContent={initialContent}
+            initialAttachments={initialAttachments}
           />
         </Container>
         {/* Nested inside parent dialog to avoid mobile touch event issues with sibling portals */}

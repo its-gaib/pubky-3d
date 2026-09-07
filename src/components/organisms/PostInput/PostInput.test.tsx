@@ -1,4 +1,4 @@
-import { createRef } from 'react';
+import { createRef, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useReducedMotion } from 'motion/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1035,6 +1035,27 @@ describe('PostInput', () => {
 
     expect(mockSetContent).toHaveBeenCalledWith('Prefilled content');
     expect(mockHandleFilesAdded).toHaveBeenCalledWith([initialFile]);
+  });
+
+  it('adds a prefilled photo only once when Strict Mode replays mount effects', () => {
+    const photo = new File(['photo'], 'pubky-world.png', { type: 'image/png' });
+    const { rerender } = render(
+      <StrictMode>
+        <PostInput variant={POST_INPUT_VARIANT.POST} initialAttachments={[photo]} />
+      </StrictMode>,
+    );
+
+    expect(mockHandleFilesAdded).toHaveBeenCalledExactlyOnceWith([photo]);
+
+    const replacement = new File(['replacement'], 'another-photo.png', { type: 'image/png' });
+    rerender(
+      <StrictMode>
+        <PostInput variant={POST_INPUT_VARIANT.POST} initialAttachments={[replacement]} />
+      </StrictMode>,
+    );
+
+    // Initial values never replace a draft the person may already be editing.
+    expect(mockHandleFilesAdded).toHaveBeenCalledExactlyOnceWith([photo]);
   });
 
   it('parses edit article json content and updates article state', () => {

@@ -8,6 +8,8 @@ The world begins with original, explicitly fictional example posts and inhabitan
 Use the staging switch to populate it from the public staging Nexus. No sign-in is
 needed to explore the world.
 
+![The Pubky World island](./screenshots/overview.png)
+
 ## Places
 
 - **Social Plaza:** people become little characters, connected by curved ribbons.
@@ -22,6 +24,8 @@ needed to explore the world.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large 3D landmark.
 - **Detours:** giant duck, trampoline, portal, floating balloon, dancing, and eight
   collectible keys. Collected keys are local game props with no monetary value.
+- **Camera:** frame a picture, keep a PNG postcard, or send it to Pubky's post
+  composer with the photo attached and an editable caption.
 
 ## Local preview
 
@@ -47,23 +51,44 @@ for a recovery phrase; use test keys only if trying the inherited account flows.
 
 ## Controls
 
-| Input                                   | Action                          |
-| --------------------------------------- | ------------------------------- |
-| W A S D / arrows                        | Walk relative to the camera     |
-| Shift                                   | Run                             |
-| Space                                   | Jump                            |
-| E                                       | Interact with the nearby object |
-| F                                       | Dance                           |
-| R                                       | Return to the plaza             |
-| Drag the scene                          | Orbit the camera                |
-| Scroll                                  | Zoom                            |
-| Click ground                            | Walk to that spot               |
-| Click a landmark, person, tree, or leaf | Open it                         |
-| Destination navigation                  | Travel directly to a district   |
+| Input                                   | Action                           |
+| --------------------------------------- | -------------------------------- |
+| W A S D / arrows                        | Walk relative to the camera      |
+| Shift                                   | Run                              |
+| Space                                   | Jump                             |
+| E                                       | Interact with the nearby object  |
+| F                                       | Dance                            |
+| R                                       | Return to the plaza              |
+| Drag the scene                          | Orbit the camera                 |
+| Scroll                                  | Zoom                             |
+| Click ground                            | Walk to that spot                |
+| Click a landmark, person, tree, or leaf | Open it                          |
+| Destination navigation                  | Travel directly to a district    |
+| Camera button                           | Capture and review a world photo |
 
 Touch controls, overview, nighttime lighting, reduced motion, and avatar colors
 are available in the interface. Reading panels pause world movement. The world
 also exposes its contents through buttons when WebGL is unavailable.
+
+## Camera and posting
+
+Orbit and zoom to frame the scene, then press the camera button beside the view
+controls. The photo contains the rendered world, including your persona, with the
+HUD excluded. Review it, download a PNG, or open the normal Pubky post composer.
+The composer starts with the photo attached and an editable postcard caption.
+Publishing uses its existing **Post** button, attachment validation, authenticated
+write path and image sanitization. The destination is visibly labelled staging or
+production according to the app's runtime configuration; development defaults to
+staging.
+
+The capture is bounded to a 2048-pixel longest edge. Photos and drafts stay in
+memory, and preview object URLs are released when closed or replaced. Sign in
+before taking a photo you want to publish. Guests can download first; navigating
+away to sign in clears the in-memory photo. An opened draft is cleared on logout
+or account changes.
+
+The lightweight local visual preview supports capture and download. Posting,
+authentication and classic app routes need the full Next application.
 
 ## Implementation boundaries
 
@@ -77,6 +102,8 @@ also exposes its contents through buttons when WebGL is unavailable.
 - `src/libs/world/world-types.ts`: serializable world data and `PersonaState`.
 - `src/hooks/useWorldData`: opt-in, bounded public reads through existing Pubky
   controllers. The normal cache and moderation behavior remains in those layers.
+- `src/components/templates/World/WorldCamera.tsx` and `src/hooks/useWorldPhotoPost`:
+  local photo review and an explicit handoff to the existing post composer.
 
 The data loader renders at most six tag trees, four verified posts per staging
 tree, six people and twelve confirmed follow edges. Counts describe the displayed
@@ -105,10 +132,14 @@ clients must never broadcast account keys or recovery phrases.
 
 ```sh
 npm run typecheck
-npm run lint -- src/libs/world src/components/templates/World src/hooks/useWorldData src/components/organisms/WorldAwareChrome
-npm test -- src/libs/world/world-motion.test.ts src/hooks/useWorldData/useWorldData.test.ts src/app/routes.test.ts src/providers/RouteGuardProvider/RouteGuardProvider.test.tsx
+npm run lint -- src/libs/world src/components/templates/World src/hooks/useWorldData src/hooks/useWorldPhotoPost src/components/organisms/WorldAwareChrome
+npm test -- src/libs/world/world-motion.test.ts src/hooks/useWorldData/useWorldData.test.ts src/components/templates/World/World.test.tsx src/app/routes.test.ts src/providers/RouteGuardProvider/RouteGuardProvider.test.tsx
+npm test -- src/components/templates/World/WorldCamera.test.tsx src/hooks/useWorldPhotoPost/useWorldPhotoPost.test.tsx src/components/organisms/DialogNewPost/DialogNewPost.test.tsx src/components/organisms/PostInput/PostInput.test.tsx
 npm run build
 ```
+
+See [the first increment's validation record](./validation.md) for completed checks,
+browser evidence and the shared machine's full-build memory limitation.
 
 The world has no inherited visual baseline. Browser screenshots provide the first
 visual review checkpoint; adding a dedicated VRT baseline is a possible next step

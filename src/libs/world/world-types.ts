@@ -91,6 +91,7 @@ export interface WorldController {
   jump: () => void;
   dance: () => void;
   interact: () => void;
+  capturePhoto: () => Promise<Blob | null>;
   updateData: (data: WorldData) => void;
   getPersonaState: () => PersonaState;
 }

@@ -4,6 +4,7 @@
 
 A playful 3D fork of Pubky: walk through a forest of tags, meet a social
 constellation, visit Pubky University and the builders' yard, or challenge the arena.
+Take a photo of the world and bring it into Pubky's post composer as a postcard.
 
 The world lives at `/`; the familiar Pubky feed is at `/home`. Start with the
 fictional example world or opt into a sample of public staging content.

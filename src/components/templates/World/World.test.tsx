@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
     jump: vi.fn(),
     dance: vi.fn(),
     interact: vi.fn(),
+    capturePhoto: vi.fn(),
     updateData: vi.fn(),
     getPersonaState: vi.fn(),
   },
@@ -29,6 +30,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/libs/world/world-scene', () => ({ createWorld: mocks.createWorld }));
 vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWorldData }));
+vi.mock('@/hooks/useWorldPhotoPost/useWorldPhotoPost', () => ({
+  useWorldPhotoPost: () => ({
+    openComposer: vi.fn(),
+    composer: null,
+    isComposerOpen: false,
+    isAuthenticated: false,
+    network: 'staging',
+    error: null,
+    clearError: vi.fn(),
+  }),
+}));
 vi.mock('@/hooks/useDialogKeyboardOrchestrator/useDialogKeyboardOrchestrator', () => ({
   useDialogKeyboardOrchestrator: () => ({ isKeyboardVisible: false, spacerHeight: 0, contentStyle: undefined }),
 }));
