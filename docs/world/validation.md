@@ -1,5 +1,55 @@
 # Pubky World validation record
 
+## Production network and cosmic districts — 2026-09-08
+
+The fork had no open PRs before this increment, and the upstream open PR list did
+not contain these world changes. The existing branch was clean and already pushed
+at `b801ac9b6b4ec4ce222d387d4c79071251b9324a`.
+
+All nine production network values were checked against the runtime configuration
+served by `https://pubky.app/`. Dev/start commands now set that complete tuple;
+world data, graph actions and photo drafts share its fail-closed guard. Network
+namespaces separate all persisted stores, IndexedDB, mute cursors and tag markers;
+the production shared-file handoff also uses a fresh cache. Legacy staging state
+is left untouched and never restored. A full reload begins a fresh production
+sign-in. Account publication remains explicit; automated tests mock that boundary.
+
+The island grows from radius 112 to 142 (about 61% more walkable area). Midnight
+Cinema and Trending Theater now sit 143 units apart and face different directions.
+The cinema has an 18×10.125 screen with one persistent, muted native YouTube iframe,
+using the original 18-video whitelist. It follows the world camera without reloads.
+Conservative sampled occlusion hides the complete overlay behind scenery; this
+does not share WebGL's depth buffer. Browser autoplay policy and video availability
+can interrupt playback. The reader retains manual controls. Photos retain the
+screen's local projector art instead of third-party video pixels.
+
+Seven procedural planets vary in appearance, rings and near/far depth. Fourteen
+of 24 jellyfish occupy a farther band and ten retain their near envelope; most sky
+objects sit lower around the horizon. Walking camera pitch is lowered accordingly.
+The bank uses 300 recycled instanced bills with the previous 70-second flight/landing
+cycle, providing ten times the emission rate, and the BRRR sign vibrates at three
+times its previous frequency. Three walk-through portals randomly choose another
+exit, with clearance, cooldown and an immediate camera transfer.
+
+The new giant chessboard, graph sculpture, arena and @halfin runner open the four
+requested experiments through plain HTTPS links without identity parameters.
+The runner's reader explains readable autocomplete pills and single-keystroke
+removal. All world presence figures remain decorative or profile markers.
+
+Focused verification: **266 unique tests passed across 24 files**, including the
+production guard, storage namespaces, public loading, account/selection fences,
+photo drafting, actual auth/settings stores, database initialization, mute/tag
+storage, links, layout, cinema visibility and geometry, sky resources, money and
+portal behavior. Five initial failures were stale network test fixtures; corrected
+fixtures passed without weakening production code. Formatting, ESLint and whitespace
+checks passed. The final source security gate reported no actionable findings.
+Two camera integration findings were corrected before committing. Full production
+build and actual browser verification are the next checkpoint.
+
+This template has no sibling visual regression baseline. A dedicated screenshot
+baseline remains an optional future addition; the browser checks below record
+the actual rendering evidence and its limits.
+
 ## Galactic jellyfish — 2026-09-07
 
 Open PRs were checked in the fork and upstream before this increment; none

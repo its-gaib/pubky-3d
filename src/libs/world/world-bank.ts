@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { box, cylinder, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { box, cylinder, disposeObject, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 export const BANK_POSITION = WORLD_ANCHORS.bank;
-export const BANK_BILL_COUNT = 30;
+export const BANK_BILL_COUNT = 300;
 export const BANK_BILL_LIFETIME = 70;
 
 /** Each bill owns an offset life: launch, drift, then independently evaporate. */
@@ -116,34 +116,63 @@ export function createBank(
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const geometry = new THREE.PlaneGeometry(1.24, 0.62);
-  const bills = Array.from({ length: BANK_BILL_COUNT }, () => {
-    const bill = mesh(
-      bank,
-      geometry,
-      new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-      }),
-    );
-    bill.castShadow = false;
-    bill.receiveShadow = false;
-    return bill;
+  const opacity = new THREE.InstancedBufferAttribute(new Float32Array(BANK_BILL_COUNT), 1);
+  opacity.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute('billOpacity', opacity);
+  const billMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+    toneMapped: false,
   });
+  // One draw retains each note's individual fade without hundreds of materials.
+  billMaterial.onBeforeCompile = (shader) => {
+    shader.vertexShader = `attribute float billOpacity;\nvarying float vBillOpacity;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvBillOpacity = billOpacity;',
+    );
+    shader.fragmentShader = `varying float vBillOpacity;\n${shader.fragmentShader}`.replace(
+      '#include <color_fragment>',
+      '#include <color_fragment>\ndiffuseColor.a *= vBillOpacity;',
+    );
+  };
+  billMaterial.customProgramCacheKey = () => 'world-bank-individual-opacity-v1';
+  const bills = new THREE.InstancedMesh(geometry, billMaterial, BANK_BILL_COUNT);
+  bills.name = 'bank-recycled-money';
+  bills.castShadow = false;
+  bills.receiveShadow = false;
+  bills.frustumCulled = false;
+  bills.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  bank.add(bills);
+  const transform = new THREE.Object3D();
+  let disposed = false;
 
   function animate(time: number, reducedMotion: boolean) {
-    sign.rotation.z = reducedMotion ? 0 : Math.sin(time * 28) * 0.025 + Math.sin(time * 43) * 0.012;
-    sign.position.x = reducedMotion ? 0 : Math.sin(time * 31) * 0.035;
-    bills.forEach((bill, index) => {
+    if (disposed) return;
+    sign.rotation.z = reducedMotion ? 0 : Math.sin(time * 84) * 0.025 + Math.sin(time * 129) * 0.012;
+    sign.position.x = reducedMotion ? 0 : Math.sin(time * 93) * 0.035;
+    for (let index = 0; index < BANK_BILL_COUNT; index++) {
       const frame = bankBillFrame(reducedMotion ? 0 : time, index);
-      bill.position.set(...frame.position);
-      bill.rotation.set(...frame.rotation);
-      bill.scale.setScalar(frame.scale);
-      bill.material.opacity = frame.opacity;
-    });
+      transform.position.set(...frame.position);
+      transform.rotation.set(...frame.rotation);
+      transform.scale.setScalar(frame.scale);
+      transform.updateMatrix();
+      bills.setMatrixAt(index, transform.matrix);
+      opacity.setX(index, frame.opacity);
+    }
+    bills.instanceMatrix.needsUpdate = true;
+    opacity.needsUpdate = true;
   }
   animate(0, true);
-  return { animate };
+  return {
+    animate,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      bills.dispose();
+      disposeObject(bank);
+    },
+  };
 }

@@ -1,5 +1,14 @@
 /** Serializable world state, independent of rendering or a future presence transport. */
-export type WorldZoneId = 'plaza' | 'forest' | 'arena' | 'university' | 'github' | 'bitkit' | 'theater' | 'cinema';
+export type WorldZoneId =
+  | 'plaza'
+  | 'forest'
+  | 'arena'
+  | 'university'
+  | 'github'
+  | 'bitkit'
+  | 'theater'
+  | 'cinema'
+  | 'chess';
 
 export interface WorldZone {
   id: WorldZoneId;
@@ -46,7 +55,7 @@ export interface WorldRelationship {
 }
 
 export interface WorldData {
-  source: 'demo' | 'staging';
+  source: 'demo' | 'production';
   tags: WorldTag[];
   /** Public Hot feed order (total engagement), with no date-window filter. */
   trendingPosts: WorldPost[];
@@ -61,12 +70,13 @@ export interface WorldArticle {
 }
 
 export type WorldInteraction =
+  | { kind: 'portal'; index: number }
   | { kind: 'zone'; id: WorldZoneId }
   | { kind: 'tag'; index: number }
   | { kind: 'post'; tagIndex: number; postIndex: number }
   | { kind: 'person'; id: string }
   | { kind: 'social-cluster'; sector: number }
-  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'portal' | 'satoshi' | 'bank' | 'tether' };
+  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'satoshi' | 'bank' | 'tether' | 'graph' | 'runner' };
 
 export interface PersonaState {
   position: [number, number, number];

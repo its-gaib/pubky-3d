@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { WORLD_ZONES } from './world-catalog';
 import { CINEMA_DIMENSIONS } from './world-cinema';
 import {
+  CINEMA_YAW,
   WORLD_ANCHORS,
   WORLD_DIMENSIONS,
+  WORLD_PORTALS,
   WORLD_RADIUS,
   WORLD_TREE_POSITIONS,
   worldArrival,
@@ -57,16 +59,43 @@ describe('expanded world layout', () => {
   });
 
   it('adds walkable new ground around the cinema, its front entry and the Tether monument', () => {
-    expect(WORLD_RADIUS).toBeGreaterThanOrEqual(110);
+    expect(WORLD_RADIUS).toBeGreaterThan(112);
     for (const side of [-1, 1])
       for (const z of [-CINEMA_DIMENSIONS.back, CINEMA_DIMENSIONS.front]) {
+        const x = side * CINEMA_DIMENSIONS.halfWidth;
         expect(
-          Math.hypot(WORLD_ANCHORS.cinema[0] + side * CINEMA_DIMENSIONS.halfWidth, WORLD_ANCHORS.cinema[1] + z),
+          Math.hypot(
+            WORLD_ANCHORS.cinema[0] + Math.cos(CINEMA_YAW) * x + Math.sin(CINEMA_YAW) * z,
+            WORLD_ANCHORS.cinema[1] - Math.sin(CINEMA_YAW) * x + Math.cos(CINEMA_YAW) * z,
+          ),
         ).toBeLessThan(WORLD_DIMENSIONS.landRadius);
       }
     const arrival = worldArrival('cinema');
-    expect(arrival.z).toBeGreaterThan(WORLD_ANCHORS.cinema[1] + CINEMA_DIMENSIONS.front);
+    const forward =
+      (arrival.x - WORLD_ANCHORS.cinema[0]) * Math.sin(CINEMA_YAW) +
+      (arrival.z - WORLD_ANCHORS.cinema[1]) * Math.cos(CINEMA_YAW);
+    expect(forward).toBeGreaterThan(CINEMA_DIMENSIONS.front);
     expect(Math.hypot(WORLD_ANCHORS.tether[0], WORLD_ANCHORS.tether[1]) + 10).toBeLessThan(WORLD_RADIUS);
+  });
+
+  it('separates the theaters into distant districts and gives new attractions open ground', () => {
+    const [tx, tz] = WORLD_ANCHORS.theater;
+    const [cx, cz] = WORLD_ANCHORS.cinema;
+    expect(Math.hypot(tx - cx, tz - cz)).toBeGreaterThan(130);
+    expect(Math.abs(CINEMA_YAW)).toBeGreaterThan(Math.PI / 2);
+    for (const [id, clearance] of [
+      ['chess', 20],
+      ['runner', 12],
+    ] as const) {
+      const [x, z] = WORLD_ANCHORS[id];
+      expect(Math.hypot(x, z) + clearance).toBeLessThan(WORLD_RADIUS);
+      for (const zone of WORLD_ZONES.filter((zone) => zone.id !== id)) {
+        expect(Math.hypot(x - zone.position[0], z - zone.position[1])).toBeGreaterThan(clearance + 15);
+      }
+    }
+    for (const portal of WORLD_PORTALS) {
+      expect(Math.hypot(...portal.position) + 7).toBeLessThan(WORLD_RADIUS);
+    }
   });
 
   it('keeps the far coastline visible when portrait views pull the overview camera back', () => {

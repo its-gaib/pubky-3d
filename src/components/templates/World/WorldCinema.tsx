@@ -67,7 +67,10 @@ export function WorldCinema() {
         <div className={styles.cinemaCurtain}>
           <Clapperboard size={56} aria-hidden="true" />
           <h3>Midnight Cinema</h3>
-          <p>The algorithm has been replaced by a very small projectionist with a shuffle button.</p>
+          <p>
+            The big screen outside runs a muted, shuffled program. Open your own screening here for sound, player
+            controls, or a fresh lineup.
+          </p>
           <Button overrideDefaults className={styles.primaryButton} onClick={start}>
             <Play size={17} />
             Start screening

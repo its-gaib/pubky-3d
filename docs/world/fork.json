@@ -8,6 +8,6 @@
   "baseCommit": "aaba2b8da18af33e066ded10e5e538f1855a07d0",
   "branch": "vibe/pubky-3d",
   "stack": "frontend-only",
-  "target": "staging",
+  "target": "production",
   "registryPr": false
 }

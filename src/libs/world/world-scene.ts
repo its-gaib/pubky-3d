@@ -4,7 +4,9 @@ import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
 import { ARENA_DIMENSIONS, createArena } from '@/libs/world/world-arena';
 import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
+import { createChess } from '@/libs/world/world-chess';
 import { createCinema } from '@/libs/world/world-cinema';
+import { createCinemaScreen } from '@/libs/world/world-cinema-screen';
 import {
   box,
   cylinder,
@@ -21,6 +23,7 @@ import { createLandmarks } from '@/libs/world/world-landmarks';
 import {
   WORLD_ANCHORS,
   WORLD_DIMENSIONS,
+  WORLD_PORTALS,
   WORLD_RADIUS,
   WORLD_TREE_POSITIONS,
   worldArrival,
@@ -28,6 +31,9 @@ import {
   worldLandmarkPose,
 } from '@/libs/world/world-layout';
 import { movementStep, resolvePosition, type WorldObstacle } from '@/libs/world/world-motion';
+import { createWorldPlanets } from '@/libs/world/world-planets';
+import { createPortalTransit } from '@/libs/world/world-portals';
+import { createRunner } from '@/libs/world/world-runner';
 import { createSatoshi } from '@/libs/world/world-satoshi';
 import { createSocialPlaza } from '@/libs/world/world-social';
 import { SOCIAL_PLAZA_RADIUS } from '@/libs/world/world-social-layout';
@@ -228,7 +234,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       addPath([plazaGround, new THREE.Vector3(-5, 0, -32), groundPoint(zone.position)]);
     } else if (zone.id === 'cinema') {
       const arrival = worldArrival('cinema');
-      addPath([plazaGround, new THREE.Vector3(-45, 0, -42), new THREE.Vector3(arrival.x, 0, arrival.z)]);
+      addPath([plazaGround, new THREE.Vector3(-48, 0, 46), new THREE.Vector3(arrival.x, 0, arrival.z)]);
+    } else if (zone.id === 'chess') {
+      const arrival = worldArrival('chess');
+      addPath([plazaGround, new THREE.Vector3(72, 0, -10), new THREE.Vector3(arrival.x, 0, arrival.z)]);
     } else if (zone.id !== 'plaza') {
       addPath([plazaGround, new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4), groundPoint(zone.position)]);
     }
@@ -250,36 +259,40 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     new THREE.Vector3(-43, 0, -31),
     groundPoint(WORLD_ANCHORS.university),
   ]);
+  addPath([groundPoint(WORLD_ANCHORS.forest), new THREE.Vector3(40, 0, -90), groundPoint(WORLD_ANCHORS.tether)]);
   addPath([
-    groundPoint(WORLD_ANCHORS.theater),
-    new THREE.Vector3(-85, 0, -37),
-    new THREE.Vector3(WORLD_ANCHORS.cinema[0], 0, WORLD_ANCHORS.cinema[1] + 9),
+    groundPoint(WORLD_ANCHORS.university),
+    new THREE.Vector3(-26, 0, -100),
+    groundPoint(WORLD_PORTALS[0].position),
   ]);
-  addPath([groundPoint(WORLD_ANCHORS.forest), new THREE.Vector3(46, 0, -70), groundPoint(WORLD_ANCHORS.tether)]);
-  addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(-22, 0, -86), groundPoint(WORLD_ANCHORS.portal)]);
+  addPath([groundPoint(WORLD_ANCHORS.github), new THREE.Vector3(-103, 0, 34), groundPoint(WORLD_PORTALS[1].position)]);
+  addPath([arenaEntrance, new THREE.Vector3(90, 0, 72), groundPoint(WORLD_PORTALS[2].position)]);
+  addPath([arenaEntrance, new THREE.Vector3(63, 0, 82), groundPoint(WORLD_ANCHORS.runner)]);
   addPath([
     arenaEntrance,
     new THREE.Vector3(76, 0, 60),
-    new THREE.Vector3(92, 0, 32),
+    new THREE.Vector3(99, 0, 44),
     new THREE.Vector3(BANK_POSITION[0], 0, BANK_POSITION[1] + 7),
   ]);
 
   // Tiny trees around the coast leave the central paths clear.
   for (let i = 0; i < 38; i++) {
     const angle = i * 2.39996;
-    const radius = 94 + Math.sin(i * 7.1) * 14;
+    const radius = WORLD_RADIUS - 12 + Math.sin(i * 7.1) * 7;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     if (
       WORLD_ZONES.some(
         (zone) =>
           Math.hypot(x - zone.position[0], z - zone.position[1]) <
-          (zone.id === 'cinema' ? 22 : zone.id === 'arena' ? 25 : 15),
+          (zone.id === 'cinema' ? 22 : zone.id === 'arena' ? 25 : zone.id === 'chess' ? 24 : 15),
       )
     )
       continue;
     if (Math.hypot(x - BANK_POSITION[0], z - BANK_POSITION[1]) < 7) continue;
     if (Math.hypot(x - WORLD_ANCHORS.tether[0], z - WORLD_ANCHORS.tether[1]) < 10) continue;
+    if (Math.hypot(x - WORLD_ANCHORS.runner[0], z - WORLD_ANCHORS.runner[1]) < 12) continue;
+    if (WORLD_PORTALS.some((portal) => Math.hypot(x - portal.position[0], z - portal.position[1]) < 9)) continue;
     if (pathSamples.some((point) => Math.hypot(x - point.x, z - point.z) < 3.2)) continue;
     const height = 2.3 + (i % 4) * 0.55;
     cylinder(scene, 0.2, 0.32, height, '#4F4844', [x, height / 2, z], 5);
@@ -292,7 +305,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const dummy = new THREE.Object3D();
   for (let i = 0; i < 160; i++) {
     const angle = i * 2.39996;
-    const radius = 40 + (Math.sin(i * 16.4) * 0.5 + 0.5) * 69;
+    const radius = 40 + (Math.sin(i * 16.4) * 0.5 + 0.5) * (WORLD_RADIUS - 45);
     dummy.position.set(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
     dummy.scale.set(1, 1.5 + (i % 3), 1);
     dummy.updateMatrix();
@@ -305,7 +318,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const arena = createArena(scene, register, obstacle);
   const bank = createBank(scene, register, obstacle);
   const jellyfish = createGalacticJellyfish(scene);
-  createCinema(scene, register, obstacle);
+  const planets = createWorldPlanets(scene);
+  const cinema = createCinema(scene, register, obstacle);
+  const cinemaScreen = createCinemaScreen(container, scene, cinema.screenFrame);
+  const chess = createChess(scene, WORLD_ANCHORS.chess, obstacle);
+  register(chess.group, { kind: 'zone', id: 'chess' }, 'Explore the Chess Citadel');
+  register(chess.entrance, { kind: 'zone', id: 'chess' }, 'Play chess on Pubky');
+  const runner = createRunner(scene, WORLD_ANCHORS.runner);
+  register(runner.persona, { kind: 'fun', id: 'runner' }, 'Catch up with @halfin · mention pills');
+  const portals = createPortalTransit();
   const tether = createTether(scene, register, obstacle);
   createSatoshi(scene, register, obstacle);
   const theater = createTheater(scene, register, obstacle, options.data);
@@ -325,8 +346,18 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const orbitB = ring(sculpture, 2.5, 0.09, '#85859A', [0, 4.6, 0]);
   orbitB.rotation.x = -0.8;
   sphere(sculpture, 0.85, '#EEEEF6', [0, 4.6, 0]);
-  label(sculpture, 'social plaza', [0, 8.5, 0], 10);
-  register(sculpture, { kind: 'zone', id: 'plaza' }, 'Explore the social constellation');
+  for (let index = 0; index < 6; index++) {
+    const angle = (index / 6) * Math.PI * 2;
+    const node = new THREE.Vector3(Math.cos(angle) * 2.7, 4.6 + Math.sin(angle * 2) * 1.2, Math.sin(angle) * 2.7);
+    sphere(sculpture, 0.28, index % 2 ? '#B59BFF' : '#C8FF03', node.toArray());
+    const center = new THREE.Vector3(0, 4.6, 0);
+    const direction = node.clone().sub(center);
+    const connection = cylinder(sculpture, 0.035, 0.035, direction.length(), '#8E9CA6');
+    connection.position.copy(center).add(node).multiplyScalar(0.5);
+    connection.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  }
+  label(sculpture, 'THE PUBKY GRAPH', [0, 8.5, 0], 10);
+  register(sculpture, { kind: 'fun', id: 'graph' }, 'Open the Pubky Graph Explorer');
   obstacle(sculpture.position.x, sculpture.position.z, 2.5);
 
   let dataGroup = new THREE.Group();
@@ -414,6 +445,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let yaw = 0.44;
   let pitch = 0.72;
   let zoom = 1;
+  let snapCamera = false;
   let jumpVelocity = 0;
   let jumpHeight = 0;
   let danceUntil = 0;
@@ -441,7 +473,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     walkTarget = null;
   };
   const enterExplore = () => {
-    if (overview) options.onExplore?.();
+    if (overview) {
+      options.onExplore?.();
+      pitch = 0.26;
+    }
     overview = false;
     landmarkPose = null;
   };
@@ -460,12 +495,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
     clearInput();
+    portals.reset();
     const arrival = worldArrival(id);
     const spawn = resolvePosition(arrival.x, arrival.z, obstacles);
     player.group.position.set(spawn.x, 0.15, spawn.z);
     jumpHeight = 0;
     jumpVelocity = 0;
-    overview = false;
+    enterExplore();
     landmarkPose = travelOptions?.faceLandmark ? worldLandmarkPose(id, camera.aspect) : null;
     if (landmarkPose) {
       player.group.rotation.y = landmarkPose.facing;
@@ -559,7 +595,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const dy = event.clientY - drag.y;
       drag.distance += Math.abs(dx) + Math.abs(dy);
       yaw -= dx * 0.004;
-      pitch = THREE.MathUtils.clamp(pitch + dy * 0.003, 0.3, 1.25);
+      pitch = THREE.MathUtils.clamp(pitch + dy * 0.003, 0.16, 1.25);
       drag.x = event.clientX;
       drag.y = event.clientY;
     } else if (event.pointerType === 'mouse') {
@@ -602,6 +638,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
     renderer.setSize(Math.max(1, width), Math.max(1, height));
+    cinemaScreen.resize(Math.max(1, width), Math.max(1, height));
     camera.aspect = Math.max(1, width) / Math.max(1, height);
     if (landmarkPose) landmarkPose = worldLandmarkPose(landmarkPose.zone, camera.aspect);
     camera.updateProjectionMatrix();
@@ -649,6 +686,21 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           Math.atan2(Math.sin(targetAngle - player.group.rotation.y), Math.cos(targetAngle - player.group.rotation.y)) *
           Math.min(1, delta * 14);
       }
+      const transfer = portals.step(player.group.position, time, moving && jumpHeight === 0);
+      if (transfer) {
+        clearInput();
+        player.group.position.set(transfer.x, 0.15, transfer.z);
+        player.group.rotation.y = transfer.facing;
+        yaw = transfer.cameraYaw;
+        pitch = 0.26;
+        zoom = 1;
+        landmarkPose = null;
+        jumpHeight = 0;
+        jumpVelocity = 0;
+        cameraTarget.copy(player.group.position).setY(1.3);
+        snapCamera = true;
+        lastStatus = -1;
+      }
       if (jumpHeight > 0 || jumpVelocity > 0) {
         jumpVelocity -= 24 * delta;
         jumpHeight = Math.max(0, jumpHeight + jumpVelocity * delta);
@@ -686,6 +738,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (!paused) {
       bank.animate(time, reducedMotion);
       jellyfish.animate(time, delta, reducedMotion);
+      planets.animate(time, delta, reducedMotion);
+      runner.animate(time, delta, reducedMotion);
     }
 
     if (!paused && !reducedMotion) {
@@ -732,8 +786,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         Math.cos(yaw) * Math.cos(pitch) * distance,
       )
       .add(cameraTarget);
-    if (lastStatus === -1 && time < 0.1) camera.position.copy(cameraGoal);
+    if (snapCamera || (lastStatus === -1 && time < 0.1)) camera.position.copy(cameraGoal);
     else camera.position.lerp(cameraGoal, smoothing);
+    snapCamera = false;
     camera.lookAt(cameraTarget);
 
     if (time - lastStatus > 0.2 || lastStatus === -1) {
@@ -768,6 +823,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       });
     }
     renderer.render(scene, camera);
+    cinemaScreen.render(camera, time);
   };
   renderer.setAnimationLoop(tick);
   options.onReady();
@@ -786,6 +842,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const person = social.findPerson(id);
       if (!person) return;
       clearInput();
+      portals.reset();
       const [x, z] = person.position;
       const spawn = resolvePosition(x, z + 4, obstacles);
       player.group.position.set(spawn.x, 0.15, spawn.z);
@@ -796,7 +853,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       lastStatus = -1;
     },
     setOverview(value) {
-      if (overview !== value) walkTarget = null;
+      if (overview !== value) {
+        walkTarget = null;
+        pitch = value ? 0.72 : 0.26;
+      }
       if (value) landmarkPose = null;
       overview = value;
       zoom = 1;
@@ -905,6 +965,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       tether.dispose();
       social.dispose();
       jellyfish.dispose();
+      planets.dispose();
+      bank.dispose();
+      cinemaScreen.dispose();
       disposeObject(scene);
       renderer.dispose();
       renderer.forceContextLoss();

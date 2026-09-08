@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   useWorldData: vi.fn(),
   useWorldSocial: vi.fn<() => WorldSocialState>(),
   requireAuth: vi.fn(),
-  loadStaging: vi.fn(),
+  loadProduction: vi.fn(),
   toggleFollow: vi.fn(),
   controller: {
     dispose: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock('@/hooks/useWorldPhotoPost/useWorldPhotoPost', () => ({
     composer: null,
     isComposerOpen: false,
     isAuthenticated: false,
-    network: 'staging',
+    network: 'production',
     error: null,
     clearError: vi.fn(),
   }),
@@ -66,15 +66,15 @@ vi.mock('@/hooks/useDialogKeyboardOrchestrator/useDialogKeyboardOrchestrator', (
 
 const PERSON_ID = 'y'.repeat(52);
 const VIEWER_ID = 'b'.repeat(52);
-const AVATAR_URL = `https://nexus.staging.pubky.app/static/avatar/${PERSON_ID}`;
+const AVATAR_URL = `https://nexus.pubky.app/static/avatar/${PERSON_ID}`;
 const DATA: WorldData = {
-  source: 'staging',
+  source: 'production',
   tags: DEMO_WORLD_DATA.tags,
   people: [
     {
       id: PERSON_ID,
       name: 'Avery',
-      bio: 'A public staging profile.',
+      bio: 'A public production profile.',
       color: '#c8ff03',
       position: [0, 8],
       avatarUrl: AVATAR_URL,
@@ -92,8 +92,12 @@ const DATA: WorldData = {
     { id: `${PERSON_ID}:NEXT_POST`, author: 'Avery', text: 'Another conversation.', tags: [] },
   ],
 };
-function dataState(data = DATA, status: 'loading' | 'staging' | 'error' = 'staging', error: string | null = null) {
-  mocks.useWorldData.mockReturnValue({ data, status, error, loadStaging: mocks.loadStaging });
+function dataState(
+  data = DATA,
+  status: 'loading' | 'production' | 'error' = 'production',
+  error: string | null = null,
+) {
+  mocks.useWorldData.mockReturnValue({ data, status, error, loadProduction: mocks.loadProduction });
 }
 function socialState(overrides: Partial<WorldSocialState> = {}): WorldSocialState {
   return {
@@ -142,13 +146,13 @@ afterEach(() => {
 });
 
 describe('World', () => {
-  it('loads staging automatically, keeps walking discovery, and disposes the scene', async () => {
+  it('loads production automatically, keeps walking discovery, and disposes the scene', async () => {
     const { unmount } = render(<World />);
     await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
-    expect(mocks.loadStaging).toHaveBeenCalledOnce();
-    expect(screen.getByText('Staging')).toBeInTheDocument();
+    expect(mocks.loadProduction).toHaveBeenCalledOnce();
+    expect(screen.getByText('Production')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Example' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Staging' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Production' })).not.toBeInTheDocument();
     expect(screen.queryByText('Your next detour')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Travel to/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Classic Pubky' })).toHaveAttribute('href', 'https://pubky.app/');
@@ -221,7 +225,7 @@ describe('World', () => {
     expect(await screen.findByTestId('avatar-fallback-initial')).toHaveTextContent('A');
   });
 
-  it('passes follow actions to the staging hook and updates the scene when a person grows', async () => {
+  it('passes follow actions to the production hook and updates the scene when a person grows', async () => {
     const user = userEvent.setup();
     const state = socialState({ viewerId: VIEWER_ID, status: 'ready', people: [{ ...DATA.people[0], degree: 2 }] });
     state.follow.canFollow = true;
@@ -319,6 +323,32 @@ describe('World', () => {
     );
   });
 
+  it.each([
+    [{ kind: 'zone', id: 'arena' }, 'Try out the Pubky Arena', 'https://pubky-arena.vercel.app/arena'],
+    [{ kind: 'zone', id: 'chess' }, 'Play chess on Pubky', 'https://chessky-ten.vercel.app/'],
+    [{ kind: 'fun', id: 'graph' }, 'Open the Pubky Graph Explorer', 'https://graph.scriptlesslabs.com/graph'],
+    [{ kind: 'fun', id: 'runner' }, 'Try mention pills', 'https://pubky-app-mention-pills.vercel.app/'],
+  ] as const)('opens the discovered %s experiment with a plain external link', async (interaction, name, href) => {
+    render(<World />);
+    await interact(interaction);
+    const link = screen.getByRole('link', { name });
+    expect(link).toHaveAttribute('href', href);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(mocks.requireAuth).not.toHaveBeenCalled();
+  });
+
+  it('explains the runner pills and discovers a portal without a destination menu', async () => {
+    render(<World />);
+    await interact({ kind: 'fun', id: 'runner' });
+    expect(screen.getByText('@halfin')).toBeInTheDocument();
+    expect(screen.getByText(/One press of Backspace/)).toBeInTheDocument();
+    await interact({ kind: 'portal', index: 1 });
+    expect(screen.getByRole('dialog', { name: 'Violet Shortcut' })).toBeInTheDocument();
+    expect(screen.getByText(/Walk through the glowing ring/)).toBeInTheDocument();
+    expect(mocks.controller.travelTo).not.toHaveBeenCalled();
+  });
+
   it('opens the distinct cinema only after discovering it, and removes its player on exit', async () => {
     const user = userEvent.setup();
     render(<World />);
@@ -382,12 +412,12 @@ describe('World', () => {
     expect(screen.getByText(DATA.trendingPosts[1].text)).toBeInTheDocument();
   });
 
-  it('shows an empty staging program honestly and provides a staging retry on failure', async () => {
-    dataState({ ...DATA, trendingPosts: [] }, 'error', 'Could not load staging.');
+  it('shows an empty production program honestly and provides a production retry on failure', async () => {
+    dataState({ ...DATA, trendingPosts: [] }, 'error', 'Could not load production.');
     const user = userEvent.setup();
     render(<World />);
-    await user.click(screen.getByRole('button', { name: 'Retry staging data' }));
-    expect(mocks.loadStaging).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole('button', { name: 'Retry production data' }));
+    expect(mocks.loadProduction).toHaveBeenCalledTimes(2);
     await interact({ kind: 'zone', id: 'theater' });
     expect(screen.getByText('The stage is taking a breather.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Next trending post' })).not.toBeInTheDocument();

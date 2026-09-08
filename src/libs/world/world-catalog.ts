@@ -23,7 +23,7 @@ export const WORLD_ZONES: WorldZone[] = [
     name: 'The Arena',
     subtitle: 'Extremely unserious competition',
     description:
-      'Roman grandeur. Questionable gladiators. Enter the amphitheater and challenge a duck to rock, paper, scissors.',
+      'Roman grandeur. Permissionless competition. Step into Pubky Arena, or warm up against the local duck.',
     color: '#E98154',
     position: [...WORLD_ANCHORS.arena],
   },
@@ -70,7 +70,22 @@ export const WORLD_ZONES: WorldZone[] = [
     color: '#E97B9D',
     position: [...WORLD_ANCHORS.cinema],
   },
+  {
+    id: 'chess',
+    name: 'Chess Citadel',
+    subtitle: 'Small explorer. Enormous gambit.',
+    description: 'Obsidian knights. Towering kings. Walk between the pieces, then take your next move to Chessky.',
+    color: '#88D7ED',
+    position: [...WORLD_ANCHORS.chess],
+  },
 ];
+
+export const WORLD_EXPERIMENTS = {
+  arena: { url: 'https://pubky-arena.vercel.app/arena', action: 'Try out the Pubky Arena' },
+  chess: { url: 'https://chessky-ten.vercel.app/', action: 'Play chess on Pubky' },
+  graph: { url: 'https://graph.scriptlesslabs.com/graph', action: 'Open the Pubky Graph Explorer' },
+  runner: { url: 'https://pubky-app-mention-pills.vercel.app/', action: 'Try mention pills' },
+} as const;
 
 /** Original sample content: these personas and posts do not represent real Pubky users. */
 const DEMO_POSTS: WorldPost[] = [
@@ -168,7 +183,7 @@ const DEMO_POSTS: WorldPost[] = [
 
 export const DEMO_WORLD_DATA: WorldData = {
   source: 'demo',
-  // A fictional theater program, replaced entirely when public staging loads.
+  // A fictional theater program, replaced entirely when public production loads.
   trendingPosts: DEMO_POSTS.slice(0, 8),
   tags: ['pubky', 'nature', 'bitcoin', 'memes', 'opensource', 'ideas'].map((label) => {
     const posts = DEMO_POSTS.filter((post) => post.tags.includes(label)).slice(0, 5);

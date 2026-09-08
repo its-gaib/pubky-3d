@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockResponse } from '@/test-utils/dom';
 import { asOpaque } from '@/test-utils/type-assertions';
 import { composeShareContent, getSharedFiles } from './shareTarget';
+import { SHARE_TARGET_CACHE } from './shareTarget.constants';
 
 function createMockResponse(blob: Blob, headers: Headers): Response {
   return mockResponse({
@@ -53,7 +54,7 @@ describe('shareTarget utilities', () => {
       const files = await getSharedFiles();
 
       expect(files).toEqual([]);
-      expect(mockCacheOpen).toHaveBeenCalledWith('share-target-files');
+      expect(mockCacheOpen).toHaveBeenCalledWith(SHARE_TARGET_CACHE);
     });
 
     it('retrieves files from cache and returns them', async () => {
@@ -182,7 +183,7 @@ describe('shareTarget utilities', () => {
 
       await getSharedFiles();
 
-      expect(mockCachesDelete).toHaveBeenCalledWith('share-target-files');
+      expect(mockCachesDelete).toHaveBeenCalledWith(SHARE_TARGET_CACHE);
     });
 
     it('returns empty array on error', async () => {

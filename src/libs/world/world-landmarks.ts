@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
 import { box, cylinder, label, material, mesh, ring, sphere } from '@/libs/world/world-geometry';
-import { WORLD_ANCHORS } from '@/libs/world/world-layout';
+import { WORLD_ANCHORS, WORLD_PORTALS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 /** Original toy architecture. Only the fixed, bundled Bitkit asset is parsed as SVG. */
@@ -170,28 +170,42 @@ export function createLandmarks(
   label(trampoline, 'Proof of Bounce', [0, 4, 0], 9);
   register(trampoline, { kind: 'fun', id: 'trampoline' }, 'Bounce on the trampoline');
 
-  const portal = group(...WORLD_ANCHORS.portal);
-  cylinder(portal, 4.3, 4.8, 0.4, '#303034', [0, 0.2, 0]);
-  const portalRing = mesh(portal, new THREE.TorusGeometry(3.1, 0.48, 8, 40), material('#C8FF03', true), [0, 4, 0]);
-  const veil = mesh(
-    portal,
-    new THREE.CircleGeometry(2.8, 32),
-    new THREE.MeshBasicMaterial({
-      color: '#88CA32',
-      transparent: true,
-      opacity: 0.36,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-    [0, 4, 0],
-  );
-  for (let i = 0; i < 8; i++) {
-    const angle = (i * Math.PI) / 4;
-    const rune = box(portal, [0.35, 0.35, 0.4], '#EEEEF6', [Math.sin(angle) * 3.15, 4 + Math.cos(angle) * 3.15, 0.46]);
-    rune.rotation.z = angle + Math.PI / 4;
-  }
-  label(portal, 'Probably a Portal', [0, 9, 0], 10);
-  register(portal, { kind: 'fun', id: 'portal' }, 'Investigate the mysterious portal');
+  const portalRingGeometry = new THREE.TorusGeometry(3.1, 0.48, 8, 40);
+  const portalVeilGeometry = new THREE.CircleGeometry(2.8, 32);
+  const runeGeometry = new THREE.BoxGeometry(0.35, 0.35, 0.4);
+  const runeMaterial = material('#EEEEF6');
+  const portals = WORLD_PORTALS.map((gateway, index) => {
+    const portal = group(...gateway.position);
+    portal.name = `Portal ${index + 1}: ${gateway.name}`;
+    portal.rotation.y = gateway.yaw;
+    cylinder(portal, 4.3, 4.8, 0.4, '#303034', [0, 0.2, 0]);
+    const portalRing = mesh(portal, portalRingGeometry, material(gateway.color, true), [0, 4, 0]);
+    const veil = mesh(
+      portal,
+      portalVeilGeometry,
+      new THREE.MeshBasicMaterial({
+        color: gateway.color,
+        transparent: true,
+        opacity: 0.36,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        forceSinglePass: true,
+        fog: false,
+        toneMapped: false,
+      }),
+      [0, 4, 0],
+    );
+    veil.castShadow = false;
+    veil.receiveShadow = false;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      const rune = mesh(portal, runeGeometry, runeMaterial, [Math.sin(angle) * 3.15, 4 + Math.cos(angle) * 3.15, 0.46]);
+      rune.rotation.z = angle + Math.PI / 4;
+    }
+    label(portal, gateway.name, [0, 9, 0], 10);
+    register(portal, { kind: 'portal', index }, `Walk through ${gateway.name}`);
+    return { portalRing, veil };
+  });
 
   return {
     animate(time, delta) {
@@ -200,8 +214,10 @@ export function createLandmarks(
       duck.position.y = 1.1 + Math.sin(time * 1.4) * 0.13;
       duck.rotation.y = Math.sin(time * 0.35) * 0.15;
       logo.position.y = 7.3 + Math.sin(time * 0.8) * 0.16;
-      portalRing.rotation.z += delta * 0.08;
-      veil.scale.setScalar(1 + Math.sin(time * 1.8) * 0.045);
+      portals.forEach(({ portalRing, veil }, index) => {
+        portalRing.rotation.z += delta * (0.08 + index * 0.02);
+        veil.scale.setScalar(1 + Math.sin(time * 1.8 + index * 2) * 0.045);
+      });
     },
     dispose() {
       abort.abort();

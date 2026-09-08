@@ -5,8 +5,8 @@ The exact fork point and destination are in [fork.json](./fork.json). The projec
 lives in the private `its-gaib/pubky-3d` repository, on `vibe/pubky-3d`, retaining
 upstream history.
 
-The root route is a walkable island connected to **public staging**. Public data
-loads automatically; there is no Example/Staging switch. Guests can explore and
+The root route is a walkable island connected to **Pubky production**. Public data
+loads automatically; there is no network switch. Guests can explore and
 read public profiles. Signing in adds the current user's personal social circle.
 The inherited feed remains at `/home`; **Classic Pubky** opens
 [pubky.app](https://pubky.app/) in a new tab.
@@ -28,12 +28,14 @@ teleport navigation. The pocket map shows locations and your position.
   bio and latest readable post, plus Follow/Unfollow and **Meet in the plaza**;
   it does not list their connections. Missing images use Pubky's normal fallback.
   Follow changes update the scene as they sync, including size changes and
-  discoveries that remain reachable through another followed person.
+  discoveries that remain reachable through another followed person. The central
+  graph sculpture has its own interaction linking to the Pubky Graph Explorer.
 - **Tag Forest:** each tree represents a tag, and each paper leaf opens a post
   carrying it. A tree also opens an accessible list of its sampled posts.
 - **The Arena:** a larger Roman amphitheater with two arcaded levels, oval seating
   tiers, sand, fire bowls and separate Pubky and Synonym symbol banners. Its wide
-  entrance and center stay walkable. The local challenge is rock, paper, scissors.
+  entrance and center stay walkable. **Try out the Pubky Arena** opens the arena
+  experiment; the local rock, paper, scissors challenge remains available.
 - **Pubky University:** short lessons linking to the official Pubky documentation.
 - **Open Source Yard:** workshops introducing the organization's GitHub projects.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark.
@@ -43,31 +45,45 @@ teleport navigation. The pocket map shows locations and your position.
   screen and reader show a loader while fetching. Articles become readable text,
   with unavailable notices for malformed content. Eight seated spectators are
   decorative scenery, not online users.
-- **Midnight Cinema:** a separate crimson Art Deco movie
-  house beside Trending Theater, with a marquee, posters and a toy projector.
-  **Start screening** loads a native YouTube player in its reader, using the 18
-  supplied videos in shuffled order. The player handles advancing, skipping,
-  pausing and fullscreen; **Shuffle a fresh program** creates another order.
-  No player loads before that click. Video pixels never enter the 3D canvas.
+- **Midnight Cinema:** a crimson Art Deco movie house on the southwest coast,
+  far from Trending Theater and rotated toward the plaza. An 18×10.125 screen
+  carries a persistent muted YouTube playlist, projected with the world camera.
+  The 18 supplied videos shuffle and advance using the native player. Browser
+  autoplay restrictions or unavailable videos may interrupt playback; the reader
+  retains a manual player with controls and reshuffling. The ambient player has
+  no scripting bridge or account data. Conservative occlusion hides the overlay
+  when scenery blocks it; video pixels never enter world photos.
+- **Chess Citadel:** a full 32-piece board with obsidian and silver armies,
+  sculpted knights, crowns and metallic details. Even the pawns stand taller than
+  the persona. Walk between the ranks and open **Play chess on Pubky** for Chessky.
+- **Mention pills:** a runner laps a southern track beneath a large **@halfin**
+  pill. His reader links to the experiment where autocomplete inserts a readable
+  name pill, and a single Backspace removes the whole mention.
 - **Tether monument:** a metallic extrusion of the official Tether company
   wordmark, lit green on its own pedestal. Its reader links to
   [Tether Ventures](https://tether.io/ventures/).
 - **Satoshi monument:** an original seated, hooded laptop figure made of separated
   vertical steel contours. Its silhouette changes as you walk around it. The
   plaque is also reachable from the Social Plaza reader.
-- **Brrr Bank:** one mounted **BRRR** facade sign gently shakes. Thirty reusable
+- **Brrr Bank:** one mounted **BRRR** facade sign vibrates at three times its previous frequency. Three hundred reusable
   dollar bills each live about 70 seconds, drift farther across the grounds, and
   independently shrink and fade; some rest on the floor first. Reduced motion
   keeps the sign and scattered bills still. There is no bank audio. The reader's
   **Where can I get Hard Money?** button beams you in front of Bitkit, facing its
   logo with the camera centered on the beacon. The bank reader is also available
   from the Arena panel.
-- **Galactic jellyfish:** a persistent population swims through the space beyond
-  the island in different colors, sizes, depths and directions. Their movement
-  and recycling use a fixed world-space envelope, independent of the current
-  camera direction or zoom. Bells pulse and tentacles trail; reduced motion
-  freezes the population. The normal world camera can photograph them.
-- **Other encounters:** giant duck, trampoline, portal, balloon, dancing and eight
+- **Galactic jellyfish:** 24 glowing bodies swim in varied colors, sizes, depths,
+  speeds and directions. Fourteen (about 60%) inhabit a farther band; ten retain
+  the near envelope. Most stay low around the horizon, with a few higher accents.
+  Cohorts and recycling use fixed world-space bounds independent of the camera.
+  Bells pulse and tentacles trail; reduced motion freezes the population.
+- **Seven planets:** varied procedural worlds include banded gas giants, an ocean
+  world, lava, ice, a cratered moon and crystals. Three have tilted rings. Five
+  sit lower around the horizon, with two higher accents and varying near/far depths.
+- **Three portals:** walk into one glowing ring to exit at either of the other
+  two at random. Arrival clearance, a cooldown and an exit gate prevent bouncing
+  between portals. This replaces the former university shortcut.
+- **Other encounters:** giant duck, trampoline, balloon, dancing and eight
   collectible keys. Keys and bills are local game props with no monetary value.
 
 Profile markers, theater spectators and the walking persona are separate concepts.
@@ -75,29 +91,34 @@ The world does not show other connected players or claim live presence.
 
 ## Layout
 
-The walkable radius is **112 world units**, with land radius 120, coast radius 124
-and overview distance 312. The Social Plaza has radius 32. Model sizes stay
-independent of the larger grounds. Shared anchors in `world-layout.ts` align
-buildings, paths, collisions, interactions, arrival poses and the pocket map.
-The cinema and Trending Theater are 41 units apart.
+The walkable radius is **142 world units**, with land radius 150, coast radius 154
+and overview distance 390. This adds about 61% walkable area over the previous
+112-unit radius. The Social Plaza retains radius 32. Shared anchors align buildings,
+paths, collisions, interactions, arrivals and the pocket map. The theaters are
+about 143 units apart and face different directions. Walking mode uses a lower
+camera angle to reveal the coastline and cosmic scenery.
 
 | Place            | Ground X, Z |
 | ---------------- | ----------- |
 | Social Plaza     | 0, 8        |
-| Tag Forest       | 44, -40     |
-| Arena            | 52, 42      |
-| University       | -28, -66    |
-| Open Source Yard | -65, 27     |
-| Bitkit Beacon    | -36, 73     |
-| Trending Theater | -69, -24    |
-| Cinema entrance  | -72, -65    |
-| Tether monument  | 34, -88     |
-| Brrr Bank        | 88, 8       |
-| Trampoline       | 77, -24     |
-| Duck pond        | 24, 80      |
-| Portal           | -4, -96     |
+| Tag Forest       | 36, -45     |
+| Arena            | 55, 48      |
+| University       | -26, -77    |
+| Open Source Yard | -82, 22     |
+| Bitkit Beacon    | -26, 94     |
+| Trending Theater | -86, -52    |
+| Midnight Cinema  | -77, 91     |
+| Chess Citadel    | 91, -72     |
+| Runner           | 70, 98      |
+| Tether monument  | 30, -118    |
+| Brrr Bank        | 108, 22     |
+| Trampoline       | 102, -22    |
+| Duck pond        | 24, 101     |
+| Northern portal  | -26, -120   |
+| Western portal   | -115, 54    |
+| Eastern portal   | 115, 62     |
 | Satoshi monument | -21, -29    |
-| Balloon          | -86, 47     |
+| Balloon          | -120, 16    |
 
 ## Local preview
 
@@ -113,10 +134,18 @@ Open `http://127.0.0.1:4321/`. From a host connected to this workspace over SSH:
 ssh -fN -o ExitOnForwardFailure=yes -L 127.0.0.1:4321:127.0.0.1:4321 gaib
 ```
 
-`-fN` leaves a background tunnel running on the host. Development runtime
-configuration defaults to staging. World loaders require the staging environment
-label and exact official staging Nexus URL; they reject mismatched or production
-endpoints. Use test keys for the inherited account flows.
+`-fN` leaves a background tunnel running on the host. The fork's dev/start
+commands use `tools/world/run.mjs`, which selects all nine production network
+values together from `world-production.json`. Deployed standalone servers must
+receive the same nine `PUBKY_RUNTIME_*` values; the build workflow validates their
+injected configuration. World reads, follow actions and photo drafts share one
+complete production guard.
+
+This switch starts a fresh production sign-in on a full page reload. All persisted
+stores, IndexedDB, mute cursors and viewer tag markers use a lossless network
+namespace. Legacy staging state is left untouched and is never imported. Shared
+attachments use a separate production handoff cache. Automated verification uses
+mock publication boundaries; do not use recovery phrases as test fixtures.
 
 ## Controls
 
@@ -147,7 +176,7 @@ Orbit and zoom, then use the camera button. The photo contains the rendered worl
 and your persona, with the HUD excluded. Review it, download a PNG, or hand it to
 the existing Pubky post composer with an editable postcard caption. Publishing
 uses that composer's **Post** button, authentication, attachment checks and image
-sanitization. This experiment targets staging.
+sanitization. Posts publish to **Pubky production** after explicit review.
 
 Capture is bounded to a 2048-pixel longest edge. Photos and drafts stay in memory;
 preview object URLs are released when closed or replaced. Guests can download
@@ -173,11 +202,17 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
 - `world-landmarks.ts`, `world-arena.ts`, `world-theater.ts`, `world-cinema.ts`,
   `world-satoshi.ts`, `world-tether.ts` and `world-bank.ts`: procedural places,
   local text/brand geometry and bounded decorative animation.
+- `world-cinema-screen.ts`: a persistent CSS3D iframe, camera alignment, bounded
+  occlusion checks, and teardown.
+- `world-planets.ts`, `world-jellyfish.ts`, `world-chess.ts`, `world-runner.ts` and
+  `world-portals.ts`: bounded cosmic scenery, monumental chess and local movement.
+- `world-network.ts` and `world-production.json`: one coherent production target.
+- `network-storage.ts`: network-separated persistence with no legacy restore.
 - `world-cinema-program.ts`: the 18-video allowlist, shuffle and validated native
   `youtube-nocookie.com` playlist URL. It is separate from the cinema geometry.
 - `world-post-preview.ts`: bounded, kind-aware readable previews shared by leaves,
   the post theater and selected profiles.
-- `src/hooks/useWorldData`: automatic public staging samples through existing
+- `src/hooks/useWorldData`: automatic public production samples through existing
   controllers: up to six tag trees, four verified posts per tree, eight ranked
   posts and a small guest profile sample. Existing cache and moderation rules
   remain in those layers. A 20-second deadline bounds the sample loader.

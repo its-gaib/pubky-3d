@@ -10,7 +10,7 @@ function person(id: string, degree: 1 | 2 = 1, parentIds: string[] = []): WorldP
 }
 function graph(people: WorldPerson[]): WorldData {
   return {
-    source: 'staging',
+    source: 'production',
     people,
     tags: [],
     trendingPosts: [],

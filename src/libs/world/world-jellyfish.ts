@@ -6,8 +6,11 @@ import { WORLD_DIMENSIONS } from '@/libs/world/world-layout';
 /** Fixed world-space limits, independent of the current camera, frustum or zoom. */
 export const GALACTIC_JELLYFISH = {
   count: 24,
+  farCount: 14,
   coastClearance: WORLD_DIMENSIONS.coastRadius + 12,
-  outerRadius: WORLD_DIMENSIONS.coastRadius * 2,
+  nearOuterRadius: WORLD_DIMENSIONS.coastRadius * 2,
+  farCoastClearance: WORLD_DIMENSIONS.coastRadius * 1.7,
+  outerRadius: WORLD_DIMENSIONS.coastRadius * 2.8,
   upperY: 150,
   lowerY: 4,
   fadeWidth: 22,
@@ -42,6 +45,15 @@ export function jellyfishExtent(scale: number): number {
   return scale * GALACTIC_JELLYFISH.unitExtent;
 }
 
+/** Stable cohorts: about 60% swim farther out; the other ten retain their near envelope. */
+export function jellyfishBounds(state: Pick<GalacticJellyfishState, 'id'>) {
+  const far = state.id < GALACTIC_JELLYFISH.farCount;
+  return {
+    coastClearance: far ? GALACTIC_JELLYFISH.farCoastClearance : GALACTIC_JELLYFISH.coastClearance,
+    outerRadius: far ? GALACTIC_JELLYFISH.outerRadius : GALACTIC_JELLYFISH.nearOuterRadius,
+  };
+}
+
 function smooth(value: number): number {
   const clamped = Math.max(0, Math.min(1, value));
   return clamped * clamped * (3 - 2 * clamped);
@@ -49,8 +61,9 @@ function smooth(value: number): number {
 
 export function jellyfishOpacity(state: GalacticJellyfishState): number {
   const extent = jellyfishExtent(state.scale);
+  const bounds = jellyfishBounds(state);
   const margin = Math.min(
-    GALACTIC_JELLYFISH.outerRadius - Math.hypot(...state.position) - extent,
+    bounds.outerRadius - Math.hypot(...state.position) - extent,
     GALACTIC_JELLYFISH.upperY - state.position[1] - extent,
   );
   return smooth(margin / GALACTIC_JELLYFISH.fadeWidth) * smooth(state.age / 3.5);
@@ -60,7 +73,7 @@ export function jellyfishOpacity(state: GalacticJellyfishState): number {
 export function jellyfishOutsideEnvelope(state: GalacticJellyfishState): boolean {
   const extent = jellyfishExtent(state.scale);
   return (
-    Math.hypot(...state.position) - extent > GALACTIC_JELLYFISH.outerRadius ||
+    Math.hypot(...state.position) - extent > jellyfishBounds(state).outerRadius ||
     state.position[1] - extent > GALACTIC_JELLYFISH.upperY
   );
 }
@@ -73,12 +86,16 @@ export function createJellyfishState(id: number, generation = 0, entering = fals
   const phase = random(seed + 1) * Math.PI * 2;
   const angle = id * 2.399963229728653 + generation * 1.324717957;
   const minY = GALACTIC_JELLYFISH.lowerY + extent;
-  const y = minY + 10 + random(seed + 2) * (GALACTIC_JELLYFISH.upperY - extent - minY - 36);
-  const minimumRadius = GALACTIC_JELLYFISH.coastClearance + extent;
-  const outerCenter = GALACTIC_JELLYFISH.outerRadius - extent - 10;
+  const high = id % 4 === 3;
+  const y = high
+    ? 72 + random(seed + 2) * (Math.min(125, GALACTIC_JELLYFISH.upperY - extent - 6) - 72)
+    : minY + 6 + random(seed + 2) * 18;
+  const bounds = jellyfishBounds({ id });
+  const minimumRadius = bounds.coastClearance + extent;
+  const outerCenter = bounds.outerRadius - extent - 10;
   const maximumRadius = Math.sqrt(Math.max(minimumRadius ** 2, outerCenter ** 2 - y ** 2));
   const radius = entering
-    ? Math.sqrt((GALACTIC_JELLYFISH.outerRadius + extent - 0.01) ** 2 - y ** 2)
+    ? Math.sqrt((bounds.outerRadius + extent - 0.01) ** 2 - y ** 2)
     : minimumRadius + 4 + random(seed + 3) * Math.max(0, maximumRadius - minimumRadius - 4);
   const speed = 1.8 + random(seed + 4) * 4.2;
   const heading = entering ? angle + Math.PI + (random(seed + 5) - 0.5) * 0.9 : random(seed + 5) * Math.PI * 2;
@@ -102,7 +119,7 @@ export function stepJellyfish(state: GalacticJellyfishState, delta: number): Gal
   const dt = Number.isFinite(delta) ? Math.max(0, Math.min(delta, GALACTIC_JELLYFISH.maxDelta)) : 0;
   if (dt === 0) return state;
   const extent = jellyfishExtent(state.scale);
-  const innerRadius = GALACTIC_JELLYFISH.coastClearance + extent;
+  const innerRadius = jellyfishBounds(state).coastClearance + extent;
   const radial = Math.hypot(state.position[0], state.position[2]);
   const normalX = state.position[0] / radial;
   const normalZ = state.position[2] / radial;
@@ -111,6 +128,9 @@ export function stepJellyfish(state: GalacticJellyfishState, delta: number): Gal
   vx += Math.sin(age * 0.31 + state.phase) * 0.13 * dt;
   vz += Math.cos(age * 0.27 + state.phase) * 0.13 * dt;
   vy += Math.sin(age * 0.23 + state.phase) * 0.07 * dt;
+  // Most bodies glide near the horizon; six retain a higher, slowly varying lane.
+  const cruisingY = state.id % 4 === 3 ? 94 : GALACTIC_JELLYFISH.lowerY + extent + 14;
+  vy += ((cruisingY - state.position[1]) * 0.018 - vy * 0.12) * dt;
   const inward = vx * normalX + vz * normalZ;
   if (inward < 0 && radial < innerRadius + 18) {
     const turn = (1 - Math.max(0, radial - innerRadius) / 18) * state.speed * 2.1 * dt;

@@ -8,7 +8,7 @@ import type { WorldSocialFollow, WorldSocialProfile } from './useWorldSocial.typ
 
 const EMPTY_PROFILE: WorldSocialProfile = { person: null, latestPost: null, status: 'idle', error: null };
 const FAILED_SYNC =
-  'The follow change is not confirmed on staging. Its local preview is still shown; retry the same change to sync it.';
+  'The follow change is not confirmed on production. Its local preview is still shown; retry the same change to sync it.';
 
 interface FollowIntent {
   context: WorldSocialContext;

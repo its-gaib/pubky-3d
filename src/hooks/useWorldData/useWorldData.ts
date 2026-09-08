@@ -12,9 +12,9 @@ import { UserController } from '@/controllers/user/user';
 import { TimeoutErrorCode } from '@/libs/error/error.codes';
 import { Err } from '@/libs/error/error.factories';
 import { ErrorService } from '@/libs/error/error.types';
-import { getDeployEnv, getNexusUrl } from '@/libs/runtime-config/runtime-config';
 import { isPubkyIdentifier } from '@/libs/utils/utils';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
+import { isWorldProductionConfigured } from '@/libs/world/world-network';
 import { worldPostPreview } from '@/libs/world/world-post-preview';
 import type { WorldData, WorldPerson, WorldPost, WorldRelationship, WorldTag } from '@/libs/world/world-types';
 import { type PostStreamId, PostStreamTypes } from '@/models/stream/post/postStream.types';
@@ -32,22 +32,13 @@ const RELATIONSHIP_LIMIT = 12;
 const LOAD_TIMEOUT_MS = 20_000;
 const CANCELLED = Symbol('world-load-cancelled');
 
-type WorldDataStatus = 'loading' | 'staging' | 'error';
+type WorldDataStatus = 'loading' | 'production' | 'error';
 
 interface UseWorldDataResult {
   data: WorldData;
   status: WorldDataStatus;
   error: string | null;
-  loadStaging: () => Promise<void>;
-}
-
-/** This world reads only from the named public staging service. */
-function isStagingConfigured(): boolean {
-  try {
-    return getDeployEnv() === 'staging' && getNexusUrl().replace(/\/$/, '') === 'https://nexus.staging.pubky.app';
-  } catch {
-    return false;
-  }
+  loadProduction: () => Promise<void>;
 }
 
 function plainText(value: unknown, limit: number): string {
@@ -193,7 +184,7 @@ async function readTrendingPosts(signal: AbortSignal): Promise<WorldPost[]> {
   });
 }
 
-async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData; partial: boolean }> {
+async function readProductionWorld(signal: AbortSignal): Promise<{ data: WorldData; partial: boolean }> {
   const initial = await Promise.allSettled([
     readWhileActive(signal, () =>
       HotController.getOrFetch({
@@ -280,15 +271,15 @@ async function readStagingWorld(signal: AbortSignal): Promise<{ data: WorldData;
   }
 
   return {
-    data: { source: 'staging', tags, trendingPosts, people, relationships },
+    data: { source: 'production', tags, trendingPosts, people, relationships },
     partial: [...initial, ...trees, ...following, ...trendingResults].some((result) => result.status === 'rejected'),
   };
 }
 
-/** Public staging data; the World mounts this loader automatically and can retry it. */
+/** Public production data; the World mounts this loader automatically and can retry it. */
 export function useWorldData(): UseWorldDataResult {
   const [data, setData] = useState<WorldData>({
-    source: 'staging',
+    source: 'production',
     tags: [],
     trendingPosts: [],
     people: [],
@@ -306,11 +297,11 @@ export function useWorldData(): UseWorldDataResult {
     [],
   );
 
-  async function loadStaging(): Promise<void> {
+  async function loadProduction(): Promise<void> {
     if (activeLoad.current) return;
-    if (!isStagingConfigured()) {
+    if (!isWorldProductionConfigured()) {
       setStatus('error');
-      setError('Staging samples are available only when this app is connected to the public staging network.');
+      setError('Production samples are available only when this app is connected to the public production network.');
       return;
     }
 
@@ -320,35 +311,35 @@ export function useWorldData(): UseWorldDataResult {
     setError(null);
     const timeout = setTimeout(() => {
       controller.abort(
-        Err.timeout(TimeoutErrorCode.REQUEST_TIMEOUT, 'The world staging sample timed out', {
+        Err.timeout(TimeoutErrorCode.REQUEST_TIMEOUT, 'The world production sample timed out', {
           service: ErrorService.Nexus,
-          operation: 'useWorldData.loadStaging',
+          operation: 'useWorldData.loadProduction',
         }),
       );
     }, LOAD_TIMEOUT_MS);
 
     try {
-      const sample = await readStagingWorld(controller.signal);
+      const sample = await readProductionWorld(controller.signal);
       if (controller.signal.aborted || activeLoad.current !== controller) return;
       if (sample.data.tags.length === 0 && sample.data.people.length === 0 && sample.data.trendingPosts.length === 0) {
         setStatus('error');
-        setError('No public staging samples were available. Your previous world is still here.');
+        setError('No public production samples were available. Your previous world is still here.');
         return;
       }
       setData(sample.data);
-      setStatus('staging');
+      setStatus('production');
       setError(
-        sample.partial ? 'Some public staging samples could not be loaded. Only confirmed samples are shown.' : null,
+        sample.partial ? 'Some public production samples could not be loaded. Only confirmed samples are shown.' : null,
       );
     } catch {
       if (activeLoad.current !== controller || controller.signal.reason === CANCELLED) return;
       setStatus('error');
-      setError('Could not load the public staging sample. Your previous world is still here; you can try again.');
+      setError('Could not load the public production sample. Your previous world is still here; you can try again.');
     } finally {
       clearTimeout(timeout);
       if (activeLoad.current === controller) activeLoad.current = null;
     }
   }
 
-  return { data, status, error, loadStaging };
+  return { data, status, error, loadProduction };
 }

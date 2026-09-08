@@ -41,8 +41,8 @@ import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
 import { Bitkit, Github, PubkyIcon } from '@/icons';
-import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_ZONES } from '@/libs/world/world-catalog';
-import { WORLD_RADIUS } from '@/libs/world/world-layout';
+import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_EXPERIMENTS, WORLD_ZONES } from '@/libs/world/world-catalog';
+import { WORLD_PORTALS, WORLD_RADIUS } from '@/libs/world/world-layout';
 import {
   SOCIAL_PAGE_SIZE,
   socialViewForPerson,
@@ -95,6 +95,11 @@ function ExternalWorldLink({ href, children, className }: { href?: string; child
 
 function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle: string } {
   switch (panel.kind) {
+    case 'portal':
+      return {
+        title: WORLD_PORTALS[panel.index]?.name ?? 'The Credible Exit',
+        subtitle: 'Three doors. Two possible destinations. Absolutely no departure lounge.',
+      };
     case 'settings':
       return { title: 'Make yourself at home.', subtitle: 'A few little ways to make this world yours.' };
     case 'zone': {
@@ -117,7 +122,7 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
         subtitle:
           data.source === 'demo'
             ? 'A fictional neighbor in our example social graph.'
-            : 'A public profile from Pubky staging. This is a profile marker, not a player online.',
+            : 'A public profile from Pubky production. This is a profile marker, not a player online.',
       };
     case 'social-cluster':
       return { title: `Neighborhood ${panel.sector + 1}`, subtitle: 'A closer look at your social constellation.' };
@@ -128,7 +133,6 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
           subtitle: 'Captain Quack, unofficial mayor of this particular puddle.',
         },
         trampoline: { title: 'A small leap for a person.', subtitle: 'A deeply unnecessary leap for social media.' },
-        portal: { title: 'The Credible Exit.', subtitle: 'A portal with absolutely no emotional baggage.' },
         satoshi: {
           title: 'Present. Absent. Satoshi.',
           subtitle: 'A monument to the person who left the keys with everyone else.',
@@ -140,6 +144,14 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
         tether: {
           title: 'The Tether monument.',
           subtitle: 'A green-lit landmark with a view toward what comes next.',
+        },
+        graph: {
+          title: 'The heart of the constellation.',
+          subtitle: 'People make connections. Connections make a whole universe.',
+        },
+        runner: {
+          title: 'Mention pills',
+          subtitle: '@halfin is going the distance. Your mentions can take a shortcut.',
         },
       }[panel.id];
   }
@@ -154,7 +166,7 @@ function PostLeaf({ post, source }: { post: WorldPost; source: WorldData['source
         </span>
         <div>
           <strong>{post.author}</strong>
-          <span>{source === 'demo' ? 'Fictional example post' : 'Public staging post'}</span>
+          <span>{source === 'demo' ? 'Fictional example post' : 'Public production post'}</span>
         </div>
       </div>
       <p className={styles.postText}>{post.text}</p>
@@ -165,12 +177,12 @@ function PostLeaf({ post, source }: { post: WorldPost; source: WorldData['source
       </div>
       {post.url?.startsWith('/post/') ? (
         <Link href={post.url} className={styles.textLink} target="_blank" rel="noopener noreferrer">
-          Read on Pubky staging
+          Read on Pubky production
           <ArrowUpRight size={15} aria-hidden="true" />
         </Link>
       ) : (
         <ExternalWorldLink href={post.url} className={styles.textLink}>
-          Read on Pubky staging
+          Read on Pubky production
         </ExternalWorldLink>
       )}
     </article>
@@ -251,7 +263,7 @@ function TrendingShow({
           <span>
             {!loading && data.source === 'demo'
               ? 'Example program · fictional posts'
-              : 'Public staging · ranked by total engagement'}
+              : 'Public production · ranked by total engagement'}
           </span>
         </div>
       </div>
@@ -259,7 +271,7 @@ function TrendingShow({
         <div className={styles.theaterLoading} role="status" aria-label="Loading trending posts">
           <LoaderCircle size={36} className={styles.spin} aria-hidden="true" />
           <h3>Loading trending posts…</h3>
-          <p>The next program is on its way from public staging.</p>
+          <p>The next program is on its way from public production.</p>
         </div>
       ) : post ? (
         <>
@@ -315,7 +327,7 @@ function TrendingShow({
       {!loading && (
         <p className={styles.smallPrint}>
           {data.source === 'demo'
-            ? 'The program is loading from public staging.'
+            ? 'The program is loading from public production.'
             : 'This program uses Pubky’s Hot feed ranking, without a date filter.'}
         </p>
       )}
@@ -365,6 +377,16 @@ function WorldPanel({
   onTheaterPause: (paused: boolean) => void;
   onTheaterStep: (delta: number) => void;
 }) {
+  if (panel.kind === 'portal')
+    return (
+      <div className={styles.funPanel}>
+        <Orbit size={70} className={styles.portalIcon} />
+        <p>Walk through the glowing ring and pop out at one of the other two portals. The destination is a surprise.</p>
+        <p className={styles.smallPrint}>
+          Step clear of the arrival ring before hopping again. Even wormholes need personal space.
+        </p>
+      </div>
+    );
   if (panel.kind === 'social-cluster') return null;
   if (panel.kind === 'post') {
     const post = data.tags[panel.tagIndex]?.posts[panel.postIndex];
@@ -418,6 +440,38 @@ function WorldPanel({
     );
   }
   if (panel.kind === 'fun') {
+    if (panel.id === 'graph')
+      return (
+        <div className={styles.funPanel}>
+          <Orbit size={64} className={styles.portalIcon} />
+          <blockquote>Every hello adds another star.</blockquote>
+          <p>
+            The sculpture at the center celebrates the graph itself: a web of people, follows, and unexpected
+            introductions. Zoom out and explore the bigger picture.
+          </p>
+          <ExternalWorldLink href={WORLD_EXPERIMENTS.graph.url} className={styles.primaryButton}>
+            {WORLD_EXPERIMENTS.graph.action}
+          </ExternalWorldLink>
+        </div>
+      );
+    if (panel.id === 'runner')
+      return (
+        <div className={styles.funPanel}>
+          <span className={styles.mentionPill}>@halfin</span>
+          <blockquote>Names that keep up with your thoughts.</blockquote>
+          <p>
+            Pick someone from autocomplete and their name snaps into a neat mention pill. Your sentence keeps its
+            stride, without a 52-character key barging into the middle.
+          </p>
+          <p>
+            Changed your mind? One press of Backspace clears the whole pill. Our resident runner approves of fewer
+            hurdles.
+          </p>
+          <ExternalWorldLink href={WORLD_EXPERIMENTS.runner.url} className={styles.primaryButton}>
+            {WORLD_EXPERIMENTS.runner.action}
+          </ExternalWorldLink>
+        </div>
+      );
     if (panel.id === 'tether')
       return (
         <div className={styles.satoshiPanel}>
@@ -440,8 +494,8 @@ function WorldPanel({
             evaporating, one bill at a time. Finally, a bank with transparent assets.
           </p>
           <p className={styles.smallPrint}>
-            Find the Brrr Bank on the east side of the island, beside the Arena. The bills are decorative confetti. The
-            printer’s noise is just a sign; your speakers can relax.
+            Find the Brrr Bank on the east side of the island. The bills are decorative confetti. The printer’s noise is
+            just a sign; your speakers can relax.
           </p>
           <Button
             overrideDefaults
@@ -509,26 +563,14 @@ function WorldPanel({
           </Button>
         </div>
       );
-    return (
-      <div className={styles.funPanel}>
-        <Orbit size={70} className={styles.portalIcon} />
-        <p>
-          You can leave a place without leaving yourself behind. This one takes you to a university. Plot twist: there
-          is no tuition.
-        </p>
-        <Button overrideDefaults className={styles.primaryButton} onClick={() => onTravel('university')}>
-          Take the curious exit
-          <ArrowRight size={18} />
-        </Button>
-      </div>
-    );
+    return null;
   }
   if (panel.id === 'forest')
     return (
       <>
         <div className={styles.sectionLabel}>
           <TreePine size={15} />
-          {data.source === 'demo' ? 'An example grove' : 'A sample of public staging tags'}
+          {data.source === 'demo' ? 'An example grove' : 'A sample of public production tags'}
         </div>
         <div className={styles.tagGrid}>
           {data.tags.map((tag, index) => (
@@ -579,6 +621,9 @@ function WorldPanel({
   if (panel.id === 'arena')
     return (
       <>
+        <ExternalWorldLink href={WORLD_EXPERIMENTS.arena.url} className={styles.primaryButton}>
+          {WORLD_EXPERIMENTS.arena.action}
+        </ExternalWorldLink>
         <ArenaGame />
         <Button overrideDefaults className={styles.monumentLink} onClick={() => onSelect({ kind: 'fun', id: 'bank' })}>
           <span aria-hidden="true">$</span>
@@ -589,6 +634,22 @@ function WorldPanel({
           <ChevronRight size={18} />
         </Button>
       </>
+    );
+  if (panel.id === 'chess')
+    return (
+      <div className={styles.funPanel}>
+        <span className={styles.chessEmblem} aria-hidden="true">
+          ♞
+        </span>
+        <blockquote>The knights are taller than you. Your opening can still be stronger.</blockquote>
+        <p>
+          Thirty-two giants guard this board. Wander between the obsidian and silver ranks, then challenge someone to a
+          game on Chessky.
+        </p>
+        <ExternalWorldLink href={WORLD_EXPERIMENTS.chess.url} className={styles.primaryButton}>
+          {WORLD_EXPERIMENTS.chess.action}
+        </ExternalWorldLink>
+      </div>
     );
   if (panel.id === 'cinema') return <WorldCinema />;
   if (panel.id === 'theater')
@@ -667,7 +728,7 @@ function WorldPanel({
 }
 
 export function World() {
-  const { data: baseData, status: dataStatus, error: dataError, loadStaging } = useWorldData();
+  const { data: baseData, status: dataStatus, error: dataError, loadProduction } = useWorldData();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
   const [directoryQuery, setDirectoryQuery] = useState('');
@@ -680,11 +741,11 @@ export function World() {
     directoryIds,
   });
   const { requireAuth } = useRequireAuth();
-  const personal = baseData.source === 'staging' && Boolean(social.viewerId);
+  const personal = baseData.source === 'production' && Boolean(social.viewerId);
   const data: WorldData = personal
     ? { ...baseData, people: social.people, relationships: social.relationships }
     : baseData;
-  const firstLoad = useRef(loadStaging);
+  const firstLoad = useRef(loadProduction);
   const autoActorRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WorldController | null>(null);
@@ -915,9 +976,9 @@ export function World() {
           <span className={styles.experiment}>EXPERIMENT</span>
         </div>
         <div className={styles.topActions}>
-          <span className={styles.stagingBadge}>
-            <span className={styles.stagingDot} />
-            Staging
+          <span className={styles.productionBadge}>
+            <span className={styles.productionDot} />
+            Production
           </span>
           <div className={styles.identity}>
             <span className={styles.identityFace} style={{ background: personaColor }}>
@@ -941,11 +1002,11 @@ export function World() {
           <span>{dataError}</span>
           <Button
             overrideDefaults
-            aria-label="Retry staging data"
+            aria-label="Retry production data"
             disabled={dataStatus === 'loading'}
-            onClick={() => void loadStaging()}
+            onClick={() => void loadProduction()}
           >
-            Retry staging
+            Retry production
           </Button>
         </div>
       )}
@@ -1293,8 +1354,8 @@ export function World() {
               : panel?.kind === 'zone' && (panel.id === 'university' || panel.id === 'github' || panel.id === 'bitkit')
                 ? 'A LITTLE PUBKY EXPLORATION'
                 : personal
-                  ? 'YOUR PUBKY CIRCLE · STAGING'
-                  : 'PUBLIC STAGING'}
+                  ? 'YOUR PUBKY CIRCLE · PRODUCTION'
+                  : 'PUBLIC PRODUCTION'}
           </div>
           <DialogTitle className={styles.dialogTitle}>{heading?.title ?? 'Explore the world'}</DialogTitle>
           <DialogDescription className={styles.dialogDescription}>{heading?.subtitle}</DialogDescription>
@@ -1347,7 +1408,7 @@ export function World() {
                 overrideDefaults
                 className={styles.secondaryButton}
                 disabled={dataStatus === 'loading'}
-                onClick={() => void loadStaging()}
+                onClick={() => void loadProduction()}
               >
                 {dataStatus === 'loading' ? 'Loading public posts…' : 'Refresh public posts'}
               </Button>

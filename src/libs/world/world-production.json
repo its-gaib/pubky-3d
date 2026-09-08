@@ -1,0 +1,11 @@
+{
+  "nexusUrl": "https://nexus.pubky.app",
+  "cdnUrl": "https://nexus.pubky.app/static",
+  "homeserver": "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty",
+  "homeserverUrl": "https://homeserver.pubky.app",
+  "homegateUrl": "https://homegate.pubky.app",
+  "defaultHttpRelay": "https://httprelay.pubky.app/inbox",
+  "pkarrRelays": ["https://pkarr.pubky.app", "https://pkarr.pubky.org"],
+  "testnet": false,
+  "deployEnv": "production"
+}

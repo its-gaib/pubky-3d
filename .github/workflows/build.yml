@@ -114,15 +114,15 @@ jobs:
           SERVER_LOG="$(mktemp)"
 
           #PUBKY runtime variables
-          export PUBKY_RUNTIME_ENV="staging"
+          export PUBKY_RUNTIME_ENV="production"
           export PUBKY_RUNTIME_TESTNET="false"
-          export PUBKY_RUNTIME_HOMESERVER="ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy"
-          export PUBKY_RUNTIME_HOMESERVER_URL="https://homeserver.staging.pubky.app"
-          export PUBKY_RUNTIME_NEXUS_URL="https://nexus.staging.pubky.app"
-          export PUBKY_RUNTIME_CDN_URL="https://nexus.staging.pubky.app/static"
-          export PUBKY_RUNTIME_HOMEGATE_URL="https://homegate.staging.pubky.app"
+          export PUBKY_RUNTIME_HOMESERVER="8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty"
+          export PUBKY_RUNTIME_HOMESERVER_URL="https://homeserver.pubky.app"
+          export PUBKY_RUNTIME_NEXUS_URL="https://nexus.pubky.app"
+          export PUBKY_RUNTIME_CDN_URL="https://nexus.pubky.app/static"
+          export PUBKY_RUNTIME_HOMEGATE_URL="https://homegate.pubky.app"
           export PUBKY_RUNTIME_PKARR_RELAYS='["https://pkarr.pubky.app","https://pkarr.pubky.org"]'
-          export PUBKY_RUNTIME_DEFAULT_HTTP_RELAY="https://httprelay.staging.pubky.app/inbox"
+          export PUBKY_RUNTIME_DEFAULT_HTTP_RELAY="https://httprelay.pubky.app/inbox"
 
           if [ -n "$PUBKY_STANDALONE_DIR" ]; then
             HOSTNAME=127.0.0.1 PORT=3000 node "$PUBKY_STANDALONE_DIR/server.js" > "$SERVER_LOG" 2>&1 &
@@ -154,6 +154,24 @@ jobs:
             sleep $WAIT_INTERVAL
             ELAPSED=$((ELAPSED + WAIT_INTERVAL))
           done
+
+          python3 - <<'PYCODE'
+          import json
+          import re
+          from pathlib import Path
+          from urllib.request import urlopen
+
+          with urlopen('http://127.0.0.1:3000/', timeout=20) as response:
+              html = response.read().decode()
+          match = re.search(r'window\.__PUBKY_CONFIG__=Object\.freeze\((.*?)\);', html)
+          if not match:
+              raise SystemExit('Missing injected runtime configuration.')
+          config = json.loads(match[1])
+          expected = json.loads(Path('src/libs/world/world-production.json').read_text())
+          if any(config.get(key) != value for key, value in expected.items()):
+              raise SystemExit('The runtime is not coherently connected to Pubky production.')
+          print('All nine injected production network values match.')
+          PYCODE
 
           SIGN_IN_STATUS=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/sign-in")
           if [ "$SIGN_IN_STATUS" != "200" ]; then

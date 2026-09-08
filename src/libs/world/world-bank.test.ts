@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
-import { BANK_BILL_COUNT, BANK_BILL_LIFETIME, bankBillFrame } from './world-bank';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BANK_BILL_COUNT, BANK_BILL_LIFETIME, bankBillFrame, createBank } from './world-bank';
 
 describe('bank bill life cycles', () => {
   it('keeps the reusable pool staggered instead of fading every bill together', () => {
+    expect(BANK_BILL_COUNT).toBe(300);
     const frames = Array.from({ length: BANK_BILL_COUNT }, (_, index) => bankBillFrame(0, index));
     expect(frames.some((frame) => frame.opacity === 1)).toBe(true);
     expect(frames.some((frame) => frame.opacity > 0 && frame.opacity < 0.3)).toBe(true);
@@ -65,5 +66,89 @@ describe('bank bill life cycles', () => {
         expect(Math.hypot(frame.position[0] - 1.8, frame.position[2] + 0.4)).toBeLessThan(22);
       }
     }
+  });
+});
+
+describe('bank printer renderer', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function build() {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const scene = new THREE.Scene();
+    const bank = createBank(scene, vi.fn(), vi.fn());
+    const bills = scene.getObjectByName('bank-recycled-money') as THREE.InstancedMesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    return { scene, bank, bills };
+  }
+
+  it('prints ten times as many notes in one fixed draw while retaining their 70-second independent lives', () => {
+    const { bank, bills } = build();
+    expect(bills.count).toBe(300);
+    expect(bills.count / BANK_BILL_LIFETIME).toBeCloseTo((30 / 70) * 10);
+    expect(bills.frustumCulled).toBe(false);
+    expect(bills.material.forceSinglePass).toBe(true);
+    const opacity = bills.geometry.getAttribute('billOpacity');
+    expect(opacity.count).toBe(300);
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    bank.animate(68, false);
+    for (const index of [0, 1, 29, 99, 299]) {
+      const frame = bankBillFrame(68, index);
+      bills.getMatrixAt(index, matrix);
+      position.setFromMatrixPosition(matrix);
+      position.toArray().forEach((value, axis) => expect(value).toBeCloseTo(frame.position[axis], 5));
+      expect(opacity.getX(index)).toBeCloseTo(frame.opacity, 6);
+    }
+    expect(opacity.getX(0)).toBeLessThan(0.05);
+    const shader = { ...THREE.ShaderLib.basic } as Parameters<typeof bills.material.onBeforeCompile>[0];
+    bills.material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.vertexShader).toContain('attribute float billOpacity;');
+    expect(shader.vertexShader).toContain('vBillOpacity = billOpacity;');
+    expect(shader.fragmentShader).toContain('diffuseColor.a *= vBillOpacity;');
+    bank.dispose();
+  });
+
+  it('vibrates BRRR at three times the original frequency without increasing its displacement, and supports reduced motion', () => {
+    const { scene, bank, bills } = build();
+    const sign = scene.getObjectByName('bank-facade-brrr')!;
+    for (const time of [0.017, 0.13, 0.57, 1.2]) {
+      bank.animate(time, false);
+      const accelerated = time * 3;
+      expect(sign.position.x).toBeCloseTo(Math.sin(accelerated * 31) * 0.035);
+      expect(sign.rotation.z).toBeCloseTo(Math.sin(accelerated * 28) * 0.025 + Math.sin(accelerated * 43) * 0.012);
+      expect(Math.abs(sign.position.x)).toBeLessThanOrEqual(0.035);
+      expect(Math.abs(sign.rotation.z)).toBeLessThanOrEqual(0.037);
+    }
+    bank.animate(1, true);
+    const frozen = Array.from(bills.instanceMatrix.array);
+    bank.animate(100, true);
+    expect(Array.from(bills.instanceMatrix.array)).toEqual(frozen);
+    expect(sign.position.x).toBe(0);
+    expect(sign.rotation.z).toBe(0);
+    bank.dispose();
+  });
+
+  it('recycles a single resource pool and explicitly releases its instance attributes and texture', () => {
+    const { scene, bank, bills } = build();
+    const geometry = bills.geometry;
+    const material = bills.material;
+    const releases = [
+      vi.spyOn(bills, 'dispose'),
+      vi.spyOn(geometry, 'dispose'),
+      vi.spyOn(material, 'dispose'),
+      vi.spyOn(material.map!, 'dispose'),
+    ];
+    for (const time of [0, 70, 700, 7_000, 70_000]) bank.animate(time, false);
+    expect(scene.getObjectByName('bank-recycled-money')).toBe(bills);
+    expect(bills.geometry).toBe(geometry);
+    expect(bills.material).toBe(material);
+    expect(bills.count).toBe(300);
+    bank.dispose();
+    bank.dispose();
+    bank.animate(100_000, false);
+    releases.forEach((release) => expect(release).toHaveBeenCalledOnce());
+    expect(scene.children).toEqual([]);
   });
 });

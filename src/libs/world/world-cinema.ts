@@ -1,11 +1,25 @@
 import * as THREE from 'three';
 import { box, cylinder, label, material, mesh, sphere } from '@/libs/world/world-geometry';
-import { WORLD_ANCHORS } from '@/libs/world/world-layout';
+import { CINEMA_YAW, WORLD_ANCHORS } from '@/libs/world/world-layout';
+import type { WorldObstacle } from '@/libs/world/world-motion';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 export const CINEMA_DIMENSIONS = { halfWidth: 12.5, back: 15.5, front: 3.5 } as const;
+export const CINEMA_SCREEN = { width: 18, height: 10.125 } as const;
 
-/** Original Art Deco movie house. Playback belongs to the DOM reader, never a canvas texture. */
+export function cinemaCollisionObstacles(anchor: readonly [number, number] = WORLD_ANCHORS.cinema): WorldObstacle[] {
+  return [
+    [0, -7.5, 7],
+    [-8, -6.2, 4.4],
+    [8, -6.2, 4.4],
+  ].map(([x, z, radius]) => ({
+    x: anchor[0] + x * Math.cos(CINEMA_YAW) + z * Math.sin(CINEMA_YAW),
+    z: anchor[1] - x * Math.sin(CINEMA_YAW) + z * Math.cos(CINEMA_YAW),
+    radius,
+  }));
+}
+
+/** Original Art Deco movie house. A separate DOM projection supplies the live screen. */
 export function createCinema(
   scene: THREE.Scene,
   register: (object: THREE.Object3D, interaction: WorldInteraction, title: string) => void,
@@ -14,6 +28,7 @@ export function createCinema(
   const cinema = new THREE.Group();
   cinema.name = 'midnight-cinema';
   cinema.position.set(WORLD_ANCHORS.cinema[0], 0, WORLD_ANCHORS.cinema[1]);
+  cinema.rotation.y = CINEMA_YAW;
   scene.add(cinema);
   box(cinema, [25, 0.45, 18], '#3E2A32', [0, 0.23, -6.5]);
   box(cinema, [22, 8.5, 13], '#251B25', [0, 4.7, -7]);
@@ -44,17 +59,22 @@ export function createCinema(
     for (let line = 0; line < 3; line++)
       box(cinema, [2 - line * 0.3, 0.08, 0.14], '#E7C894', [x, 2.3 - line * 0.35, 0]);
   }
-  box(cinema, [12, 6.8, 0.5], '#17121C', [0, 11.4, -0.25]);
-  box(cinema, [11.3, 6.15, 0.13], '#D8B77F', [0, 11.4, 0.07]);
+  box(cinema, [19, 11.1, 0.65], '#17121C', [0, 13.5, -0.25]);
+  box(cinema, [18.35, 10.5, 0.13], '#D8B77F', [0, 13.5, 0.13]);
+  box(cinema, [18, 10.125, 0.04], '#352330', [0, 13.5, 0.225]);
   const play = new THREE.Shape();
   play.moveTo(-0.8, -1.2);
   play.lineTo(1.15, 0);
   play.lineTo(-0.8, 1.2);
   play.closePath();
-  mesh(cinema, new THREE.ShapeGeometry(play), '#64283E', [0, 11.6, 0.17]);
-  for (const x of [-5.25, 5.25])
-    for (let y = 0; y < 5; y++) box(cinema, [0.32, 0.6, 0.14], '#6A3B43', [x, 9.1 + y * 1.14, 0.16]);
-  label(cinema, '18 films · one more?', [0, 16.25, -0.3], 12, '#F4D49E', '#3E2132');
+  mesh(cinema, new THREE.ShapeGeometry(play), '#D8B77F', [0, 13.5, 0.25]);
+  for (const x of [-9.28, 9.28])
+    for (let y = 0; y < 8; y++) box(cinema, [0.2, 0.58, 0.12], '#6A3B43', [x, 9.2 + y * 1.23, 0.25]);
+  label(cinema, '18 films · one more?', [0, 20.2, -0.3], 12, '#F4D49E', '#3E2132');
+  const screenFrame = new THREE.Object3D();
+  screenFrame.name = 'Midnight Cinema screen plane';
+  screenFrame.position.set(0, 13.5, 0.28);
+  cinema.add(screenFrame);
   // A giant toy projector on the roof makes the silhouette readable from above.
   box(cinema, [3.4, 2, 2], '#A29382', [-5.6, 10.55, -8]);
   const lens = cylinder(cinema, 0.62, 0.8, 1.5, '#D5BA8B', [-5.6, 10.65, -6.4], 12);
@@ -67,6 +87,6 @@ export function createCinema(
     }
   }
   register(cinema, { kind: 'zone', id: 'cinema' }, 'Watch a film at Midnight Cinema');
-  obstacle(cinema.position.x, cinema.position.z - 7.5, 7);
-  for (const x of [-8, 8]) obstacle(cinema.position.x + x, cinema.position.z - 6.2, 4.4);
+  cinemaCollisionObstacles().forEach(({ x, z, radius }) => obstacle(x, z, radius));
+  return { group: cinema, screenFrame };
 }

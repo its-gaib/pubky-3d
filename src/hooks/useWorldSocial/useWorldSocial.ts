@@ -2,14 +2,10 @@
 
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { isPubkyIdentifier } from '@/libs/utils/utils';
+import { isWorldProductionConfigured } from '@/libs/world/world-network';
 import { useAuthStore } from '@/stores/auth/auth.store';
 import { useWorldPerson } from './useWorldPerson';
-import {
-  EMPTY_WORLD_SOCIAL_VIEW,
-  WORLD_SOCIAL_PROFILE_LIMIT,
-  WorldSocialManager,
-  worldSocialStagingConfigured,
-} from './useWorldSocial.manager';
+import { EMPTY_WORLD_SOCIAL_VIEW, WORLD_SOCIAL_PROFILE_LIMIT, WorldSocialManager } from './useWorldSocial.manager';
 import type { UseWorldSocialOptions, UseWorldSocialResult } from './useWorldSocial.types';
 
 /** Personal graph loading is separate from the public forest/theater sample. */
@@ -23,7 +19,7 @@ export function useWorldSocial({
   const restoring = useAuthStore((state) => state.isRestoringSession);
   const loggingOut = useAuthStore((state) => state.isLoggingOut);
   const authenticated = useAuthStore((state) => state.selectIsAuthenticated());
-  const networkAllowed = worldSocialStagingConfigured();
+  const networkAllowed = isWorldProductionConfigured();
   const viewerId =
     networkAllowed &&
     hydrated &&

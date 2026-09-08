@@ -128,13 +128,13 @@
   cursor: wait;
 }
 .sourceDot,
-.stagingDot {
+.productionDot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: var(--world-lime);
 }
-.stagingDot {
+.productionDot {
   background: #7d83ff;
 }
 .identity {
@@ -1108,7 +1108,7 @@
   color: var(--world-soft);
   flex-shrink: 0;
 }
-.stagingBadge {
+.productionBadge {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1424,6 +1424,24 @@
 .funPanel {
   text-align: center;
   padding: 4px 8px 10px;
+}
+
+.mentionPill {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border: 1px solid #9079c4;
+  border-radius: 999px;
+  background: #292033;
+  color: #dac8ff;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.chessEmblem {
+  color: #a4def0;
+  font-size: 6rem;
+  line-height: 1;
 }
 .funEmoji {
   display: block;

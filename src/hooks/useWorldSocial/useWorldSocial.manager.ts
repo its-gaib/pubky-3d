@@ -4,14 +4,8 @@ import { PostController } from '@/controllers/post/post';
 import { StreamPostsController } from '@/controllers/stream/posts/posts';
 import { StreamUserController } from '@/controllers/stream/users/users';
 import { UserController } from '@/controllers/user/user';
-import {
-  getCdnUrl,
-  getDeployEnv,
-  getHomeserver,
-  getHomeserverUrl,
-  getNexusUrl,
-} from '@/libs/runtime-config/runtime-config';
 import { isPubkyIdentifier } from '@/libs/utils/utils';
+import { isWorldProductionConfigured } from '@/libs/world/world-network';
 import { worldPostPreview } from '@/libs/world/world-post-preview';
 import type { WorldPerson, WorldPost } from '@/libs/world/world-types';
 import { buildSortedAuthorStreamId } from '@/models/stream/post/postStream.types';
@@ -31,25 +25,9 @@ export const WORLD_SOCIAL_PROFILE_LIMIT = 20;
 export const WORLD_SOCIAL_ERROR =
   'Some connections could not be loaded. Your current circle is still here; retry to continue.';
 const POST_SCAN_PAGES = 5;
-const STAGING_HOMESERVER = 'ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy';
-
-export function worldSocialStagingConfigured(): boolean {
-  try {
-    return (
-      getDeployEnv() === 'staging' &&
-      getNexusUrl().replace(/\/$/, '') === 'https://nexus.staging.pubky.app' &&
-      getCdnUrl().replace(/\/$/, '') === 'https://nexus.staging.pubky.app/static' &&
-      getHomeserver() === STAGING_HOMESERVER &&
-      getHomeserverUrl().replace(/\/$/, '') === 'https://homeserver.staging.pubky.app'
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function currentWorldSocialViewer(): string | null {
   const state = useAuthStore.getState();
-  return worldSocialStagingConfigured() &&
+  return isWorldProductionConfigured() &&
     state.hasHydrated &&
     !state.isRestoringSession &&
     !state.isLoggingOut &&
@@ -149,7 +127,7 @@ export class WorldSocialManager {
       context === this.context &&
       context.active &&
       context.enabled &&
-      worldSocialStagingConfigured() &&
+      isWorldProductionConfigured() &&
       useAuthStore.getState().currentUserPubky === context.rawViewerId &&
       currentWorldSocialViewer() === context.viewerId
     );

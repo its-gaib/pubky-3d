@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { ExpirationPlugin, NetworkFirst, type PrecacheEntry, Serwist, type SerwistGlobalConfig } from 'serwist';
+import { SHARE_TARGET_CACHE } from '@/libs/share/shareTarget.constants';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -9,9 +10,6 @@ declare global {
 }
 
 declare const self: ServiceWorkerGlobalScope;
-
-// Cache name used to pass shared files from the service worker to the share page
-const SHARE_TARGET_CACHE = 'share-target-files';
 
 /**
  * Handle incoming Web Share Target POST requests.

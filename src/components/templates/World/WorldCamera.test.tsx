@@ -16,7 +16,7 @@ beforeEach(() => {
     composer: null,
     isComposerOpen: false,
     isAuthenticated: true,
-    network: 'staging',
+    network: 'production',
     error: null,
     clearError: mocks.clearError,
   });
@@ -37,7 +37,7 @@ describe('WorldCamera', () => {
       'blob:world-photo',
     );
     expect(screen.getByRole('link', { name: 'Download photo' })).toHaveAttribute('download', 'pubky-world.png');
-    expect(screen.getByText(/Posts go to Pubky staging/)).toBeInTheDocument();
+    expect(screen.getByText(/Posts go to Pubky production/)).toBeInTheDocument();
     expect(onOpenChange).toHaveBeenLastCalledWith(true);
     expect(mocks.openComposer).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Post to Pubky' }));

@@ -87,9 +87,9 @@ describe('Trending Theater program', () => {
   it('replaces stale program content when the data source changes and handles an empty feed', () => {
     const theater = mount();
     theater.step(2);
-    theater.updateData({ ...data, source: 'staging', trendingPosts: [posts[1]] });
+    theater.updateData({ ...data, source: 'production', trendingPosts: [posts[1]] });
     expect(theater.getStatus().theaterIndex).toBe(0);
-    expect(fillText).toHaveBeenCalledWith('PUBLIC STAGING · RANKED BY TOTAL ENGAGEMENT', 70, 160, 1350);
+    expect(fillText).toHaveBeenCalledWith('PUBLIC PRODUCTION · RANKED BY TOTAL ENGAGEMENT', 70, 160, 1350);
     expect(theater.tick(80)).toBe(false);
     theater.updateData({ ...data, trendingPosts: [] });
     theater.step(-1);
@@ -112,7 +112,7 @@ describe('Trending Theater program', () => {
     expect(theater.getStatus()).toEqual({ theaterIndex: 0, theaterPaused: false });
     expect(fillText).not.toHaveBeenCalled();
 
-    theater.updateData({ ...data, source: 'staging', trendingPosts: [posts[2], posts[0]] });
+    theater.updateData({ ...data, source: 'production', trendingPosts: [posts[2], posts[0]] });
     expect(fillText.mock.calls.map(([text]) => text).join(' ')).not.toMatch(/ranked post|author|ON AIR|PAUSED|1 \/ 2/);
     fillText.mockClear();
     theater.setLoading(false);

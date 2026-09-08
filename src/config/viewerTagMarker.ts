@@ -1,3 +1,5 @@
+import { networkStorageName } from '@/libs/runtime-config/network-storage';
+
 /**
  * Wall-clock TTL for viewer-mutation markers in sessionStorage.
  * Roughly the Nexus indexer lag window — after this, any Nexus response
@@ -7,4 +9,4 @@
 export const MARKER_TTL_MS = 300_000;
 
 /** Prefix for sessionStorage keys storing viewer-mutation markers. */
-export const VIEWER_TAG_MARKER_STORAGE_PREFIX = 'pubky-app:viewer-tag-marker:';
+export const VIEWER_TAG_MARKER_STORAGE_PREFIX = networkStorageName('viewer-tag-marker:');

@@ -3,11 +3,11 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { IMAGE_MAX_RAW_SIZE } from '@/config/images';
 import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
-import { getDeployEnv } from '@/libs/runtime-config/runtime-config';
+import { isWorldProductionConfigured } from '@/libs/world/world-network';
 import { DialogNewPost } from '@/organisms/DialogNewPost/DialogNewPost';
 import { useAuthStore } from '@/stores/auth/auth.store';
 
-type WorldPhotoNetwork = 'staging' | 'production' | 'unavailable';
+type WorldPhotoNetwork = 'production' | 'unavailable';
 
 interface WorldPhotoDraft {
   file: File;
@@ -24,14 +24,6 @@ interface UseWorldPhotoPostResult {
   clearError: () => void;
 }
 
-function getPhotoNetwork(): WorldPhotoNetwork {
-  try {
-    return getDeployEnv();
-  } catch {
-    return 'unavailable';
-  }
-}
-
 /**
  * Hands a bounded canvas PNG to Pubky's existing composer. A draft is held only
  * in memory and belongs to the current public identity; nothing is uploaded or
@@ -43,7 +35,7 @@ export function useWorldPhotoPost(): UseWorldPhotoPostResult {
   const [draft, setDraft] = useState<WorldPhotoDraft | null>(null);
   const draftRef = useRef<WorldPhotoDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const network = getPhotoNetwork();
+  const network: WorldPhotoNetwork = isWorldProductionConfigured() ? 'production' : 'unavailable';
   const isComposerOpen = draft !== null && draft.authorId === currentUserPubky && network !== 'unavailable';
 
   // Do not carry a photo draft into another account or reopen it after sign-in.
@@ -76,7 +68,7 @@ export function useWorldPhotoPost(): UseWorldPhotoPostResult {
 
     if (network === 'unavailable') {
       setError(
-        'Posting is unavailable because the Pubky network configuration is missing. Download your photo to keep it.',
+        'Posting is unavailable because the Pubky production network configuration is unavailable. Download your photo to keep it.',
       );
       return false;
     }

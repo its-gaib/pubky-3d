@@ -116,11 +116,9 @@ export function WorldCamera({ disabled, onCapture, onOpenChange, onReturnFocus }
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img className={styles.photoPreview} src={photo.url} alt="Your photo from Pubky World" />
               <p className={styles.photoDestination}>
-                {network === 'staging'
-                  ? 'Posts go to Pubky staging. Add a caption and review your photo before publishing.'
-                  : network === 'production'
-                    ? 'Posts go to Pubky production. Add a caption and review your photo before publishing.'
-                    : 'Posting needs the full Pubky app with a configured network. You can download your photo here.'}
+                {network === 'production'
+                  ? 'Posts go to Pubky production. Add a caption and review your photo before publishing.'
+                  : 'Posting needs the full Pubky app with a configured network. You can download your photo here.'}
               </p>
               {!isAuthenticated && network !== 'unavailable' && (
                 <p className={styles.photoDestination}>

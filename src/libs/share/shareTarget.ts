@@ -6,7 +6,7 @@
  * These utilities help the share page retrieve the cached files and compose post content.
  */
 
-const SHARE_TARGET_CACHE = 'share-target-files';
+import { SHARE_TARGET_CACHE } from './shareTarget.constants';
 
 /**
  * Retrieve files that were cached by the service worker from a share target POST.

@@ -75,7 +75,7 @@ export function WorldPeopleDirectory({
       </p>
       {!personal && (
         <div className={styles.socialNotice}>
-          <p>Sign in to build your own circle. These are public staging profiles.</p>
+          <p>Sign in to build your own circle. These are public production profiles.</p>
           <Button overrideDefaults className={styles.secondaryButton} onClick={onSignIn}>
             Sign in to see my circle
           </Button>

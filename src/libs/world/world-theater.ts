@@ -137,7 +137,7 @@ export function createTheater(
     context.font = '500 23px sans-serif';
     context.fillStyle = '#BABAC1';
     context.fillText(
-      source === 'demo' ? 'EXAMPLE WORLD · FICTIONAL PROGRAM' : 'PUBLIC STAGING · RANKED BY TOTAL ENGAGEMENT',
+      source === 'demo' ? 'EXAMPLE WORLD · FICTIONAL PROGRAM' : 'PUBLIC PRODUCTION · RANKED BY TOTAL ENGAGEMENT',
       70,
       160,
       1350,

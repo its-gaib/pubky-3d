@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpMethod } from '@/libs/http/http.types';
+import production from '@/libs/world/world-production.json';
 import { useWorldSocial } from './useWorldSocial';
 
 const key = (value: number) => value.toString(36).padStart(52, 'a');
@@ -15,8 +16,8 @@ const mocks = vi.hoisted(() => ({
   restoring: false,
   loggingOut: false,
   authenticated: true,
-  network: 'staging',
-  nexus: 'https://nexus.staging.pubky.app',
+  network: 'production',
+  nexus: 'https://nexus.pubky.app',
   edges: new Map<string, string[]>(),
   refreshIds: vi.fn(),
   hydrate: vi.fn(),
@@ -45,11 +46,12 @@ vi.mock('@/stores/auth/auth.store', () => {
 });
 
 vi.mock('@/libs/runtime-config/runtime-config', () => ({
+  getRuntimeConfig: () => ({ ...production, deployEnv: mocks.network, nexusUrl: mocks.nexus }),
   getDeployEnv: () => mocks.network,
   getNexusUrl: () => mocks.nexus,
-  getCdnUrl: () => 'https://nexus.staging.pubky.app/static',
-  getHomeserver: () => 'ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy',
-  getHomeserverUrl: () => 'https://homeserver.staging.pubky.app',
+  getCdnUrl: () => 'https://nexus.pubky.app/static',
+  getHomeserver: () => '8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty',
+  getHomeserverUrl: () => 'https://homeserver.pubky.app',
 }));
 
 vi.mock('@/controllers/stream/users/users', () => ({
@@ -60,7 +62,7 @@ vi.mock('@/controllers/user/user', () => ({
 }));
 vi.mock('@/controllers/file/file', () => ({
   FileController: {
-    getAvatarUrl: (id: string, version?: number) => `https://nexus.staging.pubky.app/static/avatar/${id}?v=${version}`,
+    getAvatarUrl: (id: string, version?: number) => `https://nexus.pubky.app/static/avatar/${id}?v=${version}`,
   },
 }));
 vi.mock('@/controllers/stream/posts/posts', () => ({
@@ -88,8 +90,8 @@ describe('useWorldSocial', () => {
     mocks.restoring = false;
     mocks.loggingOut = false;
     mocks.authenticated = true;
-    mocks.network = 'staging';
-    mocks.nexus = 'https://nexus.staging.pubky.app';
+    mocks.network = 'production';
+    mocks.nexus = 'https://nexus.pubky.app';
     mocks.edges = new Map([
       [VIEWER, [ALICE]],
       [ALICE, [BOB]],
@@ -228,13 +230,13 @@ describe('useWorldSocial', () => {
     },
   );
 
-  it('fails closed for production or a mismatched staging endpoint', async () => {
-    mocks.nexus = 'https://nexus.pubky.app';
+  it('fails closed for staging or a mismatched production endpoint', async () => {
+    mocks.nexus = 'https://nexus.staging.pubky.app';
     const { result, rerender } = renderHook(() => useWorldSocial({ enabled: true, selectedId: ALICE }));
     expect(result.current.status).toBe('inactive');
     expect(result.current.viewerId).toBeNull();
-    mocks.network = 'production';
-    mocks.nexus = 'https://nexus.staging.pubky.app';
+    mocks.network = 'staging';
+    mocks.nexus = 'https://nexus.pubky.app';
     rerender();
     await act(async () => {
       await result.current.follow.toggle();
@@ -332,7 +334,7 @@ describe('useWorldSocial', () => {
       await result.current.follow.toggle();
     });
     expect(result.current.follow.isFollowing).toBe(false);
-    expect(result.current.follow.error).toContain('not confirmed on staging');
+    expect(result.current.follow.error).toContain('not confirmed on production');
     expect(mocks.commitFollow).toHaveBeenCalledTimes(1);
     await act(async () => {
       await result.current.follow.toggle();
@@ -392,7 +394,7 @@ describe('useWorldSocial', () => {
       await result.current.follow.toggle();
     });
     mocks.actor = VIEWER;
-    mocks.network = 'production';
+    mocks.network = 'staging';
     await act(async () => {
       await result.current.follow.toggle();
     });
@@ -462,7 +464,7 @@ describe('useWorldSocial', () => {
       id: ALICE,
       name: 'Alice',
       profileLoaded: true,
-      avatarUrl: `https://nexus.staging.pubky.app/static/avatar/${ALICE}?v=17`,
+      avatarUrl: `https://nexus.pubky.app/static/avatar/${ALICE}?v=17`,
     });
     expect(result.current.profile.latestPost).toBeNull();
     await act(async () => {

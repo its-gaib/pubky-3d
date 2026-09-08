@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetRuntimeConfigForTests } from '@/libs/runtime-config/runtime-config';
+import production from '@/libs/world/world-production.json';
 import type { WorldData } from '@/libs/world/world-types';
 import { type PostStreamId, PostStreamTypes } from '@/models/stream/post/postStream.types';
 import type { UserStreamId } from '@/models/stream/user/userStream.types';
@@ -25,6 +27,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/libs/runtime-config/runtime-config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/libs/runtime-config/runtime-config')>()),
+  getRuntimeConfig: () => ({
+    ...production,
+    deployEnv: mocks.getDeployEnv(),
+    nexusUrl: mocks.getNexusUrl(),
+    cdnUrl: mocks.getCdnUrl(),
+  }),
   getDeployEnv: mocks.getDeployEnv,
   getNexusUrl: mocks.getNexusUrl,
   getCdnUrl: mocks.getCdnUrl,
@@ -59,7 +67,7 @@ const POST_TWO = `${BOB}:POST_TWO`;
 const TRENDING_POST = `${CAROL}:TRENDING_POST`;
 
 function profile(id: string, name: string): NexusUserDetails {
-  return { id, name, bio: 'A person on staging.', image: null, links: null, status: null, indexed_at: 1 };
+  return { id, name, bio: 'A person on production.', image: null, links: null, status: null, indexed_at: 1 };
 }
 
 function hotTag(label: string): NexusHotTag {
@@ -77,9 +85,14 @@ function deferred<T>() {
 describe('useWorldData', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mocks.getDeployEnv.mockReturnValue('staging');
-    mocks.getNexusUrl.mockReturnValue('https://nexus.staging.pubky.app');
-    mocks.getCdnUrl.mockReturnValue('https://nexus.staging.pubky.app/static');
+    // Setup imports real URL builders before this file's boundary mocks. Keep
+    // their runtime environment coherent with the production config under test.
+    vi.stubEnv('PUBKY_RUNTIME_NEXUS_URL', 'https://nexus.pubky.app');
+    vi.stubEnv('PUBKY_RUNTIME_CDN_URL', 'https://nexus.pubky.app/static');
+    resetRuntimeConfigForTests();
+    mocks.getDeployEnv.mockReturnValue('production');
+    mocks.getNexusUrl.mockReturnValue('https://nexus.pubky.app');
+    mocks.getCdnUrl.mockReturnValue('https://nexus.pubky.app/static');
     mocks.getHotTags.mockResolvedValue([hotTag('pubky')]);
     mocks.getUserStream.mockImplementation(async ({ streamId }: { streamId: string }) => ({
       nextPageIds:
@@ -117,11 +130,13 @@ describe('useWorldData', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
+    resetRuntimeConfigForTests();
   });
 
-  it('starts with an empty staging world for the mounting component to load', () => {
+  it('starts with an empty production world for the mounting component to load', () => {
     const { result } = renderHook(() => useWorldData());
-    expect(result.current.data.source).toBe('staging');
+    expect(result.current.data.source).toBe('production');
     expect(result.current.status).toBe('loading');
     expect(mocks.getHotTags).not.toHaveBeenCalled();
     expect(mocks.getUserStream).not.toHaveBeenCalled();
@@ -130,18 +145,18 @@ describe('useWorldData', () => {
   });
 
   it.each([
-    ['production', 'https://nexus.staging.pubky.app'],
     ['staging', 'https://nexus.pubky.app'],
-    ['staging', 'https://nexus.staging.pubky.app.example.com'],
-    ['staging', 'https://nexus.staging.pubky.app?target=production'],
-    ['staging', 'http://nexus.staging.pubky.app'],
+    ['production', 'https://nexus.staging.pubky.app'],
+    ['production', 'https://nexus.pubky.app.example.com'],
+    ['production', 'https://nexus.pubky.app?target=production'],
+    ['production', 'http://nexus.pubky.app'],
   ])('rejects a mismatched network before reading (%s, %s)', async (environment, nexusUrl) => {
     mocks.getDeployEnv.mockReturnValue(environment);
     mocks.getNexusUrl.mockReturnValue(nexusUrl);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
     expect(result.current.status).toBe('error');
-    expect(result.current.data.source).toBe('staging');
+    expect(result.current.data.source).toBe('production');
     expect(mocks.getHotTags).not.toHaveBeenCalled();
     expect(mocks.getUserStream).not.toHaveBeenCalled();
     expect(mocks.preparePostStream).not.toHaveBeenCalled();
@@ -156,10 +171,10 @@ describe('useWorldData', () => {
       { id: compositeId, tags: [{ label: compositeId === POST_ONE ? 'pubky' : 'unrelated' }] },
     ]);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
-    expect(result.current.status).toBe('staging');
-    expect(result.current.data.source).toBe('staging');
+    expect(result.current.status).toBe('production');
+    expect(result.current.data.source).toBe('production');
     expect(result.current.data.tags).toEqual([
       {
         label: 'pubky',
@@ -188,10 +203,10 @@ describe('useWorldData', () => {
     ]);
     mocks.getUserDetails.mockResolvedValue(profiles);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
     expect(result.current.data.people.map((person) => person.id)).toEqual([ALICE, BOB]);
-    expect(result.current.data.people[0].avatarUrl).toBe(`https://nexus.staging.pubky.app/static/avatar/${ALICE}?v=7`);
+    expect(result.current.data.people[0].avatarUrl).toBe(`https://nexus.pubky.app/static/avatar/${ALICE}?v=7`);
     expect(result.current.data.people[1].avatarUrl).toBeUndefined();
     expect(JSON.stringify(result.current.data.people)).not.toContain('untrusted.example');
   });
@@ -209,7 +224,7 @@ describe('useWorldData', () => {
       })),
     );
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
     expect(result.current.data.trendingPosts.map((post) => post.id)).toEqual([TRENDING_POST, POST_TWO]);
     expect(result.current.data.trendingPosts[0].text).toBe('A better show\n\nReadable words on stage.');
@@ -228,7 +243,7 @@ describe('useWorldData', () => {
     const original = result.current.data;
     let load!: Promise<void>;
     act(() => {
-      load = result.current.loadStaging();
+      load = result.current.loadProduction();
     });
     await waitFor(() => expect(mocks.getPostDetails).toHaveBeenCalledWith({ compositeIds: [TRENDING_POST, POST_TWO] }));
     expect(result.current.status).toBe('loading');
@@ -240,7 +255,7 @@ describe('useWorldData', () => {
       ]);
       await load;
     });
-    expect(result.current.status).toBe('staging');
+    expect(result.current.status).toBe('production');
     expect(result.current.data.trendingPosts.map((post) => post.text)).toEqual([
       'Ready now\n\nA complete post.',
       'Preview unavailable. Open this post in Pubky to read it.',
@@ -256,7 +271,7 @@ describe('useWorldData', () => {
       { id: compositeId, tags: labels.map((label) => ({ label })) },
     ]);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
     expect(result.current.data.tags).toHaveLength(6);
     expect(result.current.data.tags.every((tag) => tag.posts.length === 4 && tag.count === 4)).toBe(true);
     expect(result.current.data.trendingPosts).toHaveLength(8);
@@ -270,7 +285,7 @@ describe('useWorldData', () => {
   it('loads follow edges through the real Nexus stream conversion without exceeding its 20-user API limit', async () => {
     const requests: URL[] = [];
     // Exercise the real Nexus service, stream-id conversion, and URL builder.
-    // Only the HTTP boundary is simulated using staging's observed limit contract.
+    // Only the HTTP boundary is simulated using production's observed limit contract.
     mocks.queryNexus.mockImplementation(async ({ url }: { url: string }) => {
       const request = new URL(url);
       requests.push(request);
@@ -289,16 +304,16 @@ describe('useWorldData', () => {
     );
 
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
-    expect(result.current.status).toBe('staging');
+    expect(result.current.status).toBe('production');
     expect(result.current.error).toBeNull();
     expect(result.current.data.relationships).toEqual([{ from: ALICE, to: BOB, label: 'follows' }]);
     const followRequests = requests.filter((request) => request.searchParams.get('source') === 'following');
     expect(followRequests).toHaveLength(3);
     expect(followRequests.map((request) => request.searchParams.get('user_id'))).toEqual([ALICE, BOB, CAROL]);
     for (const request of followRequests) {
-      expect(request.origin).toBe('https://nexus.staging.pubky.app');
+      expect(request.origin).toBe('https://nexus.pubky.app');
       expect(request.pathname).toBe('/v0/stream/users/ids');
       expect(Number(request.searchParams.get('limit'))).toBeLessThanOrEqual(20);
       expect(request.searchParams.get('skip')).toBe('0');
@@ -309,7 +324,7 @@ describe('useWorldData', () => {
     mocks.getHotTags.mockResolvedValue([hotTag('good'), hotTag('bad:following'), hotTag('two,tags'), hotTag('')]);
     mocks.getPostTags.mockResolvedValue([]);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
     expect(
       mocks.getPostStream.mock.calls.filter(([params]) => params.streamId !== PostStreamTypes.POPULARITY_ALL_ALL),
     ).toHaveLength(1);
@@ -322,7 +337,7 @@ describe('useWorldData', () => {
     const { result, unmount } = renderHook(() => useWorldData());
     let load!: Promise<void>;
     act(() => {
-      load = result.current.loadStaging();
+      load = result.current.loadProduction();
     });
     unmount();
     pending.resolve([hotTag('pubky')]);
@@ -337,25 +352,25 @@ describe('useWorldData', () => {
     const { result } = renderHook(() => useWorldData());
     let load!: Promise<void>;
     act(() => {
-      load = result.current.loadStaging();
+      load = result.current.loadProduction();
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20_000);
       await load;
     });
     expect(result.current.status).toBe('error');
-    expect(result.current.data.source).toBe('staging');
+    expect(result.current.data.source).toBe('production');
     expect(result.current.error).toContain('try again');
     expect(mocks.getPostStream).not.toHaveBeenCalled();
   });
 
-  it('does not substitute fictional content after staging succeeds with a failed tree', async () => {
+  it('does not substitute fictional content after production succeeds with a failed tree', async () => {
     mocks.getPostStream.mockRejectedValue({ code: 'OFFLINE' });
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
     const data: WorldData = result.current.data;
-    expect(result.current.status).toBe('staging');
-    expect(data.source).toBe('staging');
+    expect(result.current.status).toBe('production');
+    expect(data.source).toBe('production');
     expect(data.tags).toEqual([]);
     expect(data.trendingPosts).toEqual([]);
     expect(data.people.map((person) => person.id)).toEqual([ALICE, BOB, CAROL]);
@@ -364,7 +379,7 @@ describe('useWorldData', () => {
 
   it('gets theater posts from the independent public Hot stream instead of the tag trees', async () => {
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
     expect(result.current.data.trendingPosts.map((post) => post.id)).toEqual([TRENDING_POST, POST_TWO]);
     expect(result.current.data.tags[0].posts.map((post) => post.id)).toEqual([POST_ONE, POST_TWO]);
@@ -399,10 +414,10 @@ describe('useWorldData', () => {
     );
 
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
     expect(requests).toHaveLength(1);
-    expect(requests[0].origin).toBe('https://nexus.staging.pubky.app');
+    expect(requests[0].origin).toBe('https://nexus.pubky.app');
     expect(requests[0].pathname).toBe('/v0/stream/posts/keys');
     expect(Object.fromEntries(requests[0].searchParams)).toEqual({
       source: 'all',
@@ -433,7 +448,7 @@ describe('useWorldData', () => {
       },
     ]);
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
+    await act(() => result.current.loadProduction());
 
     expect(mocks.getPostDetails).toHaveBeenCalledExactlyOnceWith({ compositeIds: [TRENDING_POST, POST_TWO] });
     const posts = result.current.data.trendingPosts;
@@ -451,8 +466,8 @@ describe('useWorldData', () => {
       nextPageIds: streamId === PostStreamTypes.POPULARITY_ALL_ALL ? [] : [POST_ONE],
     }));
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
-    expect(result.current.status).toBe('staging');
+    await act(() => result.current.loadProduction());
+    expect(result.current.status).toBe('production');
     expect(result.current.data.trendingPosts).toEqual([]);
     expect(result.current.data.tags[0].posts).toHaveLength(1);
   });
@@ -463,8 +478,8 @@ describe('useWorldData', () => {
       return { nextPageIds: [POST_ONE] };
     });
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
-    expect(result.current.status).toBe('staging');
+    await act(() => result.current.loadProduction());
+    expect(result.current.status).toBe('production');
     expect(result.current.data.trendingPosts).toEqual([]);
     expect(result.current.data.tags[0].posts).toHaveLength(1);
     expect(result.current.error).toContain('Only confirmed samples');
@@ -474,8 +489,8 @@ describe('useWorldData', () => {
     mocks.getHotTags.mockResolvedValue([]);
     mocks.getUserStream.mockResolvedValue({ nextPageIds: [] });
     const { result } = renderHook(() => useWorldData());
-    await act(() => result.current.loadStaging());
-    expect(result.current.status).toBe('staging');
+    await act(() => result.current.loadProduction());
+    expect(result.current.status).toBe('production');
     expect(result.current.data.trendingPosts.map((post) => post.id)).toEqual([TRENDING_POST, POST_TWO]);
     expect(result.current.data.tags).toEqual([]);
     expect(result.current.data.people).toEqual([]);
@@ -489,7 +504,7 @@ describe('useWorldData', () => {
     const { result, unmount } = renderHook(() => useWorldData());
     let load!: Promise<void>;
     act(() => {
-      load = result.current.loadStaging();
+      load = result.current.loadProduction();
     });
     await waitFor(() =>
       expect(mocks.getPostStream).toHaveBeenCalledWith({
@@ -504,7 +519,7 @@ describe('useWorldData', () => {
       await load;
     });
     expect(result.current.status).toBe('loading');
-    expect(result.current.data.source).toBe('staging');
+    expect(result.current.data.source).toBe('production');
     expect(result.current.data.trendingPosts.some((post) => post.id === TRENDING_POST)).toBe(false);
     expect(mocks.getPostDetails).not.toHaveBeenCalledWith({ compositeIds: [TRENDING_POST] });
   });

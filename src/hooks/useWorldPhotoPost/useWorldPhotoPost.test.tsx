@@ -1,13 +1,14 @@
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMAGE_MAX_RAW_SIZE } from '@/config/images';
+import production from '@/libs/world/world-production.json';
 import { DialogNewPost } from '@/organisms/DialogNewPost/DialogNewPost';
 import { useWorldPhotoPost } from './useWorldPhotoPost';
 
 const mocks = vi.hoisted(() => ({
   author: 'first-public-id' as string | null,
   signIn: vi.fn(),
-  network: 'staging' as 'staging' | 'production',
+  network: 'production' as 'staging' | 'production',
   configUnavailable: false,
 }));
 
@@ -23,9 +24,9 @@ vi.mock('@/stores/auth/auth.store', () => ({
 }));
 
 vi.mock('@/libs/runtime-config/runtime-config', () => ({
-  getDeployEnv: () => {
+  getRuntimeConfig: () => {
     if (mocks.configUnavailable) throw new TypeError('Missing test runtime config');
-    return mocks.network;
+    return { ...production, deployEnv: mocks.network };
   },
 }));
 
@@ -43,7 +44,7 @@ describe('useWorldPhotoPost', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.author = 'first-public-id';
-    mocks.network = 'staging';
+    mocks.network = 'production';
     mocks.configUnavailable = false;
   });
 
@@ -51,7 +52,7 @@ describe('useWorldPhotoPost', () => {
     const { result } = renderHook(useWorldPhotoPost);
     expect(result.current.composer).toBeNull();
     expect(result.current.isComposerOpen).toBe(false);
-    expect(result.current.network).toBe('staging');
+    expect(result.current.network).toBe('production');
     expect(result.current.error).toBeNull();
   });
 
@@ -70,21 +71,21 @@ describe('useWorldPhotoPost', () => {
     expect(file?.name).toBe('pubky-world.png');
     expect(file?.type).toBe('image/png');
     expect(file?.size).toBe(photo.size);
-    expect(props?.description).toContain('Pubky staging');
+    expect(props?.description).toContain('Pubky production');
     expect(props?.onPostCreated).toBeUndefined();
     expect(result.current.isComposerOpen).toBe(true);
     expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
-  it('uses the configured production label only when runtime config declares it', () => {
-    mocks.network = 'production';
+  it('rejects staging even when the remaining endpoints point at production', () => {
+    mocks.network = 'staging';
     const { result } = renderHook(useWorldPhotoPost);
     act(() => {
-      result.current.openComposer(photoBlob());
+      expect(result.current.openComposer(photoBlob())).toBe(false);
     });
-    render(result.current.composer);
-    expect(result.current.network).toBe('production');
-    expect(vi.mocked(DialogNewPost).mock.calls.at(-1)?.[0].description).toContain('Pubky production');
+    expect(result.current.network).toBe('unavailable');
+    expect(result.current.composer).toBeNull();
+    expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
   it('fails closed when the network configuration is unavailable', () => {
