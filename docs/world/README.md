@@ -15,7 +15,9 @@ read public profiles. The welcome screen leads with **Sign in and explore**, wit
 returns to the island and starts walking after the session is fully restored;
 existing users can choose **Enter your world**. The personal social circle loads
 for the signed-in account. Account creation links to [pubky.app](https://pubky.app/).
-The world header has no network badge or Classic Pubky link.
+The header shows the signed-in account's profile picture and name, with **Log out**
+in its account menu. Missing profile pictures use Pubky's usual fallback. Identity
+details clear during account changes and logout; guests keep their explorer badge.
 
 Pubky's near-black and graphite palette sets the scene, with acid-lime accents and
 plain graphite walking paths. Your character wears a black hoodie with the
@@ -31,8 +33,11 @@ their readers and nearby interactions reveal more as you approach.
   follows stand larger and brighter; people they follow appear at roughly half
   that size. Large circles resolve into eight selectable neighborhoods. Each
   neighborhood has pages of up to 96 figures, with nearby and selected names.
-  Sector cards preview two followed people's names and exact counts; previews
-  share the existing profile queue and request at most 16 profiles. A persistent
+  Selecting a sector opens a preview of every direct follow it contains, with a
+  scrollable list and 20-person pages before **Enter sector**. Each page loads
+  names and avatars through the existing bounded profile queue. Compact physical
+  labels retain two representative names and exact counts; the complete preview
+  is also accessible from the plaza HUD. A persistent
   **Back to all sectors** button returns to the plaza overview, including after
   walking away from the plaza or shrinking the graph through unfollowing.
   The plaza directory searches every discovered public key and loaded name, with
@@ -76,7 +81,7 @@ their readers and nearby interactions reveal more as you approach.
   sculpted knights, crowns and metallic details. Even the pawns stand taller than
   the persona. Signed-in visitors bring their most recently updated saved Chessky
   position from their own homeserver, including AI games and two-player games.
-  A match plaque identifies the silver and obsidian players. Captured and promoted
+  A match plaque identifies the White and Black players. Captured and promoted
   pieces update both their models and collision footprints. Scans with incomplete
   results say **Most recently updated game found**; the reader offers a refresh.
   Games are read-only snapshots, with no opponent mirroring or extra sign-in permissions.
@@ -102,8 +107,8 @@ their readers and nearby interactions reveal more as you approach.
   **Where can I use Hard Money instead?** button beams you in front of Bitkit, facing its
   logo with the camera centered on the beacon. The bank reader is also available
   from the Arena panel.
-- **Galactic jellyfish:** 24 glowing bodies swim in varied colors, sizes, depths,
-  speeds and directions. Fourteen (about 60%) inhabit a farther band; ten retain
+- **Galactic jellyfish:** eight glowing bodies swim in varied colors, sizes, depths,
+  speeds and directions. Five (about 60%) inhabit a farther band; three retain
   the near envelope. Most stay low around the horizon, with a few higher accents.
   Cohorts and recycling use fixed world-space bounds independent of the camera.
   Bells pulse and tentacles trail; reduced motion freezes the population.

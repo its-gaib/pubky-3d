@@ -329,7 +329,7 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
     return {
       object: clusters[index].group,
       action: { kind: 'social-cluster', sector: index },
-      title: `Explore sector ${index + 1} · ${socialSectorPreview(clusters[index].counts, 24)}`,
+      title: `Preview sector ${index + 1} · ${socialSectorPreview(clusters[index].counts, 24)}`,
       dynamic: false,
       distance,
     };

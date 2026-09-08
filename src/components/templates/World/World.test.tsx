@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   useWorldChess: vi.fn(),
   useWorldSocial: vi.fn<(options: UseWorldSocialOptions) => WorldSocialState>(),
   auth: { isFullyAuthenticated: false, isLoading: false },
+  account: null as { id: string; name: string; avatarUrl?: string } | null,
   requireAuth: vi.fn(),
   loadProduction: vi.fn(),
   toggleFollow: vi.fn(),
@@ -49,6 +50,15 @@ vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWor
 vi.mock('@/hooks/useWorldChess/useWorldChess', () => ({ useWorldChess: mocks.useWorldChess }));
 vi.mock('@/hooks/useWorldSocial/useWorldSocial', () => ({ useWorldSocial: mocks.useWorldSocial }));
 vi.mock('@/hooks/useAuthStatus/useAuthStatus', () => ({ useAuthStatus: () => mocks.auth }));
+vi.mock('@/hooks/useWorldAccount/useWorldAccount', async () => {
+  const { useState } = await import('react');
+  return {
+    useWorldAccount: () => {
+      const [open, setOpen] = useState(false);
+      return { identity: mocks.account, open, setOpen, signOut: vi.fn(), isSigningOut: false, isRestoring: false };
+    },
+  };
+});
 vi.mock('@/hooks/useRequireAuth/useRequireAuth', () => ({
   useRequireAuth: () => ({ requireAuth: mocks.requireAuth }),
 }));
@@ -151,6 +161,7 @@ async function interact(interaction: WorldInteraction) {
 beforeEach(() => {
   mocks.auth.isFullyAuthenticated = false;
   mocks.auth.isLoading = false;
+  mocks.account = null;
   consumeWorldEntry();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -169,6 +180,20 @@ afterEach(() => {
 });
 
 describe('World', () => {
+  it('pauses the world while the own-profile menu is open and resumes after dismissal', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.account = { id: VIEWER_ID, name: 'Avery' };
+    const user = userEvent.setup();
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole('button', { name: 'Account menu for Avery' }));
+    expect(screen.getByRole('menuitem', { name: 'Log out' })).toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows the saved Chessky opponents and clears the rendered game when the account clears', async () => {
     const game: ChesskySnapshot = {
       id: 'saved-game',
@@ -391,10 +416,16 @@ describe('World', () => {
     expect(screen.getByText('1 people · 1 / 1')).toBeInTheDocument();
   });
 
-  it('opens a social neighborhood from the world without opening a destination menu', async () => {
+  it('previews a social neighborhood before entering it without opening a destination menu', async () => {
+    const user = userEvent.setup();
     render(<World />);
     await interact({ kind: 'social-cluster', sector: 3 });
+    expect(screen.getByRole('heading', { name: 'Sector 4 · who’s here?' })).toBeInTheDocument();
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: null, page: 0 });
+    expect(mocks.controller.travelTo).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Enter sector 4' }));
     expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 3, page: 0 });
+    expect(mocks.controller.travelTo).toHaveBeenLastCalledWith('plaza');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -425,6 +456,90 @@ describe('World', () => {
     expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].selectedId).toBeNull();
   });
 
+  it('previews every follow through bounded pages before entering, then clamps the list after unfollows', async () => {
+    const people = followedPeople(1000)
+      .filter((person) => socialSector(person.id) === 0)
+      .slice(0, 110);
+    const state = socialState({
+      viewerId: VIEWER_ID,
+      people,
+      directCount: people.length,
+      status: 'ready',
+      complete: true,
+    });
+    mocks.useWorldSocial.mockReturnValue(state);
+    const user = userEvent.setup();
+    const { rerender } = render(<World />);
+    await interact({ kind: 'social-cluster', sector: 0 });
+    expect(screen.getByText('Follows 1–20 of 110')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Following in sector 1' })).getAllByRole('listitem')).toHaveLength(
+      20,
+    );
+    expect(screen.getByText(people[2].name)).toBeInTheDocument();
+    expect(screen.queryByText(people[20].name)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toEqual(
+        people.slice(0, 20).map((person) => person.id),
+      ),
+    );
+    for (let page = 1; page < 6; page++) {
+      await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
+      const visible = people.slice(page * 20, (page + 1) * 20);
+      expect(screen.getByText(visible.at(-1)!.name)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toEqual(visible.map((person) => person.id)),
+      );
+      expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].selectedId).toBeNull();
+      expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: null, page: 0 });
+    }
+    expect(screen.getByText('Follows 101–110 of 110')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next sector preview page' })).toBeDisabled();
+    mocks.useWorldSocial.mockReturnValue({ ...state, people: people.slice(0, 3), directCount: 3 });
+    rerender(<World />);
+    expect(screen.getByText('Follows 1–3 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous sector preview page' })).toBeDisabled();
+    await waitFor(() =>
+      expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toEqual(
+        people.slice(0, 3).map((person) => person.id),
+      ),
+    );
+    expect(mocks.useWorldSocial.mock.calls.every(([options]) => (options.directoryIds?.length ?? 0) <= 20)).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Enter sector 1' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, page: 0 });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('makes previews reachable from a small plaza and resets them when switching sectors or accounts', async () => {
+    const people = followedPeople(500)
+      .filter((person) => socialSector(person.id) === 0)
+      .slice(0, 30);
+    const state = socialState({
+      viewerId: VIEWER_ID,
+      people,
+      directCount: people.length,
+      status: 'ready',
+      complete: true,
+    });
+    mocks.useWorldSocial.mockReturnValue(state);
+    const user = userEvent.setup();
+    const { rerender } = render(<World />);
+    await user.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    await user.click(screen.getByRole('button', { name: 'Preview all sector follows' }));
+    await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
+    expect(screen.getByText('Follows 21–30 of 30')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview sector 2, 0 following' }));
+    expect(screen.getByText('Follows 0–0 of 0')).toBeInTheDocument();
+    expect(screen.queryByText(people[20].name)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview sector 1, 30 following' }));
+    expect(screen.getByText('Follows 1–20 of 30')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
+    mocks.useWorldSocial.mockReturnValue({ ...state, viewerId: 'c'.repeat(52) });
+    rerender(<World />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview all sector follows' }));
+    expect(screen.getByText('Follows 1–20 of 30')).toBeInTheDocument();
+  });
+
   it('keeps a labeled way back after paging, walking away, reading a profile, and a smaller graph', async () => {
     const people = followedPeople(1000)
       .filter((person) => socialSector(person.id) === 0)
@@ -440,6 +555,7 @@ describe('World', () => {
     const user = userEvent.setup();
     const { rerender } = render(<World />);
     await interact({ kind: 'social-cluster', sector: 0 });
+    await user.click(screen.getByRole('button', { name: 'Enter sector 1' }));
     expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
     expect(screen.getByText('110 people · 110 following')).toBeInTheDocument();
     expect(screen.getByText(/^Includes Friend/)).toBeInTheDocument();

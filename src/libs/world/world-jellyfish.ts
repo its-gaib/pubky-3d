@@ -5,8 +5,8 @@ import { WORLD_DIMENSIONS } from '@/libs/world/world-layout';
 
 /** Fixed world-space limits, independent of the current camera, frustum or zoom. */
 export const GALACTIC_JELLYFISH = {
-  count: 24,
-  farCount: 14,
+  count: 8,
+  farCount: 5,
   coastClearance: WORLD_DIMENSIONS.coastRadius + 12,
   nearOuterRadius: WORLD_DIMENSIONS.coastRadius * 2,
   farCoastClearance: WORLD_DIMENSIONS.coastRadius * 1.7,
@@ -45,7 +45,7 @@ export function jellyfishExtent(scale: number): number {
   return scale * GALACTIC_JELLYFISH.unitExtent;
 }
 
-/** Stable cohorts: about 60% swim farther out; the other ten retain their near envelope. */
+/** Stable cohorts: about 60% swim farther out; the rest retain their near envelope. */
 export function jellyfishBounds(state: Pick<GalacticJellyfishState, 'id'>) {
   const far = state.id < GALACTIC_JELLYFISH.farCount;
   return {
@@ -128,7 +128,7 @@ export function stepJellyfish(state: GalacticJellyfishState, delta: number): Gal
   vx += Math.sin(age * 0.31 + state.phase) * 0.13 * dt;
   vz += Math.cos(age * 0.27 + state.phase) * 0.13 * dt;
   vy += Math.sin(age * 0.23 + state.phase) * 0.07 * dt;
-  // Most bodies glide near the horizon; six retain a higher, slowly varying lane.
+  // Most bodies glide near the horizon; one quarter retain a higher, slowly varying lane.
   const cruisingY = state.id % 4 === 3 ? 94 : GALACTIC_JELLYFISH.lowerY + extent + 14;
   vy += ((cruisingY - state.position[1]) * 0.018 - vy * 0.12) * dt;
   const inward = vx * normalX + vz * normalZ;

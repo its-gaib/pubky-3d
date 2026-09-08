@@ -48,13 +48,13 @@ describe('galactic jellyfish motion', () => {
     }
   });
 
-  it('keeps fourteen farther out, ten in the original near envelope and eighteen near the walking horizon', () => {
+  it('keeps five farther out, three in the original near envelope and six near the walking horizon', () => {
     for (let generation = 0; generation < 5; generation++) {
       const states = Array.from({ length: GALACTIC_JELLYFISH.count }, (_, id) => createJellyfishState(id, generation));
       const far = states.filter((state) => jellyfishBounds(state).outerRadius === GALACTIC_JELLYFISH.outerRadius);
       const near = states.filter((state) => jellyfishBounds(state).outerRadius === GALACTIC_JELLYFISH.nearOuterRadius);
-      expect(far).toHaveLength(14);
-      expect(near).toHaveLength(10);
+      expect(far).toHaveLength(5);
+      expect(near).toHaveLength(3);
       for (const state of far)
         expect(Math.hypot(state.position[0], state.position[2]) - jellyfishExtent(state.scale)).toBeGreaterThan(
           WORLD_DIMENSIONS.coastRadius * 1.7,
@@ -63,8 +63,8 @@ describe('galactic jellyfish motion', () => {
         expect(Math.hypot(...state.position) + jellyfishExtent(state.scale)).toBeLessThan(
           WORLD_DIMENSIONS.coastRadius * 2,
         );
-      expect(states.filter((state) => state.position[1] < 60)).toHaveLength(18);
-      expect(states.filter((state) => state.position[1] >= 72)).toHaveLength(6);
+      expect(states.filter((state) => state.position[1] < 60)).toHaveLength(6);
+      expect(states.filter((state) => state.position[1] >= 72)).toHaveLength(2);
     }
   });
 

@@ -6,9 +6,12 @@ import {
   SOCIAL_PAGE_SIZE,
   SOCIAL_PLAZA_RADIUS,
   SOCIAL_SECTOR_COUNT,
+  SOCIAL_SECTOR_DIRECTORY_PAGE_SIZE,
+  socialPersonPreviewName,
   socialPersonSector,
   socialSector,
   socialSectorCountLabel,
+  socialSectorFollowingPage,
   socialSectorPreview,
   socialSectorProfileIds,
   socialSectors,
@@ -173,5 +176,70 @@ describe('scalable social plaza layout', () => {
     const placeholder = socialSectors([{ ...follow, profileLoaded: false }])[index];
     expect(socialSectorPreview(placeholder)).toBe(`Includes ${follow.id.slice(0, 6)}…${follow.id.slice(-4)}`);
     expect(socialSectorProfileIds(socialSectors([person('<not-a-public-key>'), follow, follow]))).toEqual([follow.id]);
+  });
+
+  it('makes every valid direct follow reachable before entering a large sector without hydrating the whole graph', () => {
+    const people = Array.from({ length: 2400 }, (_, index) => publicPerson(index));
+    const discovery = { ...publicPerson(3000), degree: 2 as const, parentIds: [people[0].id] };
+    const sectors = socialSectors([
+      discovery,
+      ...people,
+      { ...people[0], degree: 2, parentIds: [people[1].id] },
+      { ...people[1], degree: undefined },
+      people[2],
+      person('<invalid-key>'),
+    ]);
+    const reached: string[] = [];
+    for (const sector of sectors) {
+      const expected = people
+        .filter((entry) => socialSector(entry.id) === sector.sector)
+        .map((entry) => entry.id)
+        .sort();
+      expect(sector.following.map((entry) => entry.id)).toEqual(expected);
+      const first = socialSectorFollowingPage(sector, 0);
+      for (let page = 0; page < first.pageCount; page++) {
+        const preview = socialSectorFollowingPage(sector, page);
+        expect(preview.people.length).toBeLessThanOrEqual(SOCIAL_SECTOR_DIRECTORY_PAGE_SIZE);
+        expect(preview.total).toBe(expected.length);
+        expect(preview.end - preview.start + 1).toBe(preview.people.length);
+        reached.push(...preview.people.map((entry) => entry.id));
+      }
+    }
+    expect(reached.sort()).toEqual(people.map((entry) => entry.id).sort());
+    expect(new Set(reached).size).toBe(people.length);
+    expect(socialSectorProfileIds(sectors)).toHaveLength(16);
+    const renamed = socialSectors(
+      [...people].reverse().map((entry) => ({ ...entry, name: 'Changed', profileLoaded: false })),
+    );
+    sectors.forEach((sector, index) => {
+      expect(renamed[index].following.map((entry) => entry.id)).toEqual(sector.following.map((entry) => entry.id));
+    });
+  });
+
+  it('clamps preview pages after unfollows and keeps unknown profiles readable without invented names', () => {
+    const follow = { ...publicPerson(4), profileLoaded: false };
+    const sector = socialSectors([follow])[socialSector(follow.id)];
+    for (const page of [-10, Number.NaN, Number.POSITIVE_INFINITY, 999]) {
+      expect(socialSectorFollowingPage(sector, page)).toMatchObject({
+        people: [follow],
+        total: 1,
+        page: 0,
+        pageCount: 1,
+        start: 1,
+        end: 1,
+      });
+    }
+    expect(socialSectorFollowingPage(socialSectors([])[0], 12)).toMatchObject({
+      people: [],
+      total: 0,
+      page: 0,
+      pageCount: 1,
+      start: 0,
+      end: 0,
+    });
+    expect(socialPersonPreviewName(follow)).toBe(`${follow.id.slice(0, 6)}…${follow.id.slice(-4)}`);
+    const name = socialPersonPreviewName({ ...follow, profileLoaded: true, name: `Avery\n\u202E${'x'.repeat(100)}` });
+    expect(name.length).toBeLessThanOrEqual(48);
+    expect(name).not.toMatch(/[\p{Cc}\p{Cf}]/u);
   });
 });

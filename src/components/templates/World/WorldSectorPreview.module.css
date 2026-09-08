@@ -1,0 +1,154 @@
+.preview {
+  display: grid;
+  gap: 14px;
+}
+.sectors {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+.sectors button {
+  display: grid;
+  gap: 3px;
+  padding: 9px 2px;
+  border: 1px solid var(--world-border);
+  border-radius: 10px;
+  background: var(--world-bg);
+  color: var(--world-soft);
+  cursor: pointer;
+}
+.sectors button[aria-pressed='true'] {
+  border-color: var(--world-lime);
+  color: var(--world-lime);
+  background: #c8ff030d;
+}
+.sectors strong {
+  font-size: 15px;
+}
+.sectors span {
+  font-size: 10px;
+}
+.counts {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+}
+.explanation,
+.empty,
+.progress {
+  margin: 0;
+  color: var(--world-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--world-soft);
+  font-size: 11px;
+}
+.paging button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid var(--world-border);
+  border-radius: 9px;
+  color: #fff;
+  cursor: pointer;
+}
+.paging button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.people {
+  max-height: min(340px, 42dvh);
+  margin: 0;
+  padding: 0 8px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--world-hover) transparent;
+  list-style: none;
+}
+.person {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--world-border);
+}
+.avatar {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+}
+.person > div {
+  min-width: 0;
+}
+.person strong {
+  display: block;
+  color: #fff;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.person span {
+  color: var(--world-soft);
+  font-size: 10px;
+}
+.progress p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+}
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--world-lime);
+  cursor: pointer;
+}
+.enter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--world-lime);
+  color: var(--world-bg);
+  font-weight: 700;
+  cursor: pointer;
+}
+.preview button:focus-visible,
+.people:focus-visible {
+  outline: 2px solid var(--world-lime);
+  outline-offset: 3px;
+}
+.spin {
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+@media (max-width: 480px) {
+  .sectors {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

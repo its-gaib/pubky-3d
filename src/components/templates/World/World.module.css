@@ -1,5 +1,6 @@
 .world,
-.dialog {
+.dialog,
+.accountMenu {
   --world-text: #eeeef6;
   --world-muted: #89898f;
   --world-surface: #1d1d20;
@@ -167,6 +168,60 @@
 .identity div > span {
   font-size: 9px;
   color: var(--world-muted);
+}
+.accountTrigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 230px;
+  min-height: 44px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--world-border);
+  border-radius: 24px;
+  background: var(--world-glass);
+  color: var(--world-text);
+  cursor: pointer;
+}
+.accountTrigger:hover,
+.accountTrigger[data-state='open'] {
+  border-color: var(--world-lime);
+}
+.accountTrigger:focus-visible {
+  outline: 2px solid var(--world-lime);
+  outline-offset: 3px;
+}
+.accountAvatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+.accountName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+.accountTrigger > svg {
+  flex-shrink: 0;
+  color: var(--world-muted);
+}
+.accountMenu {
+  min-width: 170px;
+  padding: 6px;
+  border-color: var(--world-border);
+  border-radius: 14px;
+  background: var(--world-surface);
+}
+.accountMenu [role='menuitem'] {
+  min-height: 42px;
+  gap: 10px;
+  border-radius: 8px;
+  color: var(--world-text);
+}
+.accountMenu [role='menuitem']:focus {
+  background: var(--world-hover);
 }
 .classicLink {
   display: flex;
@@ -2013,6 +2068,14 @@
   }
   .identity {
     display: none;
+  }
+  .accountTrigger {
+    max-width: 160px;
+    gap: 6px;
+  }
+  .accountName {
+    max-width: 84px;
+    font-size: 11px;
   }
   .classicLink {
     font-size: 0;

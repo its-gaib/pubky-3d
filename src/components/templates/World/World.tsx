@@ -51,6 +51,7 @@ import { WORLD_PORTALS, WORLD_RADIUS } from '@/libs/world/world-layout';
 import {
   SOCIAL_PAGE_SIZE,
   socialSectorCountLabel,
+  socialSectorFollowingPage,
   socialSectorPreview,
   socialSectorProfileIds,
   socialSectors,
@@ -68,10 +69,12 @@ import type {
   WorldZoneId,
 } from '@/libs/world/world-types';
 import styles from './World.module.css';
+import { WorldAccountMenu } from './WorldAccountMenu';
 import { WorldCamera } from './WorldCamera';
 import { WorldChess } from './WorldChess';
 import { WorldCinema } from './WorldCinema';
 import { WorldConferences } from './WorldConferences';
+import { WorldSectorPreview } from './WorldSectorPreview';
 import {
   worldDirectoryPage,
   type WorldDirectoryScope,
@@ -141,7 +144,10 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
             : 'A public profile from Pubky production. This is a profile marker, not a player online.',
       };
     case 'social-cluster':
-      return { title: `Neighborhood ${panel.sector + 1}`, subtitle: 'A closer look at your social constellation.' };
+      return {
+        title: `Sector ${panel.sector + 1} · who’s here?`,
+        subtitle: 'Browse your people, then choose where to step into the constellation.',
+      };
     case 'fun':
       return {
         duck: {
@@ -743,6 +749,7 @@ export function World() {
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [directoryScope, setDirectoryScope] = useState<WorldDirectoryScope>('all');
   const [directoryPage, setDirectoryPage] = useState(0);
+  const [sectorPreviewPage, setSectorPreviewPage] = useState(0);
   const [directoryIds, setDirectoryIds] = useState<string[]>([]);
   const social = useWorldSocial({
     enabled: true,
@@ -769,6 +776,7 @@ export function World() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [personaColor, setPersonaColor] = useState(PERSONA_COLORS[0]);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
 
   useEffect(() => {
@@ -787,6 +795,7 @@ export function World() {
     setSocialView({ sector: null, page: 0 });
     setDirectoryQuery('');
     setDirectoryPage(0);
+    setSectorPreviewPage(0);
     setDirectoryScope('all');
   }, [social.viewerId]);
 
@@ -795,6 +804,14 @@ export function World() {
   }, []);
 
   useEffect(() => {
+    if (panel?.kind === 'social-cluster') {
+      const sectors = socialSectors(data.people);
+      const preview = socialSectorFollowingPage(sectors[panel.sector] ?? sectors[0], sectorPreviewPage);
+      const nextIds = personal ? preview.people.map((person) => person.id) : [];
+      setDirectoryIds((current) => (current.join(',') === nextIds.join(',') ? current : nextIds));
+      if (preview.page !== sectorPreviewPage) setSectorPreviewPage(preview.page);
+      return;
+    }
     const visible =
       panel?.kind === 'zone' && panel.id === 'plaza'
         ? worldDirectoryPage(data.people, directoryQuery, directoryScope, directoryPage).people
@@ -804,7 +821,7 @@ export function World() {
         ? socialSectorProfileIds(socialSectors(data.people))
         : visible.map((person) => person.id);
     setDirectoryIds((current) => (current.join(',') === nextIds.join(',') ? current : nextIds));
-  }, [data.people, panel, socialView, directoryQuery, directoryScope, directoryPage]);
+  }, [data.people, panel, socialView, directoryQuery, directoryScope, directoryPage, sectorPreviewPage, personal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -818,11 +835,8 @@ export function World() {
           onInteract: (interaction) => {
             if (!cancelled) {
               if (interaction.kind === 'social-cluster') {
-                setSocialView({ sector: interaction.sector, page: 0 });
+                setSectorPreviewPage(0);
                 setWelcome(false);
-                setOverview(false);
-                controller?.travelTo('plaza');
-                return;
               }
               controller?.setPaused(true);
               setPanel(interaction);
@@ -877,8 +891,8 @@ export function World() {
     controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
   }, [dataStatus]);
   useEffect(() => {
-    controllerRef.current?.setPaused(panel !== null || cameraOpen);
-  }, [panel, cameraOpen, sceneState]);
+    controllerRef.current?.setPaused(panel !== null || cameraOpen || accountMenuOpen);
+  }, [panel, cameraOpen, accountMenuOpen, sceneState]);
   useEffect(() => {
     if (panel?.kind === 'zone' && panel.id === 'theater') {
       controllerRef.current?.setTheaterPaused(true);
@@ -909,7 +923,8 @@ export function World() {
   const heading = panel ? panelHeading(panel, data) : null;
   const socialPages = socialViewPageCount(data.people, socialView);
   const socialPage = Math.min(socialView.page, socialPages - 1);
-  const selectedSector = socialView.sector === null ? null : socialSectors(data.people)[socialView.sector];
+  const sectors = socialSectors(data.people);
+  const selectedSector = socialView.sector === null ? null : sectors[socialView.sector];
 
   function wander() {
     setWelcome(false);
@@ -919,6 +934,15 @@ export function World() {
   function selectPanel(nextPanel: Panel) {
     controllerRef.current?.setPaused(true);
     setPanel(nextPanel);
+  }
+  function previewSector(sector: number) {
+    setSectorPreviewPage(0);
+    selectPanel({ kind: 'social-cluster', sector });
+  }
+  function enterSector(sector: number) {
+    setSocialView({ sector, page: 0 });
+    controllerRef.current?.setSocialFocus(null);
+    travelTo('plaza');
   }
   function travelTo(destination: WorldZoneId, options?: { faceLandmark?: boolean }) {
     setWelcome(false);
@@ -1006,15 +1030,7 @@ export function World() {
           <span className={styles.experiment}>EXPERIMENT</span>
         </div>
         <div className={styles.topActions}>
-          <div className={styles.identity}>
-            <span className={styles.identityFace} style={{ background: personaColor }}>
-              ••
-            </span>
-            <div>
-              <strong>{social.viewerId ? 'Your Pubky persona' : 'Curious explorer'}</strong>
-              <span>{social.viewerId ? 'Your social circle' : 'Guest persona'}</span>
-            </div>
-          </div>
+          <WorldAccountMenu personaColor={personaColor} onOpenChange={setAccountMenuOpen} />
         </div>
       </header>
 
@@ -1212,6 +1228,18 @@ export function World() {
               </span>
             )}
           </div>
+          {personal && (
+            <Button
+              overrideDefaults
+              className={styles.textLink}
+              onClick={() =>
+                previewSector(socialView.sector ?? sectors.find((sector) => sector.following.length)?.sector ?? 0)
+              }
+            >
+              {socialView.sector === null ? 'Preview all sector follows' : 'Preview all follows in this sector'}
+              <ArrowRight size={13} aria-hidden="true" />
+            </Button>
+          )}
           {social.status === 'loading' && personal && (
             <span className={styles.socialHudStatus}>
               <LoaderCircle size={12} className={styles.spin} />
@@ -1410,7 +1438,20 @@ export function World() {
           </div>
           <DialogTitle className={styles.dialogTitle}>{heading?.title ?? 'Explore the world'}</DialogTitle>
           <DialogDescription className={styles.dialogDescription}>{heading?.subtitle}</DialogDescription>
-          {panel?.kind === 'settings' ? (
+          {panel?.kind === 'social-cluster' ? (
+            <WorldSectorPreview
+              key={`${social.viewerId ?? 'guest'}:${panel.sector}`}
+              sectors={sectors}
+              sector={panel.sector}
+              page={sectorPreviewPage}
+              personal={personal}
+              social={social}
+              onSector={previewSector}
+              onPage={setSectorPreviewPage}
+              onEnter={enterSector}
+              onSignIn={signInToFollow}
+            />
+          ) : panel?.kind === 'settings' ? (
             <div className={styles.settingsPanel}>
               <div className={styles.settingRow}>
                 <div>

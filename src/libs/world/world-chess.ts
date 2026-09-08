@@ -306,13 +306,13 @@ export function createChess(
         matchContext.font = '600 32px sans-serif';
         const name = (value: string) => value.slice(0, 48).replace(/[\p{Cc}\p{Cf}]/gu, ' ');
         matchContext.fillStyle = '#E4E9FF';
-        matchContext.fillText(`Silver · ${name(accepted.white.name)}`, 320, 44, 600);
+        matchContext.fillText(`White · ${name(accepted.white.name)}`, 320, 44, 600);
         matchContext.fillStyle = '#9D9DA8';
         matchContext.font = '500 24px sans-serif';
         matchContext.fillText('versus', 320, 90, 600);
         matchContext.fillStyle = '#C4AD6A';
         matchContext.font = '600 32px sans-serif';
-        matchContext.fillText(`Obsidian · ${name(accepted.black.name)}`, 320, 138, 600);
+        matchContext.fillText(`Black · ${name(accepted.black.name)}`, 320, 138, 600);
         matchTexture.needsUpdate = true;
       }
     },

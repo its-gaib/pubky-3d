@@ -1,5 +1,47 @@
 # Pubky World validation record
 
+## Account controls, complete sector previews and a quieter sky — 2026-09-08
+
+The signed-in header uses the account's current display name and canonical
+profile image with Pubky's existing fallback. Its account menu pauses the world
+and offers **Log out** through the existing full logout flow. Profile data must
+match the restored actor; logout also checks the live actor and exact session,
+and rejects duplicate or stale actions. Identity clears during restoration,
+logout and account changes. The account control remains visible on mobile.
+The placeholder **Your Pubky persona** and **Your social circle** copy is removed.
+
+Each sector now retains every valid direct follow it includes. Its interaction
+opens a scrollable preview with explicit 20-person pages and **Enter sector**;
+the plaza HUD also exposes previews for smaller graphs. Physical labels remain
+compact, while every direct follow is reachable before entering. The visible
+page replaces the usual profile-prefetch window, preserving the 20-ID budget,
+two-request concurrency and no post/connection fetching for preview rows. Pages
+reset for account/sector changes and clamp after unfollowing. Loading and partial
+graph states remain explicit. Chess participant labels now say **White** and
+**Black**, both on the match plaque and in its reader.
+
+The header and existing World/logout validation passed 46 tests. Sector layout,
+3D social rendering, preview UI, World integration and chess labels passed 57
+tests, including paging through all 110 fixture follows before entry. The batches
+overlap and are not an aggregate count. The final security review found no
+actionable issues in these changes or the guarded source-publication helper.
+
+Open source PRs were checked in the fork and upstream before the latest changes;
+none addressed the jellyfish population. The population is now eight rather than 24. Five retain the farther cohort and three the nearer envelope; six cruise
+near the walking horizon and two keep higher lanes. The existing nine jellyfish
+tests pass, including varied colors/sizes/speeds, bounds, recycling, reduced
+motion and GPU-resource disposal. No new behavior or tests were added beyond
+updating the existing cohort expectations.
+
+Registry PR #15 initially used an email that did not match the existing registered
+`gcomte` signing key. Its single commit was re-signed using the configured,
+verified `gcomte@users.noreply.github.com` identity, preserving its exact tree and
+parent. The replacement, `674d71a76fc6b600a7b2c41c54931cbc443e8c0e`, passed local
+signature verification and GitHub reports `verified: true`, `reason: valid`,
+with both author and committer `gcomte`. The old commit has a local backup ref;
+only the PR branch was updated using an exact old-head lease. Registry validation
+passed again in [run 34223680108](https://github.com/pubky/vibes/actions/runs/34223680108).
+
 ## Vibe publication, named sectors, cinema recovery and saved chess — 2026-09-08
 
 Source and registry PRs were checked before implementation. No open PR addressed
@@ -50,8 +92,29 @@ credentials, local tooling, caches and tests. The registry draft uses gcomte's
 existing verified author record, the supplied cover unchanged (SHA-256
 75cc68ee3eac834b4708f8656d309359a3fdd124b620802ad6092e8d341525c1), and prominent
 credit to Miguel Medeiros's original world at https://miguelmedeiros.dev/.
-The current registry schema and cover checks pass. Full build, local browser,
-public deployment and registry PR evidence follow after those checks complete.
+
+Source `e4b181ec31441b64dce803dd103e2dae354aa5b5` passed the complete webpack,
+TypeScript, static-page and production-startup checks in
+[run 34220986193](https://github.com/its-gaib/pubky-3d/actions/runs/34220986193).
+Standalone artifact `10053854774` was verified against that source, repository,
+branch and workflow before local testing. Its guest browser pass confirmed a
+WebGL canvas, two animation frames, production Nexus responses and actual muted
+YouTube PLAYING, with no app, console or shader errors. Optional movement,
+sign-in navigation and screenshot checks did not complete in that bounded pass.
+The same runtime serves the local preview on `127.0.0.1:4321`; both `/` and
+`/sign-in` returned 200 with all nine production settings verified.
+
+[Vercel deployment dpl_BEhdMWpHKRUT95X2Upo2wtwBWCsA](https://vercel.com/its-gaibs-projects/pubky-world/BEhdMWpHKRUT95X2Upo2wtwBWCsA)
+built that source successfully and published https://pubky-world.vercel.app/.
+Anonymous HTTPS checks confirmed `/` and `/sign-in` return 200, with the complete
+production runtime tuple. No real account authentication or publishing was
+performed by automated checks.
+
+[Registry PR #15](https://github.com/pubky/vibes/pull/15) was opened by `gcomte`
+from `gcomte:vibe/pubky-world`. It contains only the manifest and supplied cover;
+the registry validation check passed. The app fork and registry branches were
+committed and pushed separately. The listing remains subject to the registry's
+merge process.
 
 ## Complete chessboard and enlarged cinema — 2026-09-08
 

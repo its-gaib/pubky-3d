@@ -29,7 +29,7 @@ export function WorldChess({
         <>
           <strong>{incomplete ? 'Most recently updated game found' : 'Your latest saved Chessky game'}</strong>
           <p>
-            <strong>{game.white.name}</strong> (silver) versus <strong>{game.black.name}</strong> (obsidian)
+            <strong>{game.white.name}</strong> (White) versus <strong>{game.black.name}</strong> (Black)
           </p>
           <p className={styles.smallPrint}>
             Saved {new Date(game.updatedAt).toLocaleString()} · {game.result === '*' ? 'Game in progress' : game.result}

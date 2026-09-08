@@ -76,8 +76,8 @@ describe('giant chessboard', () => {
     const scene = new THREE.Scene();
     const chess = createChess(scene, [0, 0]);
     chess.setGame(savedGame);
-    expect(context.fillText).toHaveBeenCalledWith('Silver · Avery', 320, 44, 600);
-    expect(context.fillText).toHaveBeenCalledWith('Obsidian · Bo', 320, 138, 600);
+    expect(context.fillText).toHaveBeenCalledWith('White · Avery', 320, 44, 600);
+    expect(context.fillText).toHaveBeenCalledWith('Black · Bo', 320, 138, 600);
     chess.setGame({ ...savedGame, pieces: [{ square: '../a8', type: 'q', color: 'w' }] });
     expect(chess.group.getObjectByName('Saved Chessky opponents')?.visible).toBe(false);
     expect(chess.obstacles.filter((item) => item.enabled)).toHaveLength(32);

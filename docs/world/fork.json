@@ -9,5 +9,7 @@
   "branch": "vibe/pubky-3d",
   "stack": "frontend-only",
   "target": "production",
-  "registryPr": false
+  "registryPr": true,
+  "registryPrUrl": "https://github.com/pubky/vibes/pull/15",
+  "hostedUrl": "https://pubky-world.vercel.app/"
 }
