@@ -55,6 +55,7 @@ export const WORLD_TREE_POSITIONS = [
 export function worldArrival(id: WorldZoneId) {
   const [x, z] = WORLD_ANCHORS[id];
   if (id === 'cinema') return { x: x + Math.sin(CINEMA_YAW) * 18, z: z + Math.cos(CINEMA_YAW) * 18 };
+  if (id === 'bitkit') return { x, z: z - 11 };
   return { x, z: z + (id === 'arena' ? 2 : id === 'theater' ? 7 : id === 'chess' ? 16 : 11) };
 }
 

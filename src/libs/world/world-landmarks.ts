@@ -116,7 +116,7 @@ export function createLandmarks(
   for (const x of [-4.3, 4.3]) box(bitkit, [0.32, 4.8, 0.32], '#fc6b30', [x, 4.2, -0.2]);
   const logo = new THREE.Group();
   logo.position.set(0, 7.3, 0);
-  logo.rotation.y = -0.16;
+  logo.rotation.y = Math.PI - 0.16;
   bitkit.add(logo);
   const fallback = label(logo, 'BITKIT', [0, 0, 0], 13, '#ffffff', '#ff4400');
   void fetch('/world/bitkit-logo.svg', { signal: abort.signal, credentials: 'omit' })

@@ -123,15 +123,15 @@ describe('expanded world layout', () => {
     }
   });
 
-  it('beams in front of Bitkit with the avatar and portrait-safe camera facing the actual beacon', () => {
+  it('beams to the island-facing side of Bitkit with the avatar and portrait-safe camera facing the beacon', () => {
     for (const aspect of [1.6, 390 / 844]) {
       const pose = worldLandmarkPose('bitkit', aspect);
       expect(pose.arrival).toEqual(worldArrival('bitkit'));
-      expect(pose.arrival.z).toBeGreaterThan(WORLD_ANCHORS.bitkit[1] + 5);
+      expect(pose.arrival.z).toBeLessThan(WORLD_ANCHORS.bitkit[1] - 5);
       expect(Math.sin(pose.facing)).toBeCloseTo(0);
-      expect(Math.cos(pose.facing)).toBeCloseTo(-1);
+      expect(Math.cos(pose.facing)).toBeCloseTo(1);
       expect(pose.target).toEqual([WORLD_ANCHORS.bitkit[0], 6, WORLD_ANCHORS.bitkit[1]]);
-      expect(pose.cameraPosition[2]).toBeGreaterThan(pose.arrival.z);
+      expect(pose.cameraPosition[2]).toBeLessThan(pose.arrival.z);
       expect(2 * Math.tan(Math.PI / 9) * pose.distance * aspect).toBeGreaterThanOrEqual(17);
     }
   });
