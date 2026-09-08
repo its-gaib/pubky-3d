@@ -8,6 +8,7 @@ export type WorldZoneId =
   | 'bitkit'
   | 'theater'
   | 'cinema'
+  | 'conferences'
   | 'chess';
 
 export interface WorldZone {
@@ -70,6 +71,7 @@ export interface WorldArticle {
 }
 
 export type WorldInteraction =
+  | { kind: 'conference'; index: number }
   | { kind: 'portal'; index: number }
   | { kind: 'zone'; id: WorldZoneId }
   | { kind: 'tag'; index: number }

@@ -35,7 +35,7 @@ const SIGN_IN_STEPS = [
   },
   {
     key: 'dataPersisted',
-    label: 'Building your feed',
+    label: 'Preparing your world',
   },
   {
     key: 'homeserverSynced',
@@ -220,12 +220,12 @@ export const SignInHeader = () => {
     <PageHeader>
       <PageTitle size="large">
         {'Sign in to '}
-        <span className="text-brand">{'Pubky.'}</span>
+        <span className="text-brand">{'Pubky World.'}</span>
       </PageTitle>
       <PageSubtitle>
         {'Authorize with '}
         <span className="text-brand">{'Pubky Ring'}</span>
-        {' to sign in.'}
+        {' to sign in and return to your world.'}
       </PageSubtitle>
     </PageHeader>
   );
@@ -235,7 +235,7 @@ const SignInProgressHeader = () => {
     <PageHeader>
       <Logo className="py-6 lg:hidden" />
       <PageTitle size="large">{'Signing in.'}</PageTitle>
-      <PageSubtitle>{'Please wait while your Pubky experience loads.'}</PageSubtitle>
+      <PageSubtitle>{'Please wait while your Pubky World loads.'}</PageSubtitle>
     </PageHeader>
   );
 };

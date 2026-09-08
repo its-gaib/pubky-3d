@@ -140,7 +140,6 @@ export function createLandmarks(
     .catch(() => {
       /* A readable local fallback remains if the bundled asset cannot load. */
     });
-  label(bitkit, 'Bitkit Beacon', [0, 11.6, 0], 10);
   register(bitkit, { kind: 'zone', id: 'bitkit' }, 'Visit the Bitkit Beacon');
   obstacle(bitkit.position.x, bitkit.position.z, 3.8);
 
@@ -175,7 +174,7 @@ export function createLandmarks(
   const runeGeometry = new THREE.BoxGeometry(0.35, 0.35, 0.4);
   const runeMaterial = material('#EEEEF6');
   const portals = WORLD_PORTALS.map((gateway, index) => {
-    const portal = group(...gateway.position);
+    const portal = group(gateway.position[0], gateway.position[1]);
     portal.name = `Portal ${index + 1}: ${gateway.name}`;
     portal.rotation.y = gateway.yaw;
     cylinder(portal, 4.3, 4.8, 0.4, '#303034', [0, 0.2, 0]);
@@ -202,7 +201,6 @@ export function createLandmarks(
       const rune = mesh(portal, runeGeometry, runeMaterial, [Math.sin(angle) * 3.15, 4 + Math.cos(angle) * 3.15, 0.46]);
       rune.rotation.z = angle + Math.PI / 4;
     }
-    label(portal, gateway.name, [0, 9, 0], 10);
     register(portal, { kind: 'portal', index }, `Walk through ${gateway.name}`);
     return { portalRing, veil };
   });

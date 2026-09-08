@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { isDynamicPublicRoute, matchesAllowedRoute, PUBLIC_ROUTES } from '@/app/routes';
+import { AUTH_ROUTES, isDynamicPublicRoute, matchesAllowedRoute, PUBLIC_ROUTES, ROOT_ROUTES } from '@/app/routes';
 import { Spinner } from '@/atoms/Spinner/Spinner';
 import { AuthController } from '@/controllers/auth/auth';
 import { MigrationController } from '@/controllers/migration/migration';
@@ -13,6 +13,7 @@ import { Err } from '@/libs/error/error.factories';
 import { ErrorService } from '@/libs/error/error.types';
 import { isWrongEnvironmentHomeserverError } from '@/libs/error/error.utils';
 import { Logger } from '@/libs/logger/logger';
+import { requestWorldEntry } from '@/libs/world/world-entry';
 import { toast } from '@/molecules/Toaster/toast';
 import { ROUTE_ACCESS_MAP } from '@/providers/RouteGuardProvider/RouteGuardProvider.constants';
 import { useAuthStore } from '@/stores/auth/auth.store';
@@ -171,6 +172,9 @@ export function RouteGuardProvider({ children }: RouteGuardProviderProps) {
 
     // Only redirect if we have a target and we're not already there
     if (redirectTo && pathname !== redirectTo) {
+      if (status === AuthStatus.AUTHENTICATED && pathname === AUTH_ROUTES.SIGN_IN && redirectTo === ROOT_ROUTES) {
+        requestWorldEntry();
+      }
       router.push(redirectTo);
     }
   }, [status, pathname, router, isLoading, isRouteAccessible]);

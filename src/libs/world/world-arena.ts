@@ -132,6 +132,133 @@ function bannerTexture(brand: (typeof ARENA_BRAND_SYMBOLS)[number]) {
   return texture;
 }
 
+/** Two local toy performers, never network users or collision obstacles. */
+function createGladiatorDuel(parent: THREE.Group, bronze: THREE.Material, iron: THREE.Material) {
+  const duel = new THREE.Group();
+  duel.name = 'arena-gladiator-duel';
+  duel.position.set(0, 0.17, -1.4);
+  parent.add(duel);
+
+  const cube = new THREE.BoxGeometry(1, 1, 1);
+  const round = new THREE.IcosahedronGeometry(1, 1);
+  const cylinder = new THREE.CylinderGeometry(0.85, 1, 1, 12);
+  const bladeShape = new THREE.Shape();
+  bladeShape.moveTo(-0.07, 0);
+  bladeShape.lineTo(0.07, 0);
+  bladeShape.lineTo(0.07, -0.47);
+  bladeShape.lineTo(0, -0.69);
+  bladeShape.lineTo(-0.07, -0.47);
+  bladeShape.closePath();
+  const blade = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.035, bevelEnabled: false }).translate(0, 0, -0.0175);
+  const steel = new THREE.MeshStandardMaterial({ color: '#D0D8E0', metalness: 0.8, roughness: 0.25 });
+  const skin = new THREE.MeshStandardMaterial({ color: '#BA896E', roughness: 0.9 });
+  const tunics = ['#A73D46', '#2A8790'].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
+  const part = (
+    target: THREE.Object3D,
+    geometry: THREE.BufferGeometry,
+    surface: THREE.Material,
+    size: [number, number, number],
+    position: [number, number, number],
+  ) => {
+    const object = mesh(target, geometry, surface, position);
+    object.scale.set(...size);
+    return object;
+  };
+
+  const fighters = tunics.map((tunic, index) => {
+    const fighter = new THREE.Group();
+    fighter.name = `arena-gladiator-${index === 0 ? 'crimson' : 'teal'}`;
+    duel.add(fighter);
+    part(fighter, cube, tunic, [0.47, 0.55, 0.3], [0, 1.05, 0]);
+    part(fighter, round, iron, [0.31, 0.34, 0.2], [0, 1.14, 0.03]);
+    part(fighter, cylinder, tunic, [0.32, 0.3, 0.3], [0, 0.78, 0]);
+    part(fighter, cube, bronze, [0.57, 0.08, 0.37], [0, 0.92, 0]);
+    part(fighter, round, skin, [0.23, 0.26, 0.24], [0, 1.5, 0.015]);
+    part(fighter, round, bronze, [0.29, 0.19, 0.29], [0, 1.67, -0.025]);
+    part(fighter, cube, iron, [0.36, 0.07, 0.045], [0, 1.54, 0.246]);
+    part(fighter, cube, bronze, [0.055, 0.23, 0.055], [0, 1.51, 0.265]);
+    part(fighter, cube, bronze, [0.15, 0.07, 0.48], [0, 1.82, -0.03]);
+    for (const offset of [-1, 0, 1]) {
+      const plume = part(
+        fighter,
+        cube,
+        tunic,
+        [0.12, 0.17, 0.19],
+        [0, 1.91 - Math.abs(offset) * 0.045, offset * 0.16 - 0.03],
+      );
+      plume.rotation.x = offset * 0.27;
+    }
+
+    const legs = [-1, 1].map((side) => {
+      const leg = new THREE.Group();
+      leg.name = 'gladiator-leg';
+      leg.position.set(side * 0.16, 0.66, 0);
+      fighter.add(leg);
+      part(leg, cube, skin, [0.16, 0.52, 0.18], [0, -0.25, 0]);
+      part(leg, cube, bronze, [0.19, 0.3, 0.07], [0, -0.34, 0.1]);
+      part(leg, cube, iron, [0.23, 0.12, 0.37], [0, -0.6, 0.085]);
+      return leg;
+    });
+    const arms = [-1, 1].map((side) => {
+      const arm = new THREE.Group();
+      arm.position.set(side * 0.4, 1.25, 0);
+      fighter.add(arm);
+      part(arm, round, bronze, [0.18, 0.17, 0.18], [0, -0.035, 0]);
+      part(arm, cube, skin, [0.15, 0.36, 0.16], [0, -0.23, 0]);
+      return arm;
+    });
+    const [swordArm, shieldArm] = arms;
+    swordArm.name = 'gladiator-sword-arm';
+    part(swordArm, cube, iron, [0.07, 0.15, 0.08], [0, -0.41, 0]);
+    part(swordArm, cube, bronze, [0.28, 0.055, 0.09], [0, -0.49, 0]);
+    mesh(swordArm, blade, steel, [0, -0.52, 0]);
+    shieldArm.name = 'gladiator-shield-arm';
+    const shield = new THREE.Group();
+    shield.position.set(0, -0.43, 0.1);
+    shield.rotation.x = 1.02;
+    shieldArm.add(shield);
+    const rim = part(shield, cylinder, bronze, [0.37, 0.07, 0.47], [0, 0, 0]);
+    rim.rotation.x = Math.PI / 2;
+    const face = part(shield, cylinder, tunic, [0.32, 0.08, 0.42], [0, 0, 0.035]);
+    face.rotation.x = Math.PI / 2;
+    part(shield, cube, bronze, [0.055, 0.62, 0.035], [0, 0, 0.1]);
+    part(shield, round, steel, [0.09, 0.09, 0.065], [0, 0, 0.125]);
+    return { fighter, legs, swordArm, shieldArm };
+  });
+
+  // Absolute, bounded phases avoid accumulating drift or allocating per frame.
+  // Each six-second exchange swaps attacker and defender; the pair circles once
+  // per full twelve-second loop, with a high guard, lunge, parry and retreat.
+  const pulse = (phase: number, start: number, end: number) => {
+    if (phase <= start || phase >= end) return 0;
+    return Math.sin(((phase - start) / (end - start)) * Math.PI) ** 2;
+  };
+  const animate = (time: number) => {
+    const phase = ((time % 12) + 12) % 12;
+    const orbit = (phase / 12) * Math.PI * 2;
+    for (let index = 0; index < fighters.length; index++) {
+      const { fighter, legs, swordArm, shieldArm } = fighters[index];
+      const turn = (phase + index * 6) % 12;
+      const attacking = turn < 6;
+      const beat = turn % 6;
+      const approach = pulse(beat, 0.5, 4.8);
+      const strike = pulse(beat, 1.9, 2.95);
+      const parry = pulse(beat, 1.9, 3.4);
+      const angle = orbit + index * Math.PI;
+      const radius = 1.1 - (attacking ? 0.7 : -0.15) * approach;
+      const step = Math.sin(phase * Math.PI * 4 + index * Math.PI);
+      fighter.position.set(Math.sin(angle) * radius, 0.025 * Math.abs(step), Math.cos(angle) * radius);
+      fighter.rotation.set(attacking ? approach * 0.09 : -parry * 0.045, angle + Math.PI, 0);
+      legs[0].rotation.x = step * 0.23 - (attacking ? approach * 0.15 : 0);
+      legs[1].rotation.x = -step * 0.23 + (attacking ? approach * 0.15 : 0);
+      swordArm.rotation.set(attacking ? -2.25 + strike * 1.35 : -1.65 - parry * 0.2, 0, -0.12);
+      shieldArm.rotation.set(-1.02 - (attacking ? 0.08 : parry * 0.43), 0, 0.12 + parry * 0.08);
+    }
+  };
+  animate(0);
+  return animate;
+}
+
 /** A walkable Roman amphitheater with shared draw calls and no external assets or IO. */
 export function createArena(
   scene: THREE.Scene,
@@ -296,7 +423,7 @@ export function createArena(
     if (geometry) mesh(group, geometry, surface);
     parts.forEach((part) => part.dispose());
   }
-  label(group, 'The Roman Arena', [0, 12.2, 0], 14);
+  const animateGladiators = createGladiatorDuel(group, surfaces.bronze, surfaces.iron);
   label(group, 'VENI. VIDI. TINY VICTORIES.', [0, 9.3, 15.2], 8.7, '#DCC7A0');
   register(group, { kind: 'zone', id: 'arena' }, 'Enter the Roman Arena');
   arenaCollisionObstacles().forEach((item) => obstacle(item.x, item.z, item.radius));
@@ -306,10 +433,12 @@ export function createArena(
   return {
     group,
     animate(time: number) {
+      if (!Number.isFinite(time)) return;
       flames.forEach((flame, index) => {
         flame.scale.y = 1.55 + Math.sin(time * 7.5 + index * 2.4) * 0.17;
         flame.rotation.y = time * 0.6 + index;
       });
+      animateGladiators(time);
     },
   };
 }

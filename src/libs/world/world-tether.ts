@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
-import { box, cylinder, label, mesh, ring, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { box, cylinder, label, mesh, ring } from '@/libs/world/world-geometry';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
@@ -21,7 +21,6 @@ export function createTether(
   for (const x of [-5.3, 5.3]) box(monument, [0.45, 3.5, 0.6], '#536E62', [x, 4.3, 0]);
   ring(monument, 7, 0.06, '#3BA48A', [0, 0.3, 0]);
   const fallback = label(monument, 'tether', [0, 6.8, 0], 13, '#BBDCD0', '#1D3B31');
-  label(monument, 'Tether Ventures', [0, 11.7, 0], 12, '#94D3B6', WORLD_PALETTE.surface);
   register(monument, { kind: 'fun', id: 'tether' }, 'Read about Tether Ventures');
   obstacle(monument.position.x, monument.position.z, 5.2);
   const abort = new AbortController();

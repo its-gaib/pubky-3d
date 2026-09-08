@@ -23,6 +23,7 @@ export const WORLD_ANCHORS = {
   bitkit: [-26, 94],
   theater: [-86, -52],
   cinema: [-77, 91],
+  conferences: [0, -101],
   chess: [91, -72],
   runner: [70, 98],
   tether: [30, -118],

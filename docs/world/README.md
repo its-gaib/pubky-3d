@@ -7,15 +7,20 @@ upstream history.
 
 The root route is a walkable island connected to **Pubky production**. Public data
 loads automatically; there is no network switch. Guests can explore and
-read public profiles. Signing in adds the current user's personal social circle.
-The inherited feed remains at `/home`; **Classic Pubky** opens
-[pubky.app](https://pubky.app/) in a new tab.
+read public profiles. The welcome screen leads with **Sign in and explore**, with
+**Explore as a guest** as a secondary action. Signing in stays inside Pubky World,
+returns to the island and starts walking after the session is fully restored;
+existing users can choose **Enter your world**. The personal social circle loads
+for the signed-in account. Account creation links to [pubky.app](https://pubky.app/).
+The world header has no network badge or Classic Pubky link.
 
 Pubky's near-black and graphite palette sets the scene, with acid-lime accents and
 plain graphite walking paths. Your character wears a black hoodie with the
 bundled Pubky logo on its chest and back, with no backpack. Sneaker accents are
 customizable. Walk to discover places: there is no global destination menu or map
 teleport navigation. The pocket map shows locations and your position.
+The arena, Bitkit, portals, Satoshi and Tether have no floating name labels;
+their readers and nearby interactions reveal more as you approach.
 
 ## Places
 
@@ -35,7 +40,9 @@ teleport navigation. The pocket map shows locations and your position.
 - **The Arena:** a larger Roman amphitheater with two arcaded levels, oval seating
   tiers, sand, fire bowls and separate Pubky and Synonym symbol banners. Its wide
   entrance and center stay walkable. **Try out the Pubky Arena** opens the arena
-  experiment; the local rock, paper, scissors challenge remains available.
+  experiment; the local rock, paper, scissors challenge remains available. Two
+  small bronze-armored gladiators circle, lunge, strike, parry and retreat in a
+  playful 12-second duel. They are decorative performers, with no player combat.
 - **Pubky University:** short lessons linking to the official Pubky documentation.
 - **Open Source Yard:** workshops introducing the organization's GitHub projects.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark.
@@ -59,6 +66,10 @@ teleport navigation. The pocket map shows locations and your position.
 - **Mention pills:** a runner laps a southern track beneath a large **@halfin**
   pill. His reader links to the experiment where autocomplete inserts a readable
   name pill, and a single Backspace removes the whole mention.
+- **Next Stop: Pubky:** a northern departure deck has three floating destination
+  dioramas: Prague rooftops, Lugano's lake and Alps, and Salvadoran volcanoes.
+  Each boarding pass opens its official event: DARK Prague (October 2–4, 2026),
+  Plan ₿ Lugano (October 23–24, 2026), or Plan ₿ El Salvador (January 29–30, 2027).
 - **Tether monument:** a metallic extrusion of the official Tether company
   wordmark, lit green on its own pedestal. Its reader links to
   [Tether Ventures](https://tether.io/ventures/).
@@ -110,6 +121,7 @@ camera angle to reveal the coastline and cosmic scenery.
 | Midnight Cinema  | -77, 91     |
 | Chess Citadel    | 91, -72     |
 | Runner           | 70, 98      |
+| Conference deck  | 0, -101     |
 | Tether monument  | 30, -118    |
 | Brrr Bank        | 108, 22     |
 | Trampoline       | 102, -22    |

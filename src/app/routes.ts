@@ -103,6 +103,7 @@ export const PUBLIC_ROUTES: string[] = [
 ];
 
 export const ALLOWED_ROUTES = [
+  ROOT_ROUTES,
   ONBOARDING_ROUTES.PROFILE,
   ONBOARDING_ROUTES.TAGS,
   APP_ROUTES.HOME,
@@ -142,7 +143,7 @@ export const NEEDS_PROFILE_CREATION_ROUTES = {
 
 export const AUTHENTICATED_ROUTES = {
   allowedRoutes: ALLOWED_ROUTES,
-  redirectTo: APP_ROUTES.HOME,
+  redirectTo: ROOT_ROUTES,
 };
 
 // Backwards compatibility

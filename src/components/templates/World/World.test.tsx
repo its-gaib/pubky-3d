@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
+import { consumeWorldEntry, requestWorldEntry } from '@/libs/world/world-entry';
 import type { WorldController, WorldData, WorldInteraction, WorldOptions } from '@/libs/world/world-types';
 import { World } from './World';
 import type { WorldSocialState } from './WorldSocialPanel';
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   createWorld: vi.fn<(container: HTMLDivElement, options: WorldOptions) => WorldController>(),
   useWorldData: vi.fn(),
   useWorldSocial: vi.fn<() => WorldSocialState>(),
+  auth: { isFullyAuthenticated: false, isLoading: false },
   requireAuth: vi.fn(),
   loadProduction: vi.fn(),
   toggleFollow: vi.fn(),
@@ -40,6 +42,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/libs/world/world-scene', () => ({ createWorld: mocks.createWorld }));
 vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWorldData }));
 vi.mock('@/hooks/useWorldSocial/useWorldSocial', () => ({ useWorldSocial: mocks.useWorldSocial }));
+vi.mock('@/hooks/useAuthStatus/useAuthStatus', () => ({ useAuthStatus: () => mocks.auth }));
 vi.mock('@/hooks/useRequireAuth/useRequireAuth', () => ({
   useRequireAuth: () => ({ requireAuth: mocks.requireAuth }),
 }));
@@ -130,6 +133,9 @@ async function interact(interaction: WorldInteraction) {
 }
 
 beforeEach(() => {
+  mocks.auth.isFullyAuthenticated = false;
+  mocks.auth.isLoading = false;
+  consumeWorldEntry();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -150,12 +156,12 @@ describe('World', () => {
     const { unmount } = render(<World />);
     await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
     expect(mocks.loadProduction).toHaveBeenCalledOnce();
-    expect(screen.getByText('Production')).toBeInTheDocument();
+    expect(screen.queryByText('Production')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Example' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Production' })).not.toBeInTheDocument();
     expect(screen.queryByText('Your next detour')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Travel to/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Classic Pubky' })).toHaveAttribute('href', 'https://pubky.app/');
+    expect(screen.queryByRole('link', { name: 'Classic Pubky' })).not.toBeInTheDocument();
     unmount();
     expect(mocks.controller.dispose).toHaveBeenCalledOnce();
   });
@@ -164,10 +170,55 @@ describe('World', () => {
     const user = userEvent.setup();
     render(<World />);
     await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole('button', { name: 'Let’s wander' }));
+    expect(screen.getByRole('link', { name: 'Sign in and explore' })).toHaveAttribute('href', '/sign-in');
+    await user.click(screen.getByRole('button', { name: 'Explore as a guest' }));
     expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
     expect(mocks.controller.setOverview).toHaveBeenLastCalledWith(false);
     expect(mocks.controller.travelTo).not.toHaveBeenCalled();
+  });
+
+  it('lets a fully restored account enter directly without asking for sign-in again', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    const user = userEvent.setup();
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('link', { name: 'Sign in and explore' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Enter your world' }));
+    expect(mocks.controller.setOverview).toHaveBeenLastCalledWith(false);
+    expect(mocks.requireAuth).not.toHaveBeenCalled();
+  });
+
+  it('waits for completed session restoration, then starts walking with the signed-in viewer graph', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.auth.isLoading = true;
+    requestWorldEntry();
+    const { rerender } = render(<World />);
+    expect(screen.getByRole('button', { name: 'Restoring your session…' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Enter your world' })).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+
+    mocks.auth.isLoading = false;
+    const relationships = [{ from: VIEWER_ID, to: PERSON_ID, label: 'follows' }];
+    mocks.useWorldSocial.mockReturnValue(
+      socialState({ viewerId: VIEWER_ID, status: 'ready', directCount: 1, relationships }),
+    );
+    rerender(<World />);
+    await waitFor(() => expect(mocks.controller.setOverview).toHaveBeenLastCalledWith(false));
+    expect(screen.queryByRole('button', { name: 'Enter your world' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
+    expect(mocks.controller.updateData).toHaveBeenLastCalledWith(
+      expect.objectContaining({ people: DATA.people, relationships }),
+    );
+    expect(consumeWorldEntry()).toBe(false);
+  });
+
+  it('does not treat a navigation hint as a signed-in session', async () => {
+    requestWorldEntry();
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    expect(screen.getByRole('link', { name: 'Sign in and explore' })).toBeInTheDocument();
+    expect(mocks.controller.setOverview).toHaveBeenLastCalledWith(true);
+    expect(consumeWorldEntry()).toBe(false);
   });
 
   it('pauses walking for a discovered tag tree and resumes after closing its real dialog', async () => {

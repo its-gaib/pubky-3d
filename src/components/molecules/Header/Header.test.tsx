@@ -337,20 +337,21 @@ describe('Header Components', () => {
       expect(mockPush).toHaveBeenCalledWith('/sign-in');
     });
 
-    it('renders new here button on the sign-in page', () => {
+    it('renders a plain official account creation link on the sign-in page', () => {
       vi.mocked(usePathname).mockReturnValue('/sign-in');
       render(<HeaderButtonSignIn />);
 
-      expect(screen.getByText('New here?')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Join Pubky' })).toHaveAttribute('href', 'https://pubky.app/');
     });
 
-    it('navigates to onboarding when clicked on the sign-in page', () => {
+    it('keeps account creation external to this world', () => {
       vi.mocked(usePathname).mockReturnValue('/sign-in');
       render(<HeaderButtonSignIn />);
 
-      fireEvent.click(screen.getByText('New here?'));
-
-      expect(mockPush).toHaveBeenCalledWith('/onboarding/human');
+      const link = screen.getByRole('link', { name: 'Join Pubky' });
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(mockPush).not.toHaveBeenCalled();
     });
 
     it('renders sign in button on the onboarding page', () => {

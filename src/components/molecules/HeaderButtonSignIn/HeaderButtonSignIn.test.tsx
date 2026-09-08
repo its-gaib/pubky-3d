@@ -70,20 +70,22 @@ describe('HeaderButtonSignIn', () => {
     expect(mockPush).toHaveBeenCalledWith('/sign-in');
   });
 
-  it('renders new here button on the sign-in page', () => {
+  it('renders a plain account creation link on the sign-in page', () => {
     mockUsePathname.mockReturnValue('/sign-in');
     render(<HeaderButtonSignIn />);
 
-    expect(screen.getByRole('button', { name: /New here\?/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Join Pubky' })).toHaveAttribute('href', 'https://pubky.app/');
+    expect(screen.getByText('Open an account on pubky.app, then sign in here.')).toBeInTheDocument();
   });
 
-  it('navigates to onboarding when clicked on the sign-in page', () => {
+  it('opens official account creation without entering the fork onboarding flow', () => {
     mockUsePathname.mockReturnValue('/sign-in');
     render(<HeaderButtonSignIn />);
 
-    screen.getByRole('button', { name: /New here\?/i }).click();
-
-    expect(mockPush).toHaveBeenCalledWith('/onboarding/human');
+    const link = screen.getByRole('link', { name: 'Join Pubky' });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('renders sign in button on the onboarding page', () => {

@@ -17,7 +17,7 @@ exports[`SignInContent - Snapshots > matches snapshot for the QR sign-in layout 
         <span
           class="text-brand"
         >
-          Pubky.
+          Pubky World.
         </span>
       </h1>
       <div
@@ -29,7 +29,7 @@ exports[`SignInContent - Snapshots > matches snapshot for the QR sign-in layout 
         >
           Pubky Ring
         </span>
-         to sign in.
+         to sign in and return to your world.
       </div>
     </div>
     <div
@@ -96,7 +96,7 @@ exports[`SignInContent - Snapshots > matches snapshot for the QR sign-in layout 
         <span
           class="text-brand"
         >
-          Pubky.
+          Pubky World.
         </span>
       </h1>
       <div
@@ -108,7 +108,7 @@ exports[`SignInContent - Snapshots > matches snapshot for the QR sign-in layout 
         >
           Pubky Ring
         </span>
-         to sign in.
+         to sign in and return to your world.
       </div>
     </div>
     <div

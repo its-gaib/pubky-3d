@@ -253,6 +253,25 @@
   margin: 21px 0 26px;
   font-weight: 450;
 }
+.welcomeActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.guestButton {
+  pointer-events: auto;
+  min-height: 36px;
+  padding: 6px 0;
+  color: var(--world-soft);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.guestButton:hover {
+  color: #ffffff;
+}
 .primaryButton {
   display: inline-flex;
   align-items: center;

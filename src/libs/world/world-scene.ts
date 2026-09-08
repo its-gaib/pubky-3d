@@ -7,6 +7,7 @@ import { WORLD_ZONES } from '@/libs/world/world-catalog';
 import { createChess } from '@/libs/world/world-chess';
 import { createCinema } from '@/libs/world/world-cinema';
 import { createCinemaScreen } from '@/libs/world/world-cinema-screen';
+import { createConferences } from '@/libs/world/world-conferences';
 import {
   box,
   cylinder,
@@ -321,6 +322,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const planets = createWorldPlanets(scene);
   const cinema = createCinema(scene, register, obstacle);
   const cinemaScreen = createCinemaScreen(container, scene, cinema.screenFrame);
+  const conferences = createConferences(scene, WORLD_ANCHORS.conferences, register, obstacle);
+  register(conferences.group, { kind: 'zone', id: 'conferences' }, 'Discover the next Pubky conferences');
   const chess = createChess(scene, WORLD_ANCHORS.chess, obstacle);
   register(chess.group, { kind: 'zone', id: 'chess' }, 'Explore the Chess Citadel');
   register(chess.entrance, { kind: 'zone', id: 'chess' }, 'Play chess on Pubky');
@@ -349,7 +352,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   for (let index = 0; index < 6; index++) {
     const angle = (index / 6) * Math.PI * 2;
     const node = new THREE.Vector3(Math.cos(angle) * 2.7, 4.6 + Math.sin(angle * 2) * 1.2, Math.sin(angle) * 2.7);
-    sphere(sculpture, 0.28, index % 2 ? '#B59BFF' : '#C8FF03', node.toArray());
+    sphere(sculpture, 0.28, index % 2 ? '#B59BFF' : '#C8FF03', [node.x, node.y, node.z]);
     const center = new THREE.Vector3(0, 4.6, 0);
     const direction = node.clone().sub(center);
     const connection = cylinder(sculpture, 0.035, 0.035, direction.length(), '#8E9CA6');
@@ -740,6 +743,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       jellyfish.animate(time, delta, reducedMotion);
       planets.animate(time, delta, reducedMotion);
       runner.animate(time, delta, reducedMotion);
+      conferences.animate(time, delta, reducedMotion);
     }
 
     if (!paused && !reducedMotion) {
@@ -967,6 +971,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       jellyfish.dispose();
       planets.dispose();
       bank.dispose();
+      conferences.dispose();
       cinemaScreen.dispose();
       disposeObject(scene);
       renderer.dispose();

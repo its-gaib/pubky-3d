@@ -1,5 +1,46 @@
 # Pubky World validation record
 
+## World sign-in, conference deck and arena duel — 2026-09-08
+
+The welcome screen prioritizes signing in to Pubky World, with guest exploration
+as a secondary action. The existing route guard returns fully authenticated
+sessions to `/` and preserves required profile creation. A one-use, account-free
+navigation hint starts walking after restoration; it does not authenticate anyone.
+Account creation links to the exact official `https://pubky.app/` URL without
+identity parameters. The network badge and Classic Pubky header link are removed.
+
+The northern conference deck contains three independently selectable miniature
+destinations, with dates verified on the official event sites on September 8:
+[DARK Prague](https://dark.events/events/prague/), October 2–4, 2026;
+[Plan ₿ Lugano](https://planb.lugano.ch/planb-forum/), October 23–24, 2026; and
+[Plan ₿ El Salvador](https://planb.sv/), January 29–30, 2027. Pubky's attendance
+is the developer's stated plan. The cards link to the supplied official sites;
+there is no booking, authentication or account handoff.
+
+Two small local gladiators perform a repeating 12-second sword-and-shield duel
+inside the Roman arena. Six focused arena tests pass, covering existing scenery,
+bounded choreography, deterministic replay and stable geometry/material resources.
+The scene's existing pause and reduced-motion gates also stop their animation.
+
+The initial full build at `7aa63b3798f7274007185ff43f61510d27b36760` in
+[run 34208598761](https://github.com/its-gaib/pubky-3d/actions/runs/34208598761)
+compiled successfully with webpack, then exposed a TypeScript tuple-spread error
+in portal placement. The call now passes its two coordinates explicitly; the
+graph sculpture uses an explicit three-coordinate tuple as well. A new full
+build and browser check follow this increment's source checks.
+
+Focused validation for this checkpoint: **244 tests passed across 14 files**:
+217 auth, routing and world-interface cases, 21 conference/layout/portal cases,
+and six arena cases. The final security review reported no actionable findings
+in the authentication changes or new scene resources. Formatting, ESLint and
+whitespace checks passed before committing.
+
+The follow-up removes floating name labels from the arena, Bitkit, all three
+portals, Satoshi and Tether. The old "Probably a portal" label belonged to the
+previous preview; the new three-portal renderer also omits its gateway names.
+Nearby interactions, linked readers, monument geometry and physical plaques stay
+available. Open PRs were checked again in the fork and upstream before this change.
+
 ## Production network and cosmic districts — 2026-09-08
 
 The fork had no open PRs before this increment, and the upstream open PR list did

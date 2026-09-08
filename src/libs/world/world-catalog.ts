@@ -78,6 +78,15 @@ export const WORLD_ZONES: WorldZone[] = [
     color: '#88D7ED',
     position: [...WORLD_ANCHORS.chess],
   },
+  {
+    id: 'conferences',
+    name: 'Next Stop: Pubky',
+    subtitle: 'Big ideas. Actual places.',
+    description:
+      'A departure deck for conversations beyond the island. Three cities, three chances to meet the Pubky crew.',
+    color: '#FFD68D',
+    position: [...WORLD_ANCHORS.conferences],
+  },
 ];
 
 export const WORLD_EXPERIMENTS = {

@@ -5,6 +5,7 @@ import { AuthErrorCode } from '@/libs/error/error.codes';
 import { Err } from '@/libs/error/error.factories';
 import { ErrorService } from '@/libs/error/error.types';
 import { Logger } from '@/libs/logger/logger';
+import { consumeWorldEntry } from '@/libs/world/world-entry';
 import { toast } from '@/molecules/Toaster/toast';
 import { RouteGuardProvider } from './RouteGuardProvider';
 
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => {
     isLoading: false,
     // Route defaults
     pathname: '/feed',
+    authenticatedRedirect: '/feed',
   };
 });
 
@@ -48,6 +50,8 @@ vi.mock('@/hooks/useAuthStatus/useAuthStatus', () => ({
 
 // Mock @/app
 vi.mock('@/app/routes', () => ({
+  AUTH_ROUTES: { SIGN_IN: '/sign-in' },
+  ROOT_ROUTES: '/',
   PUBLIC_ROUTES: ['/landing'],
   isDynamicPublicRoute: (path: string) => {
     const segments = path.split('/').filter(Boolean);
@@ -68,7 +72,12 @@ vi.mock('@/app/routes', () => ({
 // Mock @/providers/RouteGuardProvider/RouteGuardProvider.constants
 vi.mock('@/providers/RouteGuardProvider/RouteGuardProvider.constants', () => ({
   ROUTE_ACCESS_MAP: {
-    AUTHENTICATED: { allowedRoutes: ['/feed', '/settings', '/collections'], redirectTo: '/feed' },
+    AUTHENTICATED: {
+      allowedRoutes: ['/', '/feed', '/settings', '/collections'],
+      get redirectTo() {
+        return mocks.authenticatedRedirect;
+      },
+    },
     UNAUTHENTICATED: {
       allowedRoutes: ['/login', '/landing', '/home', '/hot', '/search', '/collections'],
       redirectTo: '/login',
@@ -514,5 +523,65 @@ describe('RouteGuardProvider — session restore', () => {
       description: 'This key is linked to a different homeserver. Use a staging account on this site.',
     });
     expect(Logger.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('RouteGuardProvider — return to Pubky World', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    consumeWorldEntry();
+    mocks.pathname = '/sign-in';
+    mocks.authenticatedRedirect = '/';
+    mocks.status = 'AUTHENTICATED';
+    mocks.isLoading = false;
+    mocks.hasHydrated = true;
+    mocks.session = {};
+    mocks.sessionExport = null;
+    mocks.wasDbReset = false;
+  });
+  afterEach(() => {
+    mocks.authenticatedRedirect = '/feed';
+    consumeWorldEntry();
+  });
+
+  it('returns fully authenticated sign-in to the world and requests walking once', () => {
+    render(
+      <RouteGuardProvider>
+        <div>Sign in</div>
+      </RouteGuardProvider>,
+    );
+    expect(mocks.mockRouterPush).toHaveBeenCalledWith('/');
+    expect(consumeWorldEntry()).toBe(true);
+    expect(consumeWorldEntry()).toBe(false);
+  });
+
+  it('waits for session restoration before redirecting into the world', () => {
+    mocks.isLoading = true;
+    const { rerender } = render(
+      <RouteGuardProvider>
+        <div>Sign in</div>
+      </RouteGuardProvider>,
+    );
+    expect(mocks.mockRouterPush).not.toHaveBeenCalled();
+    expect(consumeWorldEntry()).toBe(false);
+    mocks.isLoading = false;
+    rerender(
+      <RouteGuardProvider>
+        <div>Sign in</div>
+      </RouteGuardProvider>,
+    );
+    expect(mocks.mockRouterPush).toHaveBeenCalledWith('/');
+    expect(consumeWorldEntry()).toBe(true);
+  });
+
+  it('keeps incomplete accounts on profile creation without a world entry hint', () => {
+    mocks.status = 'NEEDS_PROFILE_CREATION';
+    render(
+      <RouteGuardProvider>
+        <div>Sign in</div>
+      </RouteGuardProvider>,
+    );
+    expect(mocks.mockRouterPush).toHaveBeenCalledWith('/create-profile');
+    expect(consumeWorldEntry()).toBe(false);
   });
 });

@@ -34,14 +34,18 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
+import { AUTH_ROUTES } from '@/app/routes';
 import { Button } from '@/atoms/Button/Button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/atoms/Dialog/Dialog';
 import { Switch } from '@/atoms/Switch/Switch';
+import { useAuthStatus } from '@/hooks/useAuthStatus/useAuthStatus';
 import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
 import { Bitkit, Github, PubkyIcon } from '@/icons';
 import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_EXPERIMENTS, WORLD_ZONES } from '@/libs/world/world-catalog';
+import { WORLD_CONFERENCES } from '@/libs/world/world-conference-catalog';
+import { consumeWorldEntry } from '@/libs/world/world-entry';
 import { WORLD_PORTALS, WORLD_RADIUS } from '@/libs/world/world-layout';
 import {
   SOCIAL_PAGE_SIZE,
@@ -61,6 +65,7 @@ import type {
 import styles from './World.module.css';
 import { WorldCamera } from './WorldCamera';
 import { WorldCinema } from './WorldCinema';
+import { WorldConferences } from './WorldConferences';
 import {
   worldDirectoryPage,
   type WorldDirectoryScope,
@@ -95,6 +100,11 @@ function ExternalWorldLink({ href, children, className }: { href?: string; child
 
 function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle: string } {
   switch (panel.kind) {
+    case 'conference':
+      return {
+        title: WORLD_CONFERENCES[panel.index]?.name ?? 'Conference Grove',
+        subtitle: WORLD_CONFERENCES[panel.index]?.description ?? 'Meet the ideas gathering around the world.',
+      };
     case 'portal':
       return {
         title: WORLD_PORTALS[panel.index]?.name ?? 'The Credible Exit',
@@ -388,6 +398,7 @@ function WorldPanel({
       </div>
     );
   if (panel.kind === 'social-cluster') return null;
+  if (panel.kind === 'conference') return <WorldConferences index={panel.index} />;
   if (panel.kind === 'post') {
     const post = data.tags[panel.tagIndex]?.posts[panel.postIndex];
     return (
@@ -652,6 +663,7 @@ function WorldPanel({
       </div>
     );
   if (panel.id === 'cinema') return <WorldCinema />;
+  if (panel.id === 'conferences') return <WorldConferences />;
   if (panel.id === 'theater')
     return (
       <TrendingShow
@@ -728,6 +740,7 @@ function WorldPanel({
 }
 
 export function World() {
+  const { isFullyAuthenticated, isLoading: isAuthLoading } = useAuthStatus();
   const { data: baseData, status: dataStatus, error: dataError, loadProduction } = useWorldData();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
@@ -761,6 +774,15 @@ export function World() {
   const [personaColor, setPersonaColor] = useState(PERSONA_COLORS[0]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
+
+  useEffect(() => {
+    if (isAuthLoading) return;
+    const enterRequested = consumeWorldEntry();
+    if (!isFullyAuthenticated || !enterRequested) return;
+    setWelcome(false);
+    setOverview(false);
+    containerRef.current?.focus({ preventScroll: true });
+  }, [isFullyAuthenticated, isAuthLoading]);
 
   useEffect(() => {
     if (autoActorRef.current === social.viewerId) return;
@@ -976,10 +998,6 @@ export function World() {
           <span className={styles.experiment}>EXPERIMENT</span>
         </div>
         <div className={styles.topActions}>
-          <span className={styles.productionBadge}>
-            <span className={styles.productionDot} />
-            Production
-          </span>
           <div className={styles.identity}>
             <span className={styles.identityFace} style={{ background: personaColor }}>
               ••
@@ -989,10 +1007,6 @@ export function World() {
               <span>{social.viewerId ? 'Your social circle' : 'Guest persona'}</span>
             </div>
           </div>
-          <a href="https://pubky.app/" target="_blank" rel="noopener noreferrer" className={styles.classicLink}>
-            Classic Pubky
-            <ArrowUpRight size={15} />
-          </a>
         </div>
       </header>
 
@@ -1026,13 +1040,34 @@ export function World() {
             Follow a connection. Pick a post from a tree.
             <br className={styles.desktopBreak} /> Take the scenic route through Pubky.
           </p>
-          <Button overrideDefaults className={styles.primaryButton} onClick={wander}>
-            Let’s wander
-            <ArrowRight size={19} />
-          </Button>
+          <div className={styles.welcomeActions}>
+            {isAuthLoading ? (
+              <Button overrideDefaults className={styles.primaryButton} disabled>
+                Restoring your session…
+                <LoaderCircle size={19} aria-hidden="true" />
+              </Button>
+            ) : isFullyAuthenticated ? (
+              <Button overrideDefaults className={styles.primaryButton} onClick={wander}>
+                Enter your world
+                <ArrowRight size={19} aria-hidden="true" />
+              </Button>
+            ) : (
+              <>
+                <Link href={AUTH_ROUTES.SIGN_IN} className={styles.primaryButton}>
+                  Sign in and explore
+                  <ArrowRight size={19} aria-hidden="true" />
+                </Link>
+                <Button overrideDefaults className={styles.guestButton} onClick={wander}>
+                  Explore as a guest
+                </Button>
+              </>
+            )}
+          </div>
           <div className={styles.welcomeFootnote}>
             <Footprints size={14} />
-            No account needed. Curiosity encouraged.
+            {isFullyAuthenticated && !isAuthLoading
+              ? 'Your people. Your corner of the world.'
+              : 'Sign in to find your people. Guests are welcome, too.'}
           </div>
         </section>
       )}

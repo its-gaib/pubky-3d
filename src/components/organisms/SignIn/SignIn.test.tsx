@@ -531,12 +531,12 @@ describe('SignInContent - Progress View', () => {
     });
 
     expect(screen.getByText('Signing in.')).toBeInTheDocument();
-    expect(screen.getByText('Please wait while your Pubky experience loads.')).toBeInTheDocument();
+    expect(screen.getByText('Please wait while your Pubky World loads.')).toBeInTheDocument();
 
     // Should show all 4 step labels
     expect(screen.getByText('Verifying account')).toBeInTheDocument();
     expect(screen.getByText('Loading your data')).toBeInTheDocument();
-    expect(screen.getByText('Building your feed')).toBeInTheDocument();
+    expect(screen.getByText('Preparing your world')).toBeInTheDocument();
     expect(screen.getByText('Syncing settings')).toBeInTheDocument();
   });
 
@@ -549,7 +549,7 @@ describe('SignInContent - Progress View', () => {
 
     const verifyingLabel = screen.getByText('Verifying account');
     const loadingLabel = screen.getByText('Loading your data');
-    const buildingLabel = screen.getByText('Building your feed');
+    const buildingLabel = screen.getByText('Preparing your world');
     const syncingLabel = screen.getByText('Syncing settings');
 
     // First step: running (spinner icon + text-foreground)
@@ -575,7 +575,7 @@ describe('SignInContent - Progress View', () => {
 
     const verifyingLabel = screen.getByText('Verifying account');
     const loadingLabel = screen.getByText('Loading your data');
-    const buildingLabel = screen.getByText('Building your feed');
+    const buildingLabel = screen.getByText('Preparing your world');
     const syncingLabel = screen.getByText('Syncing settings');
 
     // First two steps: completed (check icon + font-bold)

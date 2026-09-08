@@ -109,7 +109,6 @@ export function createSatoshi(
     parts.forEach((part) => part.dispose());
   });
 
-  label(monument, 'Satoshi, everywhere / nowhere', [0, 7.7, 0], 10.5);
   label(monument, 'WE ARE ALL SATOSHI', [0, 0.87, 2.52], 4.6, WORLD_PALETTE.lime);
   register(monument, { kind: 'fun', id: 'satoshi' }, 'Read the Satoshi monument plaque');
   obstacle(monument.position.x, monument.position.z, 3.05);

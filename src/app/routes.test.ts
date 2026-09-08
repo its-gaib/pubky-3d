@@ -18,6 +18,7 @@ import {
   matchesAllowedRoute,
   matchPostRoute,
   matchSingleCollectionRoute,
+  NEEDS_PROFILE_CREATION_ROUTES,
   ONBOARDING_ROUTES,
   PROFILE_ROUTES,
   PUBLIC_ROUTES,
@@ -31,6 +32,12 @@ describe('world route access', () => {
     expect(PUBLIC_ROUTES).toContain(ROOT_ROUTES);
     expect(PUBLIC_ROUTES).not.toContain(SETTINGS_ROUTES.ACCOUNT);
     expect(matchesAllowedRoute(SETTINGS_ROUTES.ACCOUNT, ROOT_ROUTES)).toBe(false);
+  });
+  it('returns completed sign-in to the allowed world route and preserves required profile creation', () => {
+    expect(AUTHENTICATED_ROUTES.redirectTo).toBe(ROOT_ROUTES);
+    expect(AUTHENTICATED_ROUTES.allowedRoutes).toContain(ROOT_ROUTES);
+    expect(NEEDS_PROFILE_CREATION_ROUTES.redirectTo).toBe(ONBOARDING_ROUTES.PROFILE);
+    expect(NEEDS_PROFILE_CREATION_ROUTES.allowedRoutes).not.toContain(ROOT_ROUTES);
   });
 });
 
