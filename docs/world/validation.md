@@ -41,6 +41,41 @@ previous preview; the new three-portal renderer also omits its gateway names.
 Nearby interactions, linked readers, monument geometry and physical plaques stay
 available. Open PRs were checked again in the fork and upstream before this change.
 
+The final source `5612962d63e3822fb944b91b0365be3cb5c411a9` passed the complete
+Next.js production build, TypeScript, standalone packaging and production smoke
+check in [run 34211327328](https://github.com/its-gaib/pubky-3d/actions/runs/34211327328).
+The smoke check verifies all nine injected network values and HTTP 200 for both
+`/` and `/sign-in`. Artifact `10050102814` matches that exact source, branch,
+repository and manually dispatched workflow. It is about 62 MiB and was verified
+as unexpired before retrieval. The targeted review of the label deletions found
+no security concerns.
+
+The actual 640×480 browser check passed and closed normally after 31 seconds.
+The internal primary sign-in link and secondary guest action were visible; the
+network badge and Classic link were absent. Native DOM activation entered guest
+mode, focused the canvas, and an actual W-key press moved the persona. The scene,
+Camera button and animation frames were ready, with no JavaScript, console or
+shader errors. All 32 completed Nexus responses were production HTTP 200s, with
+zero staging requests or requests for the deliberately fake legacy account.
+The old auth record and `franky` database sentinel remained untouched, while new
+production storage started signed out. No real account or publication was used.
+
+The ambient cinema iframe was present before any cinema interaction and used the
+fixed whitelist with muted autoplay. Playback was directly observed: video
+`readyState` was 4, `paused` was false and `currentTime` advanced. Its overlay did
+not capture controls. Navigating to sign-in removed the world and iframe, showed
+the Pubky World sign-in heading and linked account creation to the official site.
+The screenshot was captured and inspected. At this short viewport, the plaza's
+social hint partly overlaps the persona's upper body; keyboard movement and
+controls still work. Evidence is in `/home/gaib/.cache/pubky-3d-browser/`:
+`world-production-mini-results.json`, `world-production-mini-run.log` and
+`world-production-walking-mini.png`.
+
+The verified runtime now serves `127.0.0.1:4321`. Both `/` and `/sign-in` returned
+200 after replacement, and all nine injected production values matched again.
+The temporary 4323 server and browser were closed. Earlier runtimes remain on disk
+for rollback; later documentation-only commits do not change the serving source.
+
 ## Production network and cosmic districts — 2026-09-08
 
 The fork had no open PRs before this increment, and the upstream open PR list did
