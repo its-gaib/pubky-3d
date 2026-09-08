@@ -33,6 +33,30 @@ tests pass, including varied colors/sizes/speeds, bounds, recycling, reduced
 motion and GPU-resource disposal. No new behavior or tests were added beyond
 updating the existing cohort expectations.
 
+Published source `4d969e093738039b454e80cb6ed989f9efc3e815` was committed as
+`its-gaib` using GitHub's signed-commit API; its exact staged tree and parent were
+verified against the returned commit, and GitHub reports a valid signature.
+[Build 34225195397](https://github.com/its-gaib/pubky-3d/actions/runs/34225195397)
+passed webpack, full TypeScript, eight static pages, standalone packaging and
+production startup. Artifact `10055532710` was verified against the exact source,
+repository, branch and workflow, then extracted with the bounded runtime helper.
+It now serves `127.0.0.1:4321`; root/sign-in HTTP checks and all nine production
+settings passed before and after the preview replacement. The temporary 4323
+server is closed, and the previous runtime remains available for rollback.
+
+[Vercel deployment dpl_tdHGxJ7wCJPdx9mxhWnyDmyGEs4m](https://vercel.com/its-gaibs-projects/pubky-world/tdHGxJ7wCJPdx9mxhWnyDmyGEs4m)
+built and published the same source at https://pubky-world.vercel.app/. Its source
+metadata, READY state, project and public alias matched. Anonymous HTTPS root
+and sign-in checks returned 200 with all production settings verified. The final
+public browser pass observed WebGL/two animation frames, the correct guest header,
+32 successful production reads, no staging requests and no app/console/shader
+errors. A normal click reached this app's `/sign-in` after 11.75 seconds. An extra
+three-second heading wait timed out before diagnostics confirmed the expected
+heading and removal of the world; the script therefore recorded incomplete and
+skipped its optional guest-return step. The browser closed cleanly. No real
+account authentication or publishing was performed. Evidence is
+`world-reviewed-signin-mini-results.json` in `/home/gaib/.cache/pubky-3d-browser/`.
+
 Registry PR #15 initially used an email that did not match the existing registered
 `gcomte` signing key. Its single commit was re-signed using the configured,
 verified `gcomte@users.noreply.github.com` identity, preserving its exact tree and
@@ -113,8 +137,18 @@ performed by automated checks.
 [Registry PR #15](https://github.com/pubky/vibes/pull/15) was opened by `gcomte`
 from `gcomte:vibe/pubky-world`. It contains only the manifest and supplied cover;
 the registry validation check passed. The app fork and registry branches were
-committed and pushed separately. The listing remains subject to the registry's
-merge process.
+committed and pushed separately. After the signature correction and final live
+checks, `gcomte` merged the PR normally at
+`f47ce22383034c1b0c878db40f4036dfeafd7a5e`, with no review or protection bypass.
+The merge commit's signature is also valid. Registry
+[Deploy 34226325760](https://github.com/pubky/vibes/actions/runs/34226325760)
+passed for that exact merge and serves the new entry at
+https://vibes-805562057272.europe-west1.run.app/?vibe=pubky-world. Public board and
+detail responses returned 200 and contained the exact manifest, Miguel's credit
+and the hosted app URL. The cover returned 200 as PNG with the original size and
+SHA-256. The intended `vibes.pubky.app` hostname has no A, AAAA or CNAME answers
+in Google public DNS, matching local resolution failure; its DNS remains an
+external registry configuration issue. The deployed registry service URL works.
 
 ## Complete chessboard and enlarged cinema — 2026-09-08
 
