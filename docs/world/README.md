@@ -5,6 +5,9 @@ The exact fork point and destination are in [fork.json](./fork.json). The projec
 lives in the public `its-gaib/pubky-3d` repository, on `vibe/pubky-3d`, retaining
 upstream history.
 
+Credit to [Miguel Medeiros](https://miguelmedeiros.dev/) for the original
+explorable 3D world that inspired Pubky World.
+
 The root route is a walkable island connected to **Pubky production**. Public data
 loads automatically; there is no network switch. Guests can explore and
 read public profiles. The welcome screen leads with **Sign in and explore**, with
@@ -28,6 +31,10 @@ their readers and nearby interactions reveal more as you approach.
   follows stand larger and brighter; people they follow appear at roughly half
   that size. Large circles resolve into eight selectable neighborhoods. Each
   neighborhood has pages of up to 96 figures, with nearby and selected names.
+  Sector cards preview two followed people's names and exact counts; previews
+  share the existing profile queue and request at most 16 profiles. A persistent
+  **Back to all sectors** button returns to the plaza overview, including after
+  walking away from the plaza or shrinking the graph through unfollowing.
   The plaza directory searches every discovered public key and loaded name, with
   separate filters and 20-row pages. A person panel shows their profile picture,
   bio and latest readable post, plus Follow/Unfollow and **Meet in the plaza**;
@@ -55,15 +62,26 @@ their readers and nearby interactions reveal more as you approach.
 - **Midnight Cinema:** a crimson Art Deco movie house on the southwest coast,
   far from Trending Theater and rotated toward the plaza. The building and its
   36×20.25 screen are twice their previous width and height. The live screen
-  carries a persistent muted YouTube playlist, projected with the world camera.
-  The 18 supplied videos shuffle and advance using the native player. Browser
-  autoplay restrictions or unavailable videos may interrupt playback; the reader
-  retains a manual player with controls and reshuffling. The ambient player has
-  no scripting bridge or account data. Conservative occlusion hides the overlay
+  carries a muted YouTube program, projected with the world camera. The 18 supplied
+  videos shuffle; unavailable or embedding-disabled films skip automatically.
+  A local loading card covers the player until its official API confirms playback.
+  Failed reels stay skipped during that visit. Exhausted films, browser autoplay
+  restrictions or player failures show a local intermission message; the reader
+  retains a manual player with controls and reshuffling. The official YouTube API
+  receives only fixed film IDs and the page origin. Conservative occlusion hides the overlay
   when scenery blocks it; video pixels never enter world photos.
+  Walking-mode dragging now looks above the horizon while the camera stays above
+  the ground, making the tall screen easier to frame.
 - **Chess Citadel:** a full 32-piece board with obsidian and silver armies,
   sculpted knights, crowns and metallic details. Even the pawns stand taller than
-  the persona. Walk between the ranks and open **Play chess on Pubky** for Chessky.
+  the persona. Signed-in visitors bring their most recently updated saved Chessky
+  position from their own homeserver, including AI games and two-player games.
+  A match plaque identifies the silver and obsidian players. Captured and promoted
+  pieces update both their models and collision footprints. Scans with incomplete
+  results say **Most recently updated game found**; the reader offers a refresh.
+  Games are read-only snapshots, with no opponent mirroring or extra sign-in permissions.
+  Guests and accounts without a valid saved game see the starting formation.
+  Walk between the ranks and open **Play chess on Pubky** for Chessky.
 - **Mention pills:** a runner laps a southern track beneath a large **@halfin**
   pill. His reader links to the experiment where autocomplete inserts a readable
   name pill, and a single Backspace removes the whole mention.
@@ -81,7 +99,7 @@ their readers and nearby interactions reveal more as you approach.
   dollar bills each live about 70 seconds, drift farther across the grounds, and
   independently shrink and fade; some rest on the floor first. Reduced motion
   keeps the sign and scattered bills still. There is no bank audio. The reader's
-  **Where can I get Hard Money?** button beams you in front of Bitkit, facing its
+  **Where can I use Hard Money instead?** button beams you in front of Bitkit, facing its
   logo with the camera centered on the beacon. The bank reader is also available
   from the Arena panel.
 - **Galactic jellyfish:** 24 glowing bodies swim in varied colors, sizes, depths,
@@ -216,8 +234,10 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
 - `world-landmarks.ts`, `world-arena.ts`, `world-theater.ts`, `world-cinema.ts`,
   `world-satoshi.ts`, `world-tether.ts` and `world-bank.ts`: procedural places,
   local text/brand geometry and bounded decorative animation.
-- `world-cinema-screen.ts`: a persistent CSS3D iframe, camera alignment, bounded
+- `world-cinema-screen.ts`: a CSS3D projection, camera alignment, bounded
   occlusion checks, and teardown.
+- `world-cinema-playback.ts` and `world-cinema-youtube.ts`: bounded reel recovery,
+  official player events, one shared API loader and local loading/error states.
 - `world-planets.ts`, `world-jellyfish.ts`, `world-chess.ts`, `world-runner.ts` and
   `world-portals.ts`: bounded cosmic scenery, monumental chess and local movement.
 - `world-network.ts` and `world-production.json`: one coherent production target.
@@ -236,6 +256,10 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
   fixed total ID cap. Profiles load as the directory is browsed or a person is
   selected; latest posts load on selection. Follow writes wrap the existing
   application flow and update graph membership as they sync.
+- `src/hooks/useWorldChess` and the Chessky controller/application/service: a
+  bounded, read-only scan of the current actor's saved Chessky records. Canonical
+  paths, participants, timestamps and legal move history are validated before a
+  snapshot reaches the scene. Only the selected game's player names are fetched.
 - `world-types.ts`: serializable data and `PersonaState`, independent of a future
   multiplayer transport. `src/hooks/useWorldPhotoPost` hands photos to the
   inherited composer.
@@ -279,12 +303,15 @@ packages a standalone runtime; its bounded heap avoids compiling the full app on
 the constrained preview host. Run local builds and a dev server sequentially when
 they share `.next`. Screenshots are commit-specific checkpoints until refreshed.
 
-No public deployment or Vibes registry PR is included in this increment.
+The Vercel project uses `vercel.json` and `.vercelignore`. All nine runtime values
+come from `world-production.json`, including when Vercel starts the app directly
+without the local `npm start` wrapper. Deployment and registry URLs are recorded
+in the validation record after their public checks pass.
 
 ## Sources and assets
 
-The explorable island at [miguelmedeiros.dev](https://miguelmedeiros.dev/) supplied
-the high-level inspiration. Its source code and assets are not copied. Buildings,
+Credit to [Miguel Medeiros](https://miguelmedeiros.dev/) for the original explorable
+world that inspired this experiment. Its source code and assets are not copied. Buildings,
 characters, vegetation and sculptures are generated from original procedural code.
 
 University lessons link to [pubky.org](https://pubky.org/); workshops link to the
@@ -307,5 +334,8 @@ Three.js SVGLoader. Brand ownership remains with the respective owners; the
 repository's MIT license does not grant separate trademark rights.
 
 Cinema videos are the 18 user-supplied YouTube IDs listed in
-`world-cinema-program.ts`. Their content is played by YouTube after interaction,
+`world-cinema-program.ts`. Their content is played by YouTube on the ambient screen and in its reader,
 not downloaded or bundled with the world.
+
+Saved chess games follow [Chessky's published storage format](https://github.com/gcomte/chessky/tree/8958b28a52938d6789a29d8281cc54e2e4536829).
+Legal move replay uses its existing `chess.js` version, 1.4.0 (BSD-2-Clause).

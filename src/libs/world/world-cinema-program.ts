@@ -46,3 +46,26 @@ export function worldCinemaUrl(program: readonly WorldFilm[]): string | null {
   });
   return `https://www.youtube-nocookie.com/embed/${program[0]}?${params}`;
 }
+
+/** The ambient player controls one whitelisted reel at a time through the official API. */
+export function worldCinemaAmbientUrl(film: WorldFilm, origin: string): string | null {
+  if (!WORLD_FILMS.includes(film)) return null;
+  try {
+    const host = new URL(origin);
+    if (!['https:', 'http:'].includes(host.protocol) || host.origin !== origin) return null;
+  } catch {
+    return null;
+  }
+  const params = new URLSearchParams({
+    enablejsapi: '1',
+    origin,
+    autoplay: '1',
+    mute: '1',
+    controls: '0',
+    disablekb: '1',
+    fs: '0',
+    playsinline: '1',
+    rel: '0',
+  });
+  return `https://www.youtube-nocookie.com/embed/${film}?${params}`;
+}

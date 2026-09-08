@@ -1,12 +1,21 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { label, mesh } from '@/libs/world/world-geometry';
+import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
+import { disposeObject, label, mesh } from '@/libs/world/world-geometry';
 import type { WorldObstacle } from '@/libs/world/world-motion';
 
 export const CHESS_DIMENSIONS = { square: 3.2, boardSize: 25.6, halfExtent: 14, entranceZ: 16 } as const;
 export type ChessPieceKind = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
 export type ChessSide = 'obsidian' | 'silver';
 const BACK_RANK: ChessPieceKind[] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+const PIECE_KINDS: Record<ChesskySnapshot['pieces'][number]['type'], ChessPieceKind> = {
+  p: 'pawn',
+  r: 'rook',
+  n: 'knight',
+  b: 'bishop',
+  q: 'queen',
+  k: 'king',
+};
 
 /** A complete starting position: queens occupy their own-colored squares. */
 export const CHESS_PIECES = (['silver', 'obsidian'] as const).flatMap((side) =>
@@ -27,6 +36,33 @@ export const CHESS_PIECES = (['silver', 'obsidian'] as const).flatMap((side) =>
 
 export function chessCollisionObstacles(anchor: readonly [number, number]): WorldObstacle[] {
   return CHESS_PIECES.map((piece) => ({ x: anchor[0] + piece.x, z: anchor[1] + piece.z, radius: 0.92 }));
+}
+
+function savedPieces(game: ChesskySnapshot) {
+  const squares = new Set<string>();
+  if (!game.pieces.length || game.pieces.length > 32) return null;
+  const pieces: (typeof CHESS_PIECES)[number][] = [];
+  for (const piece of game.pieces) {
+    if (
+      !/^[a-h][1-8]$/.test(piece.square) ||
+      squares.has(piece.square) ||
+      !Object.hasOwn(PIECE_KINDS, piece.type) ||
+      !['w', 'b'].includes(piece.color)
+    )
+      return null;
+    squares.add(piece.square);
+    const file = piece.square.charCodeAt(0) - 97;
+    const rank = Number(piece.square[1]) - 1;
+    pieces.push({
+      side: piece.color === 'w' ? 'silver' : 'obsidian',
+      kind: PIECE_KINDS[piece.type],
+      file,
+      rank,
+      x: (file - 3.5) * CHESS_DIMENSIONS.square,
+      z: (3.5 - rank) * CHESS_DIMENSIONS.square,
+    });
+  }
+  return pieces;
 }
 
 function combine(parts: THREE.BufferGeometry[]) {
@@ -142,11 +178,11 @@ function pieceGeometry(kind: ChessPieceKind) {
   return { body: combine(body), trim: combine(trim) };
 }
 
-/** Static scenery, with reused piece geometry and a fully walkable board between the armies. */
+/** Reused sculptural pieces can replay the owner's saved position without rebuilding the island. */
 export function createChess(
   scene: THREE.Scene,
   anchor: readonly [number, number],
-  obstacle: (x: number, z: number, radius: number) => void,
+  obstacle?: (x: number, z: number, radius: number) => void,
 ) {
   const group = new THREE.Group();
   group.name = 'Giant chessboard';
@@ -193,6 +229,7 @@ export function createChess(
   const geometries = new Map(
     [...new Set(CHESS_PIECES.map((piece) => piece.kind))].map((kind) => [kind, pieceGeometry(kind)]),
   );
+  const pieces: THREE.Group[] = [];
   for (const descriptor of CHESS_PIECES) {
     const piece = new THREE.Group();
     piece.name = `${descriptor.side} ${descriptor.kind}`;
@@ -203,6 +240,7 @@ export function createChess(
     mesh(piece, geometry.body, descriptor.side === 'silver' ? silver : obsidian);
     mesh(piece, geometry.trim, descriptor.side === 'silver' ? silverTrim : goldTrim);
     group.add(piece);
+    pieces.push(piece);
   }
   const brackets: THREE.BufferGeometry[] = [];
   for (const x of [-13.45, 13.45])
@@ -217,6 +255,77 @@ export function createChess(
   group.add(entrance);
   label(group, 'SILVER', [0, 0.2, 13.25], 3.5, '#D2DCEF');
   label(group, 'OBSIDIAN', [0, 0.2, -13.25], 3.5, '#C4AD6A');
-  chessCollisionObstacles(anchor).forEach(({ x, z, radius }) => obstacle(x, z, radius));
-  return { group, entrance };
+  const match = label(group, '', [0, 4.8, 15.2], 14);
+  match.name = 'Saved Chessky opponents';
+  match.scale.y = 3.5;
+  match.material.depthTest = true;
+  match.visible = false;
+  const matchTexture = match.material.map!;
+  const matchCanvas = matchTexture.image as HTMLCanvasElement;
+  matchCanvas.height = 180;
+  const matchContext = matchCanvas.getContext('2d');
+  const obstacles = chessCollisionObstacles(anchor);
+  obstacles.forEach(({ x, z, radius }) => obstacle?.(x, z, radius));
+
+  return {
+    group,
+    entrance,
+    // These same objects remain in the scene's static obstacle prefix; captured pieces disable their slot.
+    obstacles,
+    setGame(game: ChesskySnapshot | null) {
+      const descriptors = game ? savedPieces(game) : CHESS_PIECES;
+      const accepted = game && descriptors ? game : null;
+      const position = descriptors ?? CHESS_PIECES;
+      pieces.forEach((piece, index) => {
+        const descriptor = position[index];
+        piece.visible = !!descriptor;
+        obstacles[index].enabled = !!descriptor;
+        if (!descriptor) return;
+        piece.name = `${descriptor.side} ${descriptor.kind}`;
+        piece.userData.chessPiece = descriptor;
+        piece.position.set(descriptor.x, 0.08, descriptor.z);
+        piece.rotation.y = descriptor.side === 'silver' ? Math.PI : 0;
+        const geometry = geometries.get(descriptor.kind)!;
+        const body = piece.children[0] as THREE.Mesh;
+        const trim = piece.children[1] as THREE.Mesh;
+        body.geometry = geometry.body;
+        trim.geometry = geometry.trim;
+        body.material = descriptor.side === 'silver' ? silver : obsidian;
+        trim.material = descriptor.side === 'silver' ? silverTrim : goldTrim;
+        Object.assign(obstacles[index], { x: anchor[0] + descriptor.x, z: anchor[1] + descriptor.z });
+      });
+      match.visible = !!accepted;
+      if (accepted && matchContext) {
+        matchContext.clearRect(0, 0, 640, 180);
+        matchContext.fillStyle = '#101016';
+        matchContext.beginPath();
+        matchContext.roundRect(4, 4, 632, 172, 18);
+        matchContext.fill();
+        matchContext.textAlign = 'center';
+        matchContext.textBaseline = 'middle';
+        matchContext.font = '600 32px sans-serif';
+        const name = (value: string) => value.slice(0, 48).replace(/[\p{Cc}\p{Cf}]/gu, ' ');
+        matchContext.fillStyle = '#E4E9FF';
+        matchContext.fillText(`Silver · ${name(accepted.white.name)}`, 320, 44, 600);
+        matchContext.fillStyle = '#9D9DA8';
+        matchContext.font = '500 24px sans-serif';
+        matchContext.fillText('versus', 320, 90, 600);
+        matchContext.fillStyle = '#C4AD6A';
+        matchContext.font = '600 32px sans-serif';
+        matchContext.fillText(`Obsidian · ${name(accepted.black.name)}`, 320, 138, 600);
+        matchTexture.needsUpdate = true;
+      }
+    },
+    dispose() {
+      // Promotions can leave a shared shape unused by every mesh; release those shapes too.
+      const attached = new Set<THREE.BufferGeometry>();
+      group.traverse((object) => {
+        if (object instanceof THREE.Mesh) attached.add(object.geometry);
+      });
+      disposeObject(group);
+      geometries.forEach(({ body, trim }) => {
+        for (const geometry of [body, trim]) if (!attached.has(geometry)) geometry.dispose();
+      });
+    },
+  };
 }

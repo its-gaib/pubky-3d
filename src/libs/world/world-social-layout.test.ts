@@ -8,6 +8,9 @@ import {
   SOCIAL_SECTOR_COUNT,
   socialPersonSector,
   socialSector,
+  socialSectorCountLabel,
+  socialSectorPreview,
+  socialSectorProfileIds,
   socialSectors,
   socialViewForPerson,
   socialViewPageCount,
@@ -17,6 +20,10 @@ import type { WorldPerson } from './world-types';
 
 function person(id: string, degree: 1 | 2 = 1, parentIds: string[] = []): WorldPerson {
   return { id, name: id, degree, parentIds, profileLoaded: false, position: [0, 0], color: '#C8FF03', bio: '' };
+}
+
+function publicPerson(index: number): WorldPerson {
+  return { ...person(index.toString(36).padStart(52, '0')), name: `Friend ${index}`, profileLoaded: true };
 }
 
 describe('scalable social plaza layout', () => {
@@ -113,5 +120,58 @@ describe('scalable social plaza layout', () => {
     expect(socialViewPeople(people, { sector: 100, page: -3 })).toEqual(people);
     expect(socialViewPageCount([], { sector: 0, page: 5 })).toBe(1);
     expect(socialViewForPerson(people, 'missing')).toBeNull();
+  });
+
+  it('previews a stable pair of real follows per sector while retaining every person in the counts', () => {
+    const people = Array.from({ length: 2000 }, (_, index) => publicPerson(index));
+    const sectors = socialSectors([...people, { ...people[0], degree: 2, parentIds: [people[1].id] }]);
+    expect(sectors.reduce((total, sector) => total + sector.direct + sector.secondary, 0)).toBe(2000);
+    const ids = socialSectorProfileIds(sectors);
+    expect(ids).toHaveLength(16);
+    expect(new Set(ids).size).toBe(16);
+    for (const sector of sectors) {
+      const members = people.filter((person) => socialSector(person.id) === sector.sector);
+      const expected = members
+        .map((person) => person.id)
+        .sort()
+        .slice(0, 2);
+      expect(sector.representatives.map((person) => person.id)).toEqual(expected);
+      expect(sector.direct).toBe(members.length);
+      expect(socialSectorCountLabel(sector)).toBe(`${members.length} people · ${members.length} following`);
+    }
+    const renamed = [...people]
+      .reverse()
+      .map((person) => ({ ...person, name: `Renamed ${person.id}`, profileLoaded: false }));
+    expect(socialSectorProfileIds(socialSectors(renamed))).toEqual(ids);
+  });
+
+  it('labels fallback discoveries honestly and never requests their profiles for sector previews', () => {
+    const follow = publicPerson(1);
+    const discoveries = [publicPerson(2), publicPerson(3)].map((person) => ({
+      ...person,
+      degree: 2 as const,
+      parentIds: [follow.id],
+    }));
+    const index = socialSector(follow.id);
+    const fallback = socialSectors(discoveries)[index];
+    expect(socialSectorPreview(fallback)).toBe('Discoveries include Friend 2 · Friend 3');
+    expect(socialSectorCountLabel(fallback)).toBe('2 people · 0 following');
+    expect(socialSectorProfileIds(socialSectors(discoveries))).toEqual([]);
+    const followed = socialSectors([...discoveries, follow])[index];
+    expect(socialSectorPreview(followed)).toBe('Includes Friend 1');
+    expect(socialSectorCountLabel(followed)).toBe('3 people · 1 following');
+    expect(socialSectorProfileIds(socialSectors([...discoveries, follow]))).toEqual([follow.id]);
+  });
+
+  it('bounds plain names, keeps placeholder previews truthful, and rejects invalid profile IDs', () => {
+    const follow = publicPerson(4);
+    const index = socialSector(follow.id);
+    const sector = socialSectors([{ ...follow, name: `Avery\n\u202E${'x'.repeat(100)}` }])[index];
+    const preview = socialSectorPreview(sector);
+    expect(preview).not.toMatch(/[\p{Cc}\p{Cf}]/u);
+    expect(preview.slice('Includes '.length).length).toBeLessThanOrEqual(48);
+    const placeholder = socialSectors([{ ...follow, profileLoaded: false }])[index];
+    expect(socialSectorPreview(placeholder)).toBe(`Includes ${follow.id.slice(0, 6)}…${follow.id.slice(-4)}`);
+    expect(socialSectorProfileIds(socialSectors([person('<not-a-public-key>'), follow, follow]))).toEqual([follow.id]);
   });
 });

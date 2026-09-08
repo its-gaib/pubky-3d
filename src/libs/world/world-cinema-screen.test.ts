@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CINEMA_SCREEN } from '@/libs/world/world-cinema';
-import { WORLD_FILMS, type WorldFilm } from '@/libs/world/world-cinema-program';
-import { createCinemaScreen, createCinemaVisibility, worldCinemaAmbientUrl } from '@/libs/world/world-cinema-screen';
+import { WORLD_FILMS, worldCinemaAmbientUrl, type WorldFilm } from '@/libs/world/world-cinema-program';
+import { createCinemaScreen, createCinemaVisibility } from '@/libs/world/world-cinema-screen';
 import { disposeObject } from '@/libs/world/world-geometry';
 import { asInvalid } from '@/test-utils/type-assertions';
+
+const loader = vi.hoisted(() => ({ acquire: vi.fn() }));
+vi.mock('@/libs/world/world-cinema-youtube', () => ({ acquireCinemaYouTubeApi: loader.acquire }));
 
 function setup() {
   const world = new THREE.Scene();
@@ -20,21 +23,29 @@ function setup() {
 }
 
 describe('in-world cinema projection', () => {
+  beforeEach(() => {
+    loader.acquire.mockReturnValue({ ready: new Promise(() => {}), release: vi.fn() });
+  });
   afterEach(() => document.body.replaceChildren());
 
-  it('only autoplays the fixed native playlist, muted, with keyboard controls and scripting disabled', () => {
-    const url = new URL(worldCinemaAmbientUrl(WORLD_FILMS)!);
+  it('only autoplays a fixed reel with muted controls and the exact host origin for the official API', () => {
+    const origin = 'https://world.example';
+    const url = new URL(worldCinemaAmbientUrl(WORLD_FILMS[0], origin)!);
     expect(url.origin).toBe('https://www.youtube-nocookie.com');
-    expect(url.searchParams.get('playlist')?.split(',')).toEqual(WORLD_FILMS.slice(1));
-    for (const parameter of ['autoplay', 'mute', 'loop', 'playsinline', 'disablekb'])
+    expect(url.pathname).toBe(`/embed/${WORLD_FILMS[0]}`);
+    expect(url.searchParams.has('playlist')).toBe(false);
+    for (const parameter of ['autoplay', 'mute', 'playsinline', 'disablekb', 'enablejsapi'])
       expect(url.searchParams.get(parameter)).toBe('1');
     expect(url.searchParams.get('controls')).toBe('0');
-    expect(url.searchParams.has('enablejsapi')).toBe(false);
-    expect(url.searchParams.has('origin')).toBe(false);
-    expect(worldCinemaAmbientUrl([])).toBeNull();
-    expect(
-      worldCinemaAmbientUrl(asInvalid<WorldFilm[]>(['https://unexpected.invalid/', ...WORLD_FILMS.slice(1)])),
-    ).toBeNull();
+    expect(url.searchParams.get('origin')).toBe(origin);
+    expect(worldCinemaAmbientUrl(asInvalid<WorldFilm>('https://unexpected.invalid/'), origin)).toBeNull();
+    for (const invalid of [
+      'null',
+      'file:///world',
+      'https://world.example/private',
+      'https://user:password@world.example',
+    ])
+      expect(worldCinemaAmbientUrl(WORLD_FILMS[0], invalid)).toBeNull();
   });
 
   it('hides back-facing, offscreen and geometry-blocked projections while ignoring scenery behind the screen', () => {
@@ -99,7 +110,8 @@ describe('in-world cinema projection', () => {
     expect(container.querySelector('iframe')).toBe(iframe);
     expect(iframe.src).toBe(url);
     iframe.dispatchEvent(new Event('load'));
-    expect(iframe.parentElement!.dataset.embedState).toBe('loaded');
+    expect(iframe.parentElement!.dataset.embedState).toBe('loading');
+    expect(iframe.style.opacity).toBe('0');
     expect(container.textContent).not.toContain('playing');
     cinema.dispose();
     cinema.dispose();

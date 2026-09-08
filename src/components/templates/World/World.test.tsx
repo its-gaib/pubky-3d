@@ -1,8 +1,11 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UseWorldSocialOptions } from '@/hooks/useWorldSocial/useWorldSocial.types';
+import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
 import { consumeWorldEntry, requestWorldEntry } from '@/libs/world/world-entry';
+import { socialSector } from '@/libs/world/world-social-layout';
 import type { WorldController, WorldData, WorldInteraction, WorldOptions } from '@/libs/world/world-types';
 import { World } from './World';
 import type { WorldSocialState } from './WorldSocialPanel';
@@ -10,7 +13,8 @@ import type { WorldSocialState } from './WorldSocialPanel';
 const mocks = vi.hoisted(() => ({
   createWorld: vi.fn<(container: HTMLDivElement, options: WorldOptions) => WorldController>(),
   useWorldData: vi.fn(),
-  useWorldSocial: vi.fn<() => WorldSocialState>(),
+  useWorldChess: vi.fn(),
+  useWorldSocial: vi.fn<(options: UseWorldSocialOptions) => WorldSocialState>(),
   auth: { isFullyAuthenticated: false, isLoading: false },
   requireAuth: vi.fn(),
   loadProduction: vi.fn(),
@@ -20,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     travelTo: vi.fn(),
     setSocialView: vi.fn(),
     setSocialFocus: vi.fn(),
+    setChessGame: vi.fn(),
     travelToPerson: vi.fn(),
     setOverview: vi.fn(),
     setPaused: vi.fn(),
@@ -41,6 +46,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/libs/world/world-scene', () => ({ createWorld: mocks.createWorld }));
 vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWorldData }));
+vi.mock('@/hooks/useWorldChess/useWorldChess', () => ({ useWorldChess: mocks.useWorldChess }));
 vi.mock('@/hooks/useWorldSocial/useWorldSocial', () => ({ useWorldSocial: mocks.useWorldSocial }));
 vi.mock('@/hooks/useAuthStatus/useAuthStatus', () => ({ useAuthStatus: () => mocks.auth }));
 vi.mock('@/hooks/useRequireAuth/useRequireAuth', () => ({
@@ -127,6 +133,16 @@ function socialState(overrides: Partial<WorldSocialState> = {}): WorldSocialStat
     ...overrides,
   };
 }
+function followedPeople(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    ...DATA.people[0],
+    id: index.toString(36).padStart(52, '0'),
+    name: `Friend ${index}`,
+    avatarUrl: undefined,
+    degree: 1 as const,
+    profileLoaded: true,
+  }));
+}
 async function interact(interaction: WorldInteraction) {
   await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
   await act(async () => mocks.createWorld.mock.calls[0][1].onInteract(interaction));
@@ -141,6 +157,7 @@ beforeEach(() => {
     value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
   });
   dataState();
+  mocks.useWorldChess.mockReturnValue({ game: null, loading: false, incomplete: false, error: null, refresh: vi.fn() });
   mocks.useWorldSocial.mockReturnValue(socialState());
   mocks.createWorld.mockImplementation((_container, options) => {
     options.onReady();
@@ -152,6 +169,36 @@ afterEach(() => {
 });
 
 describe('World', () => {
+  it('shows the saved Chessky opponents and clears the rendered game when the account clears', async () => {
+    const game: ChesskySnapshot = {
+      id: 'saved-game',
+      updatedAt: '2026-09-08T12:00:00.000Z',
+      white: { id: VIEWER_ID, name: 'Avery' },
+      black: { id: PERSON_ID, name: 'Bo' },
+      pieces: [{ square: 'e4', type: 'p', color: 'w' }],
+      result: '*',
+    };
+    const refresh = vi.fn();
+    const state = { game, loading: false, incomplete: true, error: null, refresh };
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.useWorldChess.mockReturnValue(state);
+    const { rerender } = render(<World />);
+    await interact({ kind: 'zone', id: 'chess' });
+    expect(mocks.controller.setChessGame).toHaveBeenLastCalledWith(game);
+    expect(screen.getByText('Most recently updated game found')).toBeInTheDocument();
+    expect(screen.getByText('Bo')).toBeInTheDocument();
+    expect(screen.getByText(/position saved on your homeserver/)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Refresh saved board' }));
+    expect(refresh).toHaveBeenCalledOnce();
+    mocks.auth.isFullyAuthenticated = false;
+    mocks.useWorldChess.mockReturnValue({ ...state, game: null, incomplete: false });
+    rerender(<World />);
+    await waitFor(() => expect(mocks.controller.setChessGame).toHaveBeenLastCalledWith(null));
+    expect(screen.queryByText('Bo')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in to find your game' })).toBeInTheDocument();
+  });
+
   it('loads production automatically, keeps walking discovery, and disposes the scene', async () => {
     const { unmount } = render(<World />);
     await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
@@ -351,11 +398,86 @@ describe('World', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('hydrates at most sixteen stable followed-person previews without selecting a latest post', async () => {
+    const people = followedPeople(512);
+    mocks.useWorldSocial.mockReturnValue(
+      socialState({ viewerId: VIEWER_ID, people, directCount: people.length, status: 'ready' }),
+    );
+    const { rerender } = render(<World />);
+    await waitFor(() => expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toHaveLength(16));
+    const request = mocks.useWorldSocial.mock.calls.at(-1)![0];
+    expect(request.selectedId).toBeNull();
+    expect(new Set(request.directoryIds).size).toBe(16);
+    for (const id of request.directoryIds ?? []) {
+      expect(id).toMatch(/^[a-z0-9]{52}$/);
+      expect(people.some((person) => person.id === id && person.degree === 1)).toBe(true);
+    }
+    mocks.useWorldSocial.mockReturnValue(
+      socialState({
+        viewerId: VIEWER_ID,
+        people: [...people].reverse().map((person) => ({ ...person, name: 'A changed name' })),
+        directCount: people.length,
+        status: 'ready',
+      }),
+    );
+    rerender(<World />);
+    await waitFor(() => expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toEqual(request.directoryIds));
+    expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].selectedId).toBeNull();
+  });
+
+  it('keeps a labeled way back after paging, walking away, reading a profile, and a smaller graph', async () => {
+    const people = followedPeople(1000)
+      .filter((person) => socialSector(person.id) === 0)
+      .slice(0, 110);
+    const state = socialState({
+      viewerId: VIEWER_ID,
+      people,
+      directCount: people.length,
+      complete: true,
+      status: 'ready',
+    });
+    mocks.useWorldSocial.mockReturnValue(state);
+    const user = userEvent.setup();
+    const { rerender } = render(<World />);
+    await interact({ kind: 'social-cluster', sector: 0 });
+    expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
+    expect(screen.getByText('110 people · 110 following')).toBeInTheDocument();
+    expect(screen.getByText(/^Includes Friend/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next sector page' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, page: 1 });
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus({
+        zone: 'forest',
+        position: [30, 30],
+        nearby: null,
+        collected: 0,
+        theaterIndex: 0,
+        theaterPaused: false,
+      }),
+    );
+    expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
+    await interact({ kind: 'person', id: people[0].id });
+    expect(screen.queryByRole('button', { name: 'Back to all sectors' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close and return to world' }));
+    expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
+    mocks.useWorldSocial.mockReturnValue({ ...state, people: [people[0]], directCount: 1 });
+    rerender(<World />);
+    expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
+    expect(screen.getByText('1 person · 1 following')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next sector page' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to all sectors' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: null, page: 0 });
+    expect(mocks.controller.setSocialFocus).toHaveBeenLastCalledWith(null);
+    expect(mocks.controller.travelTo).toHaveBeenLastCalledWith('plaza');
+    expect(screen.queryByRole('button', { name: 'Back to all sectors' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
+  });
+
   it('beams from the bank to face the Bitkit landmark', async () => {
     const user = userEvent.setup();
     render(<World />);
     await interact({ kind: 'fun', id: 'bank' });
-    await user.click(screen.getByRole('button', { name: 'Where can I get Hard Money?' }));
+    await user.click(screen.getByRole('button', { name: 'Where can I use Hard Money instead?' }));
     expect(mocks.controller.travelTo).toHaveBeenCalledWith('bitkit', { faceLandmark: true });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();

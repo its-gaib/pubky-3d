@@ -4,6 +4,7 @@ export interface WorldObstacle {
   x: number;
   z: number;
   radius: number;
+  enabled?: boolean;
 }
 
 export { WORLD_RADIUS } from '@/libs/world/world-layout';
@@ -22,6 +23,7 @@ export function movementStep(x: number, z: number, yaw: number, seconds: number,
 /** Slide around small solid props while keeping visitors on the island. */
 export function resolvePosition(x: number, z: number, obstacles: WorldObstacle[]) {
   for (const obstacle of obstacles) {
+    if (obstacle.enabled === false) continue;
     const dx = x - obstacle.x;
     const dz = z - obstacle.z;
     const distance = Math.hypot(dx, dz);

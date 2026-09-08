@@ -3,6 +3,7 @@ import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
 import { ARENA_DIMENSIONS, createArena } from '@/libs/world/world-arena';
 import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
+import { clampWorldPitch, worldCameraVertical } from '@/libs/world/world-camera';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
 import { createChess } from '@/libs/world/world-chess';
 import { CINEMA_DIMENSIONS, createCinema } from '@/libs/world/world-cinema';
@@ -322,7 +323,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const cinemaScreen = createCinemaScreen(container, scene, cinema.screenFrame);
   const conferences = createConferences(scene, WORLD_ANCHORS.conferences, register, obstacle);
   register(conferences.group, { kind: 'zone', id: 'conferences' }, 'Discover the next Pubky conferences');
-  const chess = createChess(scene, WORLD_ANCHORS.chess, obstacle);
+  const chess = createChess(scene, WORLD_ANCHORS.chess);
+  obstacles.push(...chess.obstacles);
   register(chess.group, { kind: 'zone', id: 'chess' }, 'Explore the Chess Citadel');
   register(chess.entrance, { kind: 'zone', id: 'chess' }, 'Play chess on Pubky');
   const runner = createRunner(scene, WORLD_ANCHORS.runner);
@@ -596,7 +598,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const dy = event.clientY - drag.y;
       drag.distance += Math.abs(dx) + Math.abs(dy);
       yaw -= dx * 0.004;
-      pitch = THREE.MathUtils.clamp(pitch + dy * 0.003, 0.16, 1.25);
+      pitch = clampWorldPitch(pitch + dy * 0.003, overview);
       drag.x = event.clientX;
       drag.y = event.clientY;
     } else if (event.pointerType === 'mouse') {
@@ -781,17 +783,18 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       scene.fog.near = Math.max(155, distance + 90);
       scene.fog.far = scene.fog.near + 175;
     }
+    const vertical = worldCameraVertical(pitch, distance, cameraTarget.y);
     cameraGoal
       .set(
         Math.sin(yaw) * Math.cos(pitch) * distance,
-        Math.sin(pitch) * distance,
+        vertical.height - cameraTarget.y,
         Math.cos(yaw) * Math.cos(pitch) * distance,
       )
       .add(cameraTarget);
     if (snapCamera || (lastStatus === -1 && time < 0.1)) camera.position.copy(cameraGoal);
     else camera.position.lerp(cameraGoal, smoothing);
     snapCamera = false;
-    camera.lookAt(cameraTarget);
+    camera.lookAt(cameraTarget.x, cameraTarget.y + vertical.lookLift, cameraTarget.z);
 
     if (time - lastStatus > 0.2 || lastStatus === -1) {
       lastStatus = time;
@@ -862,6 +865,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       if (value) landmarkPose = null;
       overview = value;
       zoom = 1;
+    },
+    setChessGame(game) {
+      chess.setGame(game);
     },
     setPaused(value) {
       paused = value;
@@ -970,6 +976,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       planets.dispose();
       bank.dispose();
       conferences.dispose();
+      chess.dispose();
       cinemaScreen.dispose();
       disposeObject(scene);
       renderer.dispose();

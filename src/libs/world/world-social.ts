@@ -6,6 +6,8 @@ import {
   SOCIAL_PAGE_SIZE,
   type SocialPersonPlacement,
   socialPersonSector,
+  socialSectorCountLabel,
+  socialSectorPreview,
   socialSectors,
   socialViewForPerson,
 } from '@/libs/world/world-social-layout';
@@ -36,10 +38,10 @@ interface SocialEdge {
   to: string;
 }
 
-function textCard(parent: THREE.Object3D, width: number, twoLines = false) {
+function textCard(parent: THREE.Object3D, width: number, sectorCard = false) {
   const canvas = document.createElement('canvas');
   canvas.width = 640;
-  canvas.height = twoLines ? 224 : 128;
+  canvas.height = sectorCard ? 272 : 128;
   const context = canvas.getContext('2d');
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -52,8 +54,8 @@ function textCard(parent: THREE.Object3D, width: number, twoLines = false) {
   let previous = '';
   return {
     sprite,
-    write(title: string, detail = '', direct = true) {
-      const key = `${title}\n${detail}\n${direct}`;
+    write(title: string, detail = '', direct = true, preview = '') {
+      const key = `${title}\n${detail}\n${direct}\n${preview}`;
       if (!context || key === previous) return;
       previous = key;
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -63,11 +65,14 @@ function textCard(parent: THREE.Object3D, width: number, twoLines = false) {
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.font = '600 40px sans-serif';
-      context.fillText(title.slice(0, 40), 320, twoLines ? 69 : 67, 594);
-      if (twoLines) {
+      context.fillText(title.slice(0, 48), 320, sectorCard ? 51 : 67, 594);
+      if (sectorCard) {
         context.fillStyle = WORLD_PALETTE.text;
-        context.font = '500 30px sans-serif';
-        context.fillText(detail.slice(0, 64), 320, 158, 594);
+        context.font = '600 30px sans-serif';
+        context.fillText(preview.slice(0, 80), 320, 132, 594);
+        context.fillStyle = WORLD_PALETTE.text;
+        context.font = '500 28px sans-serif';
+        context.fillText(detail.slice(0, 64), 320, 219, 594);
       }
       texture.needsUpdate = true;
     },
@@ -238,8 +243,9 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
       cluster.satellites.visible = sector.secondary > 0;
       cluster.name.write(
         `Sector ${index + 1}`,
-        `${sector.direct.toLocaleString('en')} follows · ${sector.secondary.toLocaleString('en')} discoveries`,
+        socialSectorCountLabel(sector),
         sector.direct > 0,
+        socialSectorPreview(sector, 24),
       );
     }
     rebuildEdges();
@@ -323,7 +329,7 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
     return {
       object: clusters[index].group,
       action: { kind: 'social-cluster', sector: index },
-      title: `Explore social sector ${index + 1}`,
+      title: `Explore sector ${index + 1} · ${socialSectorPreview(clusters[index].counts, 24)}`,
       dynamic: false,
       distance,
     };

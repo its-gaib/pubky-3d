@@ -1,7 +1,9 @@
+import { isPubkyIdentifier } from '@/libs/utils/utils';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldPerson, WorldSocialView } from '@/libs/world/world-types';
 
 export const SOCIAL_SECTOR_COUNT = 8;
+export const SOCIAL_SECTOR_PREVIEW_SIZE = 2;
 export const SOCIAL_PAGE_SIZE = 96;
 export const SOCIAL_PLAZA_RADIUS = 32;
 export const SOCIAL_CENTER_CLEARANCE = 7;
@@ -18,6 +20,7 @@ export interface SocialSector {
   direct: number;
   secondary: number;
   position: [number, number];
+  representatives: WorldPerson[];
 }
 
 function hashId(id: string) {
@@ -99,6 +102,7 @@ export function socialSectors(people: readonly WorldPerson[]): SocialSector[] {
       sector,
       direct: 0,
       secondary: 0,
+      representatives: [] as WorldPerson[],
       position: [WORLD_ANCHORS.plaza[0] + Math.sin(angle) * 21, WORLD_ANCHORS.plaza[1] + Math.cos(angle) * 21] as [
         number,
         number,
@@ -109,8 +113,53 @@ export function socialSectors(people: readonly WorldPerson[]): SocialSector[] {
     const sector = sectors[socialPersonSector(person)];
     if (person.degree === 2) sector.secondary++;
     else sector.direct++;
+    if (!isPubkyIdentifier(person.id) || (person.degree !== 1 && person.degree !== 2)) continue;
+    const hasDirect = sector.representatives[0]?.degree === 1;
+    if (person.degree === 2 && hasDirect) continue;
+    if (person.degree === 1 && !hasDirect) sector.representatives = [];
+    sector.representatives.push(person);
+    // Keep a fixed-size ID sample: profile names and response order cannot move the preview.
+    sector.representatives.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+    sector.representatives.length = Math.min(sector.representatives.length, SOCIAL_SECTOR_PREVIEW_SIZE);
   }
   return sectors;
+}
+
+/** At most 16 direct-follow profiles share the existing 20-ID hydration budget. */
+export function socialSectorProfileIds(sectors: readonly SocialSector[]) {
+  return [
+    ...new Set(
+      sectors.flatMap((sector) =>
+        sector.representatives
+          .filter((person) => person.degree === 1 && isPubkyIdentifier(person.id))
+          .slice(0, SOCIAL_SECTOR_PREVIEW_SIZE)
+          .map((person) => person.id),
+      ),
+    ),
+  ].slice(0, SOCIAL_SECTOR_COUNT * SOCIAL_SECTOR_PREVIEW_SIZE);
+}
+
+export function socialSectorPreview(sector: SocialSector, nameLength = 48) {
+  const limit = Math.max(1, Math.min(48, nameLength));
+  const names = sector.representatives.map((person) => {
+    const name =
+      person.profileLoaded === false
+        ? ''
+        : person.name
+            .slice(0, 48)
+            .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    const label = name || `${person.id.slice(0, 6)}…${person.id.slice(-4)}`;
+    return label.length > limit ? `${label.slice(0, Math.max(0, limit - 1))}…` : label;
+  });
+  if (!names.length) return 'People in this sector';
+  return `${sector.representatives[0]?.degree === 1 ? 'Includes' : 'Discoveries include'} ${names.join(' · ')}`;
+}
+
+export function socialSectorCountLabel(sector: SocialSector) {
+  const count = sector.direct + sector.secondary;
+  return `${count.toLocaleString('en')} ${count === 1 ? 'person' : 'people'} · ${sector.direct.toLocaleString('en')} following`;
 }
 
 /** Bounded packing with a clear center. Existing slots survive ordinary additions/removals. */

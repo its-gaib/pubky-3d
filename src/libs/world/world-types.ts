@@ -1,3 +1,5 @@
+import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
+
 /** Serializable world state, independent of rendering or a future presence transport. */
 export type WorldZoneId =
   | 'plaza'
@@ -113,6 +115,7 @@ export interface WorldController {
   travelTo: (zone: WorldZoneId, options?: { faceLandmark?: boolean }) => void;
   setSocialView: (view: WorldSocialView) => void;
   setSocialFocus: (personId: string | null) => void;
+  setChessGame: (game: ChesskySnapshot | null) => void;
   travelToPerson: (personId: string) => void;
   setOverview: (overview: boolean) => void;
   setPaused: (paused: boolean) => void;

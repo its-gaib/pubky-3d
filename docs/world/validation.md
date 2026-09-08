@@ -1,5 +1,58 @@
 # Pubky World validation record
 
+## Vibe publication, named sectors, cinema recovery and saved chess — 2026-09-08
+
+Source and registry PRs were checked before implementation. No open PR addressed
+these fixes or a Pubky World listing. The existing upstream graph experiment and
+optional registry shared-sign-in PR cover separate work.
+
+Sector cards now show two stable representative followed names and exact counts,
+with at most 16 preview profile requests through the existing queue. **Back to all
+sectors** stays available after entering a sector, including after walking away
+or graph shrinkage. The bank button reads **Where can I use Hard Money instead?**
+and preserves its Bitkit arrival and camera framing.
+
+The ambient cinema uses the official YouTube IFrame API. A local loading card
+covers the player until PLAYING. Errors 100/101/150 skip to a remaining allowed
+film after 1.2 seconds; failed films stay excluded during the visit. One active
+player and generation checks discard delayed callbacks. The shared API loader
+has a 12-second deadline and playback startup/buffering an 18-second deadline.
+Autoplay, HTML5/configuration errors and exhausted reels show local help instead
+of cycling indefinitely. Walking camera pitch now reaches above the horizon
+without going below ground; projection tests frame all four screen corners.
+
+The giant chessboard reads the current authenticated actor's saved Chessky games
+without any new write or sign-in capability. Exact owner/path, participant,
+timestamp and legal-history checks precede rendering. The selection uses
+updatedAt across paginated listings, not filename creation order. Reads are
+bounded to 20 seconds, 24 pages, 128 candidates, 128 KiB per record and 8,192 total
+replayed plies (1,024 per record), followed by at most three seconds for the two
+winning player names. Incomplete scans are labeled as the most recent game found.
+The published Chessky v1 format is supported; unpublished resignation records are
+rejected and mark the scan incomplete. Captures and promotions update the
+sculptures and stable collision slots together. Account changes clear the saved
+match and restore the starting armies. Both opponents appear beside the board
+and in its reader, which offers a refresh.
+
+Focused validation passed: 46 social/UI/camera tests, 27 cinema tests, 17 board/
+camera/movement/ground tests, and 53 Chessky data/hook/World tests. These batches
+overlap and are not an aggregate count. The pre-existing coastline fixture now
+uses a point outside the current radius rather than a hard-coded coordinate
+inside the enlarged map. Source security reviews found no actionable issues in
+the completed changes. The new chess.js 1.4.0 dependency has no runtime transitive
+dependencies. The inherited Next.js audit advisories remain a separate maintenance
+concern; no reachable high/critical issue was established in this change's review.
+
+Vercel project pubky-world is configured with all nine production runtime values.
+Deployments are manual; its automatically created GitHub connection was removed.
+The CLI-created environment file was removed, and .vercelignore excludes
+credentials, local tooling, caches and tests. The registry draft uses gcomte's
+existing verified author record, the supplied cover unchanged (SHA-256
+75cc68ee3eac834b4708f8656d309359a3fdd124b620802ad6092e8d341525c1), and prominent
+credit to Miguel Medeiros's original world at https://miguelmedeiros.dev/.
+The current registry schema and cover checks pass. Full build, local browser,
+public deployment and registry PR evidence follow after those checks complete.
+
 ## Complete chessboard and enlarged cinema — 2026-09-08
 
 Open PRs were checked in the fork and upstream before this increment; none

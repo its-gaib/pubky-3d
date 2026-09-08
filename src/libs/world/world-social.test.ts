@@ -71,6 +71,43 @@ describe('bounded social plaza renderer', () => {
     expect(scene.getObjectByName('world-social')?.children.length).toBe(initialChildren);
   });
 
+  it('previews real names and exact counts in existing sector textures as profiles change', () => {
+    const fillText = vi.fn();
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(
+      asOpaque<CanvasRenderingContext2D>({ clearRect: vi.fn(), fillRect: vi.fn(), fillText }),
+    );
+    const people = Array.from({ length: 160 }, (_, index) => ({
+      ...person(index.toString(36).padStart(52, '0')),
+      name: `Friend ${index}`,
+      profileLoaded: true,
+    }));
+    const sector = socialSector(people[0].id);
+    const members = people
+      .filter((person) => socialSector(person.id) === sector)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    members[0].name = 'Avery';
+    members[1].name = 'Bo';
+    social = createSocialPlaza(scene, graph(people));
+    expect(fillText).toHaveBeenCalledWith('Includes Avery · Bo', 320, 132, 594);
+    expect(fillText).toHaveBeenCalledWith(`${members.length} people · ${members.length} following`, 320, 219, 594);
+    const textures: (THREE.Texture | null)[] = [];
+    scene.traverse((object) => {
+      if (object instanceof THREE.Sprite) textures.push(object.material.map);
+    });
+    const cluster = scene.getObjectByName(`social-sector-${sector}`)!;
+    expect(social.nearest(cluster.position.x, cluster.position.z)?.title).toContain('Includes Avery · Bo');
+    social.updateData(
+      graph(people.map((person) => (person.id === members[0].id ? { ...person, name: 'Avery updated' } : person))),
+    );
+    expect(fillText).toHaveBeenCalledWith('Includes Avery updated · Bo', 320, 132, 594);
+    const nextTextures: (THREE.Texture | null)[] = [];
+    scene.traverse((object) => {
+      if (object instanceof THREE.Sprite) nextTextures.push(object.material.map);
+    });
+    expect(nextTextures).toEqual(textures);
+    expect(body().count).toBe(0);
+  });
+
   it('tweens a live demotion and applies reduced-motion changes immediately', () => {
     social = createSocialPlaza(scene, graph([person('friend')]));
     expect(bodyScale()).toBeCloseTo(1.15);

@@ -40,6 +40,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { Switch } from '@/atoms/Switch/Switch';
 import { useAuthStatus } from '@/hooks/useAuthStatus/useAuthStatus';
 import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
+import { useWorldChess } from '@/hooks/useWorldChess/useWorldChess';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
 import { Bitkit, Github, PubkyIcon } from '@/icons';
@@ -49,6 +50,10 @@ import { consumeWorldEntry } from '@/libs/world/world-entry';
 import { WORLD_PORTALS, WORLD_RADIUS } from '@/libs/world/world-layout';
 import {
   SOCIAL_PAGE_SIZE,
+  socialSectorCountLabel,
+  socialSectorPreview,
+  socialSectorProfileIds,
+  socialSectors,
   socialViewForPerson,
   socialViewPageCount,
   socialViewPeople,
@@ -64,6 +69,7 @@ import type {
 } from '@/libs/world/world-types';
 import styles from './World.module.css';
 import { WorldCamera } from './WorldCamera';
+import { WorldChess } from './WorldChess';
 import { WorldCinema } from './WorldCinema';
 import { WorldConferences } from './WorldConferences';
 import {
@@ -362,6 +368,8 @@ function WorldPanel({
   theaterCanPlay,
   onTheaterPause,
   onTheaterStep,
+  chess,
+  signedIn,
 }: {
   panel: WorldInteraction;
   data: WorldData;
@@ -386,6 +394,8 @@ function WorldPanel({
   theaterCanPlay: boolean;
   onTheaterPause: (paused: boolean) => void;
   onTheaterStep: (delta: number) => void;
+  chess: ReturnType<typeof useWorldChess>;
+  signedIn: boolean;
 }) {
   if (panel.kind === 'portal')
     return (
@@ -513,7 +523,7 @@ function WorldPanel({
             className={styles.primaryButton}
             onClick={() => onTravel('bitkit', { faceLandmark: true })}
           >
-            Where can I get Hard Money?
+            Where can I use Hard Money instead?
             <ArrowRight size={18} />
           </Button>
         </div>
@@ -646,22 +656,7 @@ function WorldPanel({
         </Button>
       </>
     );
-  if (panel.id === 'chess')
-    return (
-      <div className={styles.funPanel}>
-        <span className={styles.chessEmblem} aria-hidden="true">
-          ♞
-        </span>
-        <blockquote>The knights are taller than you. Your opening can still be stronger.</blockquote>
-        <p>
-          Thirty-two giants guard this board. Wander between the obsidian and silver ranks, then challenge someone to a
-          game on Chessky.
-        </p>
-        <ExternalWorldLink href={WORLD_EXPERIMENTS.chess.url} className={styles.primaryButton}>
-          {WORLD_EXPERIMENTS.chess.action}
-        </ExternalWorldLink>
-      </div>
-    );
+  if (panel.id === 'chess') return <WorldChess state={chess} signedIn={signedIn} onSignIn={onSignIn} />;
   if (panel.id === 'cinema') return <WorldCinema />;
   if (panel.id === 'conferences') return <WorldConferences />;
   if (panel.id === 'theater')
@@ -741,6 +736,7 @@ function WorldPanel({
 
 export function World() {
   const { isFullyAuthenticated, isLoading: isAuthLoading } = useAuthStatus();
+  const chess = useWorldChess();
   const { data: baseData, status: dataStatus, error: dataError, loadProduction } = useWorldData();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
@@ -803,7 +799,10 @@ export function World() {
       panel?.kind === 'zone' && panel.id === 'plaza'
         ? worldDirectoryPage(data.people, directoryQuery, directoryScope, directoryPage).people
         : socialViewPeople(data.people, socialView).slice(0, 20);
-    const nextIds = visible.map((person) => person.id);
+    const nextIds =
+      !visible.length && socialView.sector === null && data.people.length > SOCIAL_PAGE_SIZE
+        ? socialSectorProfileIds(socialSectors(data.people))
+        : visible.map((person) => person.id);
     setDirectoryIds((current) => (current.join(',') === nextIds.join(',') ? current : nextIds));
   }, [data.people, panel, socialView, directoryQuery, directoryScope, directoryPage]);
 
@@ -865,6 +864,9 @@ export function World() {
     controllerRef.current?.updateData(currentData);
   }, [baseData, personal, social.people, social.relationships]);
   useEffect(() => {
+    controllerRef.current?.setChessGame(chess.game);
+  }, [chess.game, sceneState]);
+  useEffect(() => {
     controllerRef.current?.setSocialView(socialView);
   }, [socialView, sceneState]);
   useEffect(() => {
@@ -907,6 +909,7 @@ export function World() {
   const heading = panel ? panelHeading(panel, data) : null;
   const socialPages = socialViewPageCount(data.people, socialView);
   const socialPage = Math.min(socialView.page, socialPages - 1);
+  const selectedSector = socialView.sector === null ? null : socialSectors(data.people)[socialView.sector];
 
   function wander() {
     setWelcome(false);
@@ -940,6 +943,11 @@ export function World() {
     controllerRef.current?.setPaused(false);
     controllerRef.current?.travelToPerson(id);
     containerRef.current?.focus({ preventScroll: true });
+  }
+  function showAllSectors() {
+    setSocialView({ sector: null, page: 0 });
+    controllerRef.current?.setSocialFocus(null);
+    travelTo('plaza');
   }
   function signInToFollow() {
     requireAuth(() => undefined);
@@ -1175,8 +1183,23 @@ export function World() {
         </aside>
       )}
 
-      {!welcome && !panel && !cameraOpen && worldStatus.zone === 'plaza' && (
+      {!welcome && !panel && !cameraOpen && (worldStatus.zone === 'plaza' || socialView.sector !== null) && (
         <aside className={styles.socialHud} aria-label="Social plaza view">
+          {socialView.sector !== null && (
+            <>
+              <Button overrideDefaults className={styles.socialBackButton} onClick={showAllSectors}>
+                <ArrowLeft size={17} aria-hidden="true" />
+                Back to all sectors
+              </Button>
+              <div className={styles.socialSectorNavigation}>
+                <div className={styles.socialSectorHeading}>
+                  <strong>Sector {socialView.sector + 1}</strong>
+                  {selectedSector && <span>{socialSectorCountLabel(selectedSector)}</span>}
+                </div>
+                {selectedSector && <p className={styles.socialSectorPreview}>{socialSectorPreview(selectedSector)}</p>}
+              </div>
+            </>
+          )}
           <div className={styles.socialHudLegend}>
             <span>
               <i className={styles.followingMarker} />
@@ -1201,33 +1224,26 @@ export function World() {
               <ArrowRight size={13} />
             </Button>
           )}
-          {socialView.sector !== null && data.people.length > SOCIAL_PAGE_SIZE && (
-            <div className={styles.socialPaging} role="group" aria-label="Neighborhood pages">
+          {socialView.sector !== null && socialPages > 1 && (
+            <div className={styles.socialPaging} role="group" aria-label="Sector pages">
               <Button
                 overrideDefaults
-                aria-label="Previous neighborhood page"
+                aria-label="Previous sector page"
                 disabled={socialPage === 0}
                 onClick={() => setSocialView({ ...socialView, page: socialPage - 1 })}
               >
                 <ArrowLeft size={15} />
               </Button>
               <span>
-                Neighborhood {socialView.sector + 1} · {socialPage + 1}/{socialPages}
+                Page {socialPage + 1} of {socialPages}
               </span>
               <Button
                 overrideDefaults
-                aria-label="Next neighborhood page"
+                aria-label="Next sector page"
                 disabled={socialPage + 1 >= socialPages}
                 onClick={() => setSocialView({ ...socialView, page: socialPage + 1 })}
               >
                 <ArrowRight size={15} />
-              </Button>
-              <Button
-                overrideDefaults
-                aria-label="Show all social neighborhoods"
-                onClick={() => setSocialView({ sector: null, page: 0 })}
-              >
-                <Orbit size={16} />
               </Button>
             </div>
           )}
@@ -1484,6 +1500,8 @@ export function World() {
                 theaterCanPlay={sceneState === 'ready'}
                 onTheaterPause={pauseTheater}
                 onTheaterStep={stepTheater}
+                chess={chess}
+                signedIn={isFullyAuthenticated}
               />
             )
           )}

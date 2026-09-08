@@ -26,7 +26,7 @@ describe('world movement', () => {
   });
 
   it('keeps the player within the coastline', () => {
-    const result = resolvePosition(90, 90, []);
+    const result = resolvePosition(WORLD_RADIUS * 2, WORLD_RADIUS * 2, []);
     expect(Math.hypot(result.x, result.z)).toBeCloseTo(WORLD_RADIUS);
   });
 

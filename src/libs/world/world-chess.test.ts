@@ -1,11 +1,88 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { CHESS_DIMENSIONS, CHESS_PIECES, chessCollisionObstacles, createChess } from '@/libs/world/world-chess';
 import { disposeObject } from '@/libs/world/world-geometry';
 import { resolvePosition } from '@/libs/world/world-motion';
+import { asOpaque } from '@/test-utils/type-assertions';
 
 describe('giant chessboard', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  const savedGame: ChesskySnapshot = {
+    id: 'saved-game',
+    updatedAt: '2026-09-08T12:00:00.000Z',
+    white: { id: 'y'.repeat(52), name: 'Avery' },
+    black: { id: 'b'.repeat(52), name: 'Bo' },
+    result: '*',
+    pieces: [
+      { square: 'e1', type: 'k', color: 'w' },
+      { square: 'e8', type: 'k', color: 'b' },
+      { square: 'e4', type: 'p', color: 'w' },
+    ],
+  };
+
+  it('moves meshes and stable collision slots together, including captures, promotions and logout', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const scene = new THREE.Scene();
+    const chess = createChess(scene, [0, 0]);
+    const slots = [...chess.obstacles];
+    chess.setGame(savedGame);
+    const activePieces = () => chess.group.children.filter((child) => child.visible && child.userData.chessPiece);
+    expect(activePieces()).toHaveLength(3);
+    expect(chess.obstacles.filter((item) => item.enabled)).toHaveLength(3);
+    chess.obstacles.forEach((item, index) => expect(item).toBe(slots[index]));
+    // The pawn has left e2 for e4, so its old square is walkable and the new one is solid.
+    expect(resolvePosition(1.6, 8, chess.obstacles)).toEqual({ x: 1.6, z: 8 });
+    expect(resolvePosition(1.6, 1.6, chess.obstacles)).not.toEqual({ x: 1.6, z: 1.6 });
+    expect(chess.group.getObjectByName('Saved Chessky opponents')?.visible).toBe(true);
+
+    chess.setGame({
+      ...savedGame,
+      pieces: [...savedGame.pieces.slice(0, 2), { square: 'a8', type: 'q', color: 'w' }],
+    });
+    const promoted = activePieces().find((piece) => piece.userData.chessPiece.kind === 'queen')!;
+    expect(promoted.name).toBe('silver queen');
+    expect(promoted.position.x).toBeCloseTo(-11.2);
+    expect(promoted.position.z).toBeCloseTo(-11.2);
+    expect(resolvePosition(1.6, 1.6, chess.obstacles)).toEqual({ x: 1.6, z: 1.6 });
+    expect(resolvePosition(-11.2, -11.2, chess.obstacles)).not.toEqual({ x: -11.2, z: -11.2 });
+
+    chess.setGame(null);
+    expect(activePieces()).toHaveLength(32);
+    expect(chess.obstacles.filter((item) => item.enabled)).toHaveLength(32);
+    expect(chess.group.getObjectByName('Saved Chessky opponents')?.visible).toBe(false);
+    expect(resolvePosition(1.6, 8, chess.obstacles)).not.toEqual({ x: 1.6, z: 8 });
+    chess.dispose();
+    expect(scene.children).toHaveLength(0);
+  });
+
+  it('renders the opponents as bounded plain canvas text and rejects malformed board coordinates', () => {
+    const context = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      textAlign: '',
+      textBaseline: '',
+      font: '',
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      roundRect: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      fillText: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(asOpaque<CanvasRenderingContext2D>(context));
+    const scene = new THREE.Scene();
+    const chess = createChess(scene, [0, 0]);
+    chess.setGame(savedGame);
+    expect(context.fillText).toHaveBeenCalledWith('Silver · Avery', 320, 44, 600);
+    expect(context.fillText).toHaveBeenCalledWith('Obsidian · Bo', 320, 138, 600);
+    chess.setGame({ ...savedGame, pieces: [{ square: '../a8', type: 'q', color: 'w' }] });
+    expect(chess.group.getObjectByName('Saved Chessky opponents')?.visible).toBe(false);
+    expect(chess.obstacles.filter((item) => item.enabled)).toHaveLength(32);
+    chess.dispose();
+  });
 
   it('places every piece of two complete armies on a unique legal starting square', () => {
     expect(CHESS_PIECES).toHaveLength(32);

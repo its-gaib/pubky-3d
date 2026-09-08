@@ -1,19 +1,7 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { CINEMA_SCREEN } from '@/libs/world/world-cinema';
-import { shuffleWorldFilms, worldCinemaUrl, type WorldFilm } from '@/libs/world/world-cinema-program';
-
-/** One fixed-host, muted native playlist; no scripting bridge or account data is attached. */
-export function worldCinemaAmbientUrl(program: readonly WorldFilm[]): string | null {
-  const validated = worldCinemaUrl(program);
-  if (!validated) return null;
-  const url = new URL(validated);
-  url.searchParams.set('mute', '1');
-  url.searchParams.set('controls', '0');
-  url.searchParams.set('disablekb', '1');
-  url.searchParams.set('fs', '0');
-  return url.toString();
-}
+import { CINEMA_PLAYBACK_COPY, createCinemaPlayback } from '@/libs/world/world-cinema-playback';
 
 const SAMPLES = [-0.48, 0, 0.48].flatMap((x) =>
   [-0.48, 0, 0.48].map((y) => new THREE.Vector3(x * CINEMA_SCREEN.width, y * CINEMA_SCREEN.height, 0)),
@@ -74,7 +62,7 @@ export function createCinemaVisibility(world: THREE.Scene, screenFrame: THREE.Ob
   };
 }
 
-/** A single persistent iframe is projected using the exact WebGL camera. */
+/** One active player is projected using the exact WebGL camera, behind a local loading state. */
 export function createCinemaScreen(container: HTMLElement, world: THREE.Scene, screenFrame: THREE.Object3D) {
   const renderer = new CSS3DRenderer();
   const overlay = renderer.domElement;
@@ -91,43 +79,23 @@ export function createCinemaScreen(container: HTMLElement, world: THREE.Scene, s
     backfaceVisibility: 'hidden',
   });
   const fallback = document.createElement('div');
-  fallback.textContent = 'MIDNIGHT CINEMA · Loading the muted screening…';
   Object.assign(fallback.style, {
     position: 'absolute',
     inset: '0',
     display: 'grid',
     placeItems: 'center',
+    padding: '90px',
+    textAlign: 'center',
+    background: '#17121C',
     color: '#F4D49E',
     font: '40px sans-serif',
   });
   element.appendChild(fallback);
-  const iframe = document.createElement('iframe');
-  iframe.title = 'Midnight Cinema — automatic muted YouTube program';
-  iframe.width = '1600';
-  iframe.height = '900';
-  iframe.tabIndex = -1;
-  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
-  iframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
-  iframe.referrerPolicy = 'strict-origin';
-  iframe.loading = 'eager';
-  Object.assign(iframe.style, {
-    position: 'absolute',
-    inset: '0',
-    border: '0',
-    width: '100%',
-    height: '100%',
-    pointerEvents: 'none',
+  const playback = createCinemaPlayback(element, (state) => {
+    element.dataset.embedState = state;
+    fallback.textContent = CINEMA_PLAYBACK_COPY[state];
+    fallback.style.display = state === 'playing' ? 'none' : 'grid';
   });
-  const url = worldCinemaAmbientUrl(shuffleWorldFilms());
-  if (url) iframe.src = url;
-  element.appendChild(iframe);
-  // A load event only means the cross-origin document loaded, not that autoplay succeeded.
-  const loaded = () => {
-    element.dataset.embedState = 'loaded';
-    fallback.style.display = 'none';
-  };
-  iframe.addEventListener('load', loaded);
-  element.dataset.embedState = 'loading';
   const object = new CSS3DObject(element);
   element.style.pointerEvents = 'none';
   const cssScene = new THREE.Scene();
@@ -140,7 +108,9 @@ export function createCinemaScreen(container: HTMLElement, world: THREE.Scene, s
   overlay.style.visibility = 'hidden';
 
   return {
-    iframe,
+    get iframe() {
+      return playback.iframe;
+    },
     resize(width: number, height: number) {
       if (!disposed) renderer.setSize(Math.max(1, width), Math.max(1, height));
     },
@@ -159,9 +129,7 @@ export function createCinemaScreen(container: HTMLElement, world: THREE.Scene, s
     dispose() {
       if (disposed) return;
       disposed = true;
-      iframe.removeEventListener('load', loaded);
-      iframe.removeAttribute('src');
-      iframe.remove();
+      playback.dispose();
       object.removeFromParent();
       overlay.remove();
     },
