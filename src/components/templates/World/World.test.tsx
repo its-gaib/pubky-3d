@@ -5,7 +5,6 @@ import type { UseWorldSocialOptions } from '@/hooks/useWorldSocial/useWorldSocia
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
 import { consumeWorldEntry, requestWorldEntry } from '@/libs/world/world-entry';
-import { socialSector } from '@/libs/world/world-social-layout';
 import type { WorldController, WorldData, WorldInteraction, WorldOptions } from '@/libs/world/world-types';
 import { World } from './World';
 import type { WorldSocialState } from './WorldSocialPanel';
@@ -151,6 +150,8 @@ function followedPeople(count: number) {
     avatarUrl: undefined,
     degree: 1 as const,
     profileLoaded: true,
+    profileTags: [{ label: 'synonym', count: 32 }],
+    profileTagsStatus: 'loaded' as const,
   }));
 }
 async function interact(interaction: WorldInteraction) {
@@ -418,19 +419,25 @@ describe('World', () => {
 
   it('previews a social neighborhood before entering it without opening a destination menu', async () => {
     const user = userEvent.setup();
+    const people = followedPeople(4);
+    mocks.useWorldSocial.mockReturnValue(socialState({ viewerId: VIEWER_ID, people, directCount: 4, status: 'ready' }));
     render(<World />);
-    await interact({ kind: 'social-cluster', sector: 3 });
-    expect(screen.getByRole('heading', { name: 'Sector 4 · who’s here?' })).toBeInTheDocument();
+    await interact({ kind: 'social-cluster', sector: 0, sectorKey: 'tag:synonym' });
+    expect(screen.getByRole('heading', { name: 'Synonym · who’s here?' })).toBeInTheDocument();
     expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: null, page: 0 });
     expect(mocks.controller.travelTo).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Enter sector 4' }));
-    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 3, page: 0 });
+    await user.click(screen.getByRole('button', { name: 'Enter Synonym' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, sectorKey: 'tag:synonym', page: 0 });
     expect(mocks.controller.travelTo).toHaveBeenLastCalledWith('plaza');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('hydrates at most sixteen stable followed-person previews without selecting a latest post', async () => {
-    const people = followedPeople(512);
+    const labels = ['art', 'bitcoin', 'chess', 'dev', 'music', 'privacy', 'synonym', 'travel'];
+    const people = followedPeople(512).map((person, index) => ({
+      ...person,
+      profileTags: [{ label: labels[index % labels.length], count: 4 }],
+    }));
     mocks.useWorldSocial.mockReturnValue(
       socialState({ viewerId: VIEWER_ID, people, directCount: people.length, status: 'ready' }),
     );
@@ -457,9 +464,7 @@ describe('World', () => {
   });
 
   it('previews every follow through bounded pages before entering, then clamps the list after unfollows', async () => {
-    const people = followedPeople(1000)
-      .filter((person) => socialSector(person.id) === 0)
-      .slice(0, 110);
+    const people = followedPeople(110);
     const state = socialState({
       viewerId: VIEWER_ID,
       people,
@@ -472,7 +477,7 @@ describe('World', () => {
     const { rerender } = render(<World />);
     await interact({ kind: 'social-cluster', sector: 0 });
     expect(screen.getByText('Follows 1–20 of 110')).toBeInTheDocument();
-    expect(within(screen.getByRole('list', { name: 'Following in sector 1' })).getAllByRole('listitem')).toHaveLength(
+    expect(within(screen.getByRole('list', { name: 'Following in Synonym' })).getAllByRole('listitem')).toHaveLength(
       20,
     );
     expect(screen.getByText(people[2].name)).toBeInTheDocument();
@@ -504,15 +509,13 @@ describe('World', () => {
       ),
     );
     expect(mocks.useWorldSocial.mock.calls.every(([options]) => (options.directoryIds?.length ?? 0) <= 20)).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Enter sector 1' }));
-    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, page: 0 });
+    await user.click(screen.getByRole('button', { name: 'Enter Synonym' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, sectorKey: 'tag:synonym', page: 0 });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('makes previews reachable from a small plaza and resets them when switching sectors or accounts', async () => {
-    const people = followedPeople(500)
-      .filter((person) => socialSector(person.id) === 0)
-      .slice(0, 30);
+    const people = [...followedPeople(30), { ...followedPeople(100)[99], profileTags: [{ label: 'zines', count: 3 }] }];
     const state = socialState({
       viewerId: VIEWER_ID,
       people,
@@ -527,10 +530,10 @@ describe('World', () => {
     await user.click(screen.getByRole('button', { name: 'Preview all sector follows' }));
     await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
     expect(screen.getByText('Follows 21–30 of 30')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Preview sector 2, 0 following' }));
-    expect(screen.getByText('Follows 0–0 of 0')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview Zines, 1 following' }));
+    expect(screen.getByText('Follows 1–1 of 1')).toBeInTheDocument();
     expect(screen.queryByText(people[20].name)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Preview sector 1, 30 following' }));
+    await user.click(screen.getByRole('button', { name: 'Preview Synonym, 30 following' }));
     expect(screen.getByText('Follows 1–20 of 30')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
     mocks.useWorldSocial.mockReturnValue({ ...state, viewerId: 'c'.repeat(52) });
@@ -540,10 +543,52 @@ describe('World', () => {
     expect(screen.getByText('Follows 1–20 of 30')).toBeInTheDocument();
   });
 
+  it('preserves the selected community during tag hydration and keeps a return path when that community disappears', async () => {
+    const people = followedPeople(110);
+    const state = socialState({ viewerId: VIEWER_ID, people, directCount: 110, status: 'ready', complete: true });
+    mocks.useWorldSocial.mockReturnValue(state);
+    const user = userEvent.setup();
+    const { rerender } = render(<World />);
+    await interact({ kind: 'social-cluster', sector: 0, sectorKey: 'tag:synonym' });
+    await user.click(screen.getByRole('button', { name: 'Next sector preview page' }));
+    const artist = { ...followedPeople(1000)[999], profileTags: [{ label: 'art', count: 4 }] };
+    mocks.useWorldSocial.mockReturnValue({ ...state, people: [...people, artist], directCount: 111 });
+    rerender(<World />);
+    expect(screen.getByRole('heading', { name: 'Synonym · who’s here?' })).toBeInTheDocument();
+    expect(screen.getByText('Follows 21–40 of 110')).toBeInTheDocument();
+    expect(screen.queryByText(artist.name)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.useWorldSocial.mock.calls.at(-1)?.[0].directoryIds).toEqual(
+        people.slice(20, 40).map((person) => person.id),
+      ),
+    );
+    await user.click(screen.getByRole('button', { name: 'Enter Synonym' }));
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 1, sectorKey: 'tag:synonym', page: 0 });
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus({
+        zone: 'forest',
+        position: [30, 30],
+        nearby: null,
+        collected: 0,
+        theaterIndex: 0,
+        theaterPaused: false,
+      }),
+    );
+    mocks.useWorldSocial.mockReturnValue({
+      ...state,
+      people: people.map((person) => ({ ...person, profileTags: [{ label: 'bitcoin', count: 2 }] })),
+    });
+    rerender(<World />);
+    await waitFor(() => expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: null, page: 0 }));
+    expect(screen.getByText('Neighborhood updated')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to all sectors' }));
+    expect(mocks.controller.travelTo).toHaveBeenLastCalledWith('plaza');
+    expect(screen.queryByText('Neighborhood updated')).not.toBeInTheDocument();
+  });
+
   it('keeps a labeled way back after paging, walking away, reading a profile, and a smaller graph', async () => {
-    const people = followedPeople(1000)
-      .filter((person) => socialSector(person.id) === 0)
-      .slice(0, 110);
+    const people = followedPeople(110);
     const state = socialState({
       viewerId: VIEWER_ID,
       people,
@@ -555,12 +600,12 @@ describe('World', () => {
     const user = userEvent.setup();
     const { rerender } = render(<World />);
     await interact({ kind: 'social-cluster', sector: 0 });
-    await user.click(screen.getByRole('button', { name: 'Enter sector 1' }));
+    await user.click(screen.getByRole('button', { name: 'Enter Synonym' }));
     expect(screen.getByRole('button', { name: 'Back to all sectors' })).toBeInTheDocument();
     expect(screen.getByText('110 people · 110 following')).toBeInTheDocument();
     expect(screen.getByText(/^Includes Friend/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next sector page' }));
-    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, page: 1 });
+    expect(mocks.controller.setSocialView).toHaveBeenLastCalledWith({ sector: 0, sectorKey: 'tag:synonym', page: 1 });
     await act(async () =>
       mocks.createWorld.mock.calls[0][1].onStatus({
         zone: 'forest',

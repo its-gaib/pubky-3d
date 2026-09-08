@@ -31,12 +31,19 @@ their readers and nearby interactions reveal more as you approach.
 
 - **Social Plaza:** a broad circle of people and real follow connections. Your
   follows stand larger and brighter; people they follow appear at roughly half
-  that size. Large circles resolve into eight selectable neighborhoods. Each
-  neighborhood has pages of up to 96 figures, with nearby and selected names.
+  that size. Neighborhoods are named for shared community tags on the profiles
+  you follow, such as **Synonym**, with up to seven tag groups and a commons for
+  other or untagged profiles. Overlapping tags favor more specific shared groups;
+  case variants count as the same tag. These are community labels, not verified
+  affiliations. Grouping reads up to 20 top profile tags per followed person;
+  tag loading and unavailable data remain explicit. People one
+  follow away join a matching tag group or a real followed parent's neighborhood.
+  Large circles resolve into selectable neighborhoods, each with pages of up to
+  96 figures, with nearby and selected names.
   Selecting a sector opens a preview of every direct follow it contains, with a
   scrollable list and 20-person pages before **Enter sector**. Each page loads
   names and avatars through the existing bounded profile queue. Compact physical
-  labels retain two representative names and exact counts; the complete preview
+  labels show the tag, two representative names and exact counts; the complete preview
   is also accessible from the plaza HUD. A persistent
   **Back to all sectors** button returns to the plaza overview, including after
   walking away from the plaza or shrinking the graph through unfollowing.
@@ -57,7 +64,9 @@ their readers and nearby interactions reveal more as you approach.
   playful 12-second duel. They are decorative performers, with no player combat.
 - **Pubky University:** short lessons linking to the official Pubky documentation.
 - **Open Source Yard:** workshops introducing the organization's GitHub projects.
-- **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark.
+- **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark,
+  facing inward so it reads correctly from the island. The bank jump arrives on
+  that same side with the camera looking at the logo.
 - **Trending Theater:** an open-air stage showing up to eight public Hot posts in
   total-engagement order, with no date-window claim. Each slide lasts 20 seconds.
   Opening its reader pauses the program; controls pause, resume or skip. The
@@ -227,7 +236,7 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
   game, cinema player, photo review, keyboard alternatives and touch controls.
 - `world-scene.ts`: Three.js lifecycle, island, tag forest, hoodie persona, input
   and camera. Dynamic social updates do not rebuild the forest or reset the show.
-- `world-social-layout.ts`: deterministic ID-based sectors, direct/secondary
+- `world-social-layout.ts`: deterministic profile-tag neighborhoods, direct/secondary
   placement, pages and lookup of every discovered person.
 - `world-social.ts`: shared instanced body meshes, bounded entry/exit transitions,
   nearby labels, real relationship lines, cluster counts and instance picking.
@@ -258,8 +267,10 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
 - `src/hooks/useWorldSocial`: the signed-in viewer's complete two-hop graph target.
   It paginates direct follows first, then those people's follows, in bounded
   request batches with explicit progress, continuation and retry. There is no
-  fixed total ID cap. Profiles load as the directory is browsed or a person is
-  selected; latest posts load on selection. Follow writes wrap the existing
+  fixed total ID cap. Direct follows' top profile tags load automatically through
+  the same two-request queue; returned tagger IDs are discarded. Profiles load as
+  the directory is browsed or a person is selected; latest posts load on selection.
+  Follow writes wrap the existing
   application flow and update graph membership as they sync.
 - `src/hooks/useWorldChess` and the Chessky controller/application/service: a
   bounded, read-only scan of the current actor's saved Chessky records. Canonical

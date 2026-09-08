@@ -1,5 +1,67 @@
 # Pubky World validation record
 
+## Profile-tag neighborhoods — 2026-09-08
+
+Open PRs were checked before implementation. The fork has no open PR; upstream
+graph experiment #2138, tag-cache work #2486 and tagger pagination #2350 do not
+provide this production 3D grouping behavior.
+
+Direct follows are grouped by their community profile tags instead of public-key
+hashes. Up to seven named tag groups and a commons retain every loaded person.
+Case variants and duplicate labels do not inflate support; overlapping tags favor
+the more specific featured group, with deterministic ties. One-hop discoveries
+use a matching known tag or a real direct parent's group. Stable tag keys keep
+an open neighborhood selected while tag results change numeric slots; a vanished
+group returns to the overview. Complete 20-person previews, 96-person scene pages
+and the return control remain available.
+
+A read-only production probe confirmed the existing Nexus profile-tag endpoint
+returns counted labels including `synonym`, ordered by count. Each direct follow
+loads up to 20 top tags through the shared two-request queue. Nexus requires at
+least one tagger in that response; those IDs are discarded without loading their
+profiles. Pending, loaded-without-tags and unavailable records remain distinct.
+No post history is fetched for grouping. Tags are community labels, not verified
+affiliations or an exhaustive record of every tag on a profile.
+
+The focused data checks passed 55 tests across the social hook, graph, queue and
+profile-tag boundary. Coverage includes automatically loading all 120 fixture
+follows while graph traversal is paused, shared physical concurrency of two,
+retry, metadata/tag merging, and account, network and refresh fencing.
+
+Layout, renderer, preview and World navigation checks passed as part of a
+64-test batch that also included the nine shared normalization tests. After
+preserving reader scroll and keyboard focus by tag identity, the affected UI
+rerun passed all 39 tests. Together with the data checks, this is 111 unique
+focused tests. Changed-source ESLint, Prettier and whitespace checks passed.
+
+The layout partition and normalized tag maps are cached by immutable arrays.
+A bounded Node timing probe used the actual partition/layout source with 5,000
+and 10,000 synthetic direct follows, at both two and 20 tags per profile. Every
+ID remained in exactly one group. With 10,000 follows, updating one profile took
+about 30 ms for two tags per profile and 172 ms for the dense 20-tag case on this
+host; the latter's initial uncached partition took about 453 ms. Cached overview
+reads avoid that work. This is a source-level timing probe, not a browser frame
+rate claim. Evidence is `profile-tag-sector-benchmark.json` in the local test
+cache. The completed source and guarded publication-helper security reviews
+found no actionable issues.
+
+## Inward-facing Bitkit landmark — 2026-09-08
+
+The extruded logo now faces the inside of the island. The bank's Bitkit jump
+arrives on that same side, with the camera looking at the readable face.
+The nine existing world-layout tests pass, as do focused lint and formatting;
+the final security review found no actionable issue.
+
+Source `e047fc3fdad56c5cb3ffdd40448cb2e30818a2cc` has a valid GitHub signature
+under `its-gaib`. [Build 34232952849](https://github.com/its-gaib/pubky-3d/actions/runs/34232952849)
+passed webpack, full TypeScript, eight static pages and the production runtime
+smoke. Its verified standalone artifact `10058734937` replaced the local preview
+on `127.0.0.1:4321`. Vercel deployment `dpl_9GYBxGxgsdtBfg9PjykeV4ktF22d`
+published that exact source at https://pubky-world.vercel.app/. Project, source
+metadata, READY state and public alias were checked. Anonymous root and sign-in
+requests returned 200 locally and publicly, with all nine production values
+verified. No account authentication or publishing was performed.
+
 ## Account controls, complete sector previews and a quieter sky — 2026-09-08
 
 The signed-in header uses the account's current display name and canonical

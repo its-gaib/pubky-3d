@@ -84,6 +84,23 @@ describe('WorldSocialGraph', () => {
     expect(graph.snapshot(null).people).toBe(snapshot.people);
   });
 
+  it('publishes tag status and content changes while preserving arrays for equivalent prefixes', () => {
+    const graph = new WorldSocialGraph(VIEWER);
+    page(graph, [ALICE]);
+    const initial = graph.snapshot(null);
+    const person = initial.people[0];
+    graph.updateProfiles([{ ...person, profileTagsStatus: 'pending' }]);
+    const pending = graph.snapshot(null);
+    expect(pending.people).not.toBe(initial.people);
+    graph.updateProfiles([{ ...person, profileTagsStatus: 'loaded', profileTags: [{ label: 'synonym', count: 3 }] }]);
+    const loaded = graph.snapshot(null);
+    expect(loaded.people).not.toBe(pending.people);
+    graph.updateProfiles([{ ...person, profileTagsStatus: 'loaded', profileTags: [{ label: 'synonym', count: 3 }] }]);
+    expect(graph.snapshot(null).people).toBe(loaded.people);
+    graph.updateProfiles([{ ...person, profileTagsStatus: 'loaded', profileTags: [{ label: 'synonym', count: 4 }] }]);
+    expect(graph.snapshot(null).people).not.toBe(loaded.people);
+  });
+
   it.each([
     { nextPageIds: undefined, skip: undefined, isExhausted: false },
     { nextPageIds: ['not-a-public-key'], skip: 1, isExhausted: true },

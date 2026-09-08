@@ -3,9 +3,10 @@ import { cylinder, disposeObject, material, sphere, WORLD_PALETTE } from '@/libs
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import {
   layoutSocialPeople,
+  resolveSocialView,
   SOCIAL_PAGE_SIZE,
+  SOCIAL_SECTOR_COUNT,
   type SocialPersonPlacement,
-  socialPersonSector,
   socialSectorCountLabel,
   socialSectorPreview,
   socialSectors,
@@ -96,6 +97,7 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
   let instances: AnimatedPerson[] = [];
   let edges: SocialEdge[] = [];
   const clusterConnections = new Set<number>();
+  let sectorByPerson = new Map<string, number>();
   const rootPosition = new THREE.Vector3(WORLD_ANCHORS.plaza[0], 4.6, WORLD_ANCHORS.plaza[1]);
   const transform = new THREE.Object3D();
   const color = new THREE.Color();
@@ -136,9 +138,12 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
     name.sprite.visible = false;
   });
 
-  const clusters = socialSectors([]).map((sector) => {
+  const emptySector = socialSectors([])[0];
+  // Geometry has a fixed maximum pool even when there are only one or two tag neighborhoods.
+  const clusters = Array.from({ length: SOCIAL_SECTOR_COUNT }, (_, index) => {
+    const sector = emptySector;
     const group = new THREE.Group();
-    group.name = `social-sector-${sector.sector}`;
+    group.name = `social-sector-${index}`;
     group.position.set(sector.position[0], 0.2, sector.position[1]);
     root.add(group);
     const base = cylinder(group, 3, 3.5, 0.25, '#34343E', [0, 0, 0]);
@@ -184,8 +189,9 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
     for (const relationship of data.relationships) {
       if (clustered) {
         const target = allPeople.get(relationship.to);
-        if (!allPeople.has(relationship.from) && target?.degree === 1)
-          clusterConnections.add(socialPersonSector(target));
+        const sector = target ? sectorByPerson.get(target.id) : undefined;
+        if (!allPeople.has(relationship.from) && target?.degree === 1 && sector !== undefined)
+          clusterConnections.add(sector);
         continue;
       }
       const to = placements.get(relationship.to);
@@ -207,9 +213,13 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
   }
 
   function rebuild(initial = false) {
+    const sectors = socialSectors(data.people);
+    view = resolveSocialView(sectors, view);
     const next = layoutSocialPeople(data.people, view, placements);
     placements = new Map(next.map((placement) => [placement.person.id, placement]));
-    const sectors = socialSectors(data.people);
+    sectorByPerson = new Map(
+      sectors.flatMap((sector) => sector.members.map((person) => [person.id, sector.sector] as const)),
+    );
     clustered =
       view.sector === null &&
       sectors.reduce((count, sector) => count + sector.direct + sector.secondary, 0) > SOCIAL_PAGE_SIZE;
@@ -237,12 +247,17 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
     }
     for (const [index, cluster] of clusters.entries()) {
       const sector = sectors[index];
+      if (!sector) {
+        cluster.group.visible = false;
+        continue;
+      }
       cluster.counts = sector;
+      cluster.group.position.set(sector.position[0], 0.2, sector.position[1]);
       cluster.group.visible = clustered && sector.direct + sector.secondary > 0;
       cluster.prominent.scale.setScalar(sector.direct ? 1 : 0.5);
       cluster.satellites.visible = sector.secondary > 0;
       cluster.name.write(
-        `Sector ${index + 1}`,
+        sector.label,
         socialSectorCountLabel(sector),
         sector.direct > 0,
         socialSectorPreview(sector, 24),
@@ -328,8 +343,8 @@ export function createSocialPlaza(scene: THREE.Scene, initialData: WorldData) {
   function clusterHit(index: number, distance: number): SocialHit {
     return {
       object: clusters[index].group,
-      action: { kind: 'social-cluster', sector: index },
-      title: `Preview sector ${index + 1} · ${socialSectorPreview(clusters[index].counts, 24)}`,
+      action: { kind: 'social-cluster', sector: index, sectorKey: clusters[index].counts.key },
+      title: `Preview ${clusters[index].counts.label} · ${socialSectorPreview(clusters[index].counts, 24)}`,
       dynamic: false,
       distance,
     };

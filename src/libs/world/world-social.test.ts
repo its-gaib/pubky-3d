@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { asOpaque } from '@/test-utils/type-assertions';
 import { createSocialPlaza } from './world-social';
-import { SOCIAL_PAGE_SIZE, socialSector } from './world-social-layout';
+import { SOCIAL_PAGE_SIZE, socialSectors } from './world-social-layout';
 import type { WorldData, WorldPerson } from './world-types';
 
 function person(id: string, degree: 1 | 2 = 1, parentIds: string[] = []): WorldPerson {
@@ -55,7 +55,7 @@ describe('bounded social plaza renderer', () => {
     const people = Array.from({ length: 2000 }, (_, index) => person(`person-${index}`));
     social = createSocialPlaza(scene, graph(people));
     expect(body().count).toBe(0);
-    expect(scene.getObjectByName(`social-sector-${socialSector(people[0].id)}`)?.visible).toBe(true);
+    expect(scene.getObjectByName(`social-sector-${socialSectors(people)[0].sector}`)?.visible).toBe(true);
     const initialChildren = scene.getObjectByName('world-social')?.children.length;
     const destination = social.findPerson(people.at(-1)!.id);
     expect(destination?.person.id).toBe(people.at(-1)!.id);
@@ -65,7 +65,7 @@ describe('bounded social plaza renderer', () => {
     expect(body().count).toBeGreaterThan(0);
     expect(body().count).toBeLessThanOrEqual(SOCIAL_PAGE_SIZE);
     expect(social.nearest(location.x, location.z)?.action).toEqual({ kind: 'person', id: destination.person.id });
-    for (let page = 0; page < 8; page++) social.setView({ sector: socialSector(people[0].id), page });
+    for (let page = 0; page < 8; page++) social.setView({ sector: socialSectors(people)[0].sector, page });
     social.tick(0.1, location, true, false);
     expect(body().count).toBeLessThanOrEqual(SOCIAL_PAGE_SIZE);
     expect(scene.getObjectByName('world-social')?.children.length).toBe(initialChildren);
@@ -80,14 +80,15 @@ describe('bounded social plaza renderer', () => {
       ...person(index.toString(36).padStart(52, '0')),
       name: `Friend ${index}`,
       profileLoaded: true,
+      profileTags: [{ label: 'synonym', count: 32 }],
+      profileTagsStatus: 'loaded' as const,
     }));
-    const sector = socialSector(people[0].id);
-    const members = people
-      .filter((person) => socialSector(person.id) === sector)
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const sector = socialSectors(people)[0].sector;
+    const members = [...people].sort((a, b) => a.id.localeCompare(b.id));
     members[0].name = 'Avery';
     members[1].name = 'Bo';
     social = createSocialPlaza(scene, graph(people));
+    expect(fillText).toHaveBeenCalledWith('Synonym', 320, 51, 594);
     expect(fillText).toHaveBeenCalledWith('Includes Avery · Bo', 320, 132, 594);
     expect(fillText).toHaveBeenCalledWith(`${members.length} people · ${members.length} following`, 320, 219, 594);
     const textures: (THREE.Texture | null)[] = [];
@@ -95,7 +96,12 @@ describe('bounded social plaza renderer', () => {
       if (object instanceof THREE.Sprite) textures.push(object.material.map);
     });
     const cluster = scene.getObjectByName(`social-sector-${sector}`)!;
-    expect(social.nearest(cluster.position.x, cluster.position.z)?.title).toContain('Includes Avery · Bo');
+    expect(social.nearest(cluster.position.x, cluster.position.z)?.title).toContain('Preview Synonym');
+    expect(social.nearest(cluster.position.x, cluster.position.z)?.action).toEqual({
+      kind: 'social-cluster',
+      sector,
+      sectorKey: 'tag:synonym',
+    });
     social.updateData(
       graph(people.map((person) => (person.id === members[0].id ? { ...person, name: 'Avery updated' } : person))),
     );
@@ -106,6 +112,32 @@ describe('bounded social plaza renderer', () => {
     });
     expect(nextTextures).toEqual(textures);
     expect(body().count).toBe(0);
+  });
+
+  it('retains fixed resources and a selected tag when loaded metadata adds or removes neighborhoods', () => {
+    const people = Array.from({ length: 140 }, (_, index) => ({
+      ...person(index.toString(36).padStart(52, '0')),
+      profileTags: [{ label: 'synonym', count: 32 }],
+      profileTagsStatus: 'loaded' as const,
+    }));
+    social = createSocialPlaza(scene, graph(people));
+    const resources = scene.getObjectByName('world-social')!.children.length;
+    social.setView({ sector: 0, sectorKey: 'tag:synonym', page: 1 });
+    expect(body().count).toBeLessThanOrEqual(SOCIAL_PAGE_SIZE);
+    const art = {
+      ...person('z'.repeat(52)),
+      profileTags: [{ label: 'art', count: 3 }],
+      profileTagsStatus: 'loaded' as const,
+    };
+    social.updateData(graph([...people, art]));
+    const target = social.findPerson(people.at(-1)!.id);
+    expect(target?.sectorKey).toBe('tag:synonym');
+    expect(target?.sector).toBe(1);
+    expect(scene.getObjectByName('world-social')!.children.length).toBe(resources);
+    social.updateData(graph(people.map((entry) => ({ ...entry, profileTags: [{ label: 'bitcoin', count: 2 }] }))));
+    expect(body().count).toBe(0);
+    expect(scene.getObjectByName('social-sector-0')?.visible).toBe(true);
+    expect(scene.getObjectByName('world-social')!.children.length).toBe(resources);
   });
 
   it('tweens a live demotion and applies reduced-motion changes immediately', () => {

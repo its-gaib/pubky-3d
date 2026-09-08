@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   refreshIds: vi.fn(),
   hydrate: vi.fn(),
   details: vi.fn(),
+  tags: vi.fn(),
   prepare: vi.fn(),
   postStream: vi.fn(),
   postDetails: vi.fn(),
@@ -58,7 +59,7 @@ vi.mock('@/controllers/stream/users/users', () => ({
   StreamUserController: { refreshStreamIds: mocks.refreshIds, getOrFetchUsers: mocks.hydrate },
 }));
 vi.mock('@/controllers/user/user', () => ({
-  UserController: { getManyDetails: mocks.details, commitFollow: mocks.commitFollow },
+  UserController: { getManyDetails: mocks.details, fetchTags: mocks.tags, commitFollow: mocks.commitFollow },
 }));
 vi.mock('@/controllers/file/file', () => ({
   FileController: {
@@ -103,6 +104,7 @@ describe('useWorldSocial', () => {
       },
     );
     mocks.hydrate.mockResolvedValue(undefined);
+    mocks.tags.mockResolvedValue([]);
     mocks.details.mockImplementation(
       async ({ userIds }: { userIds: string[] }) =>
         new Map(
@@ -174,6 +176,171 @@ describe('useWorldSocial', () => {
     expect(result.current.complete).toBe(true);
     expect(result.current.people).toEqual([]);
     expect(result.current.relationships).toEqual([]);
+    expect(mocks.tags).not.toHaveBeenCalled();
+  });
+
+  it('automatically loads bounded profile-tag prefixes for every loaded direct follow even while graph traversal is paused', async () => {
+    const direct = Array.from({ length: 120 }, (_, index) => key(index + 1));
+    mocks.edges = new Map([[VIEWER, direct]]);
+    mocks.tags.mockResolvedValue([{ label: 'synonym', taggers_count: 32 }]);
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() => expect(result.current.status).toBe('paused'));
+    await waitFor(() =>
+      expect(result.current.people.every((person) => person.profileTagsStatus === 'loaded')).toBe(true),
+    );
+    expect(result.current.directCount).toBe(120);
+    expect(result.current.people).toHaveLength(120);
+    expect(new Set(mocks.tags.mock.calls.map(([params]) => params.user_id))).toEqual(new Set(direct));
+    expect(mocks.tags).toHaveBeenCalledTimes(120);
+    expect(result.current.people.every((person) => person.profileTags?.[0]?.label === 'synonym')).toBe(true);
+    expect(mocks.hydrate).not.toHaveBeenCalled();
+    expect(mocks.details).not.toHaveBeenCalled();
+    expect(mocks.postStream).not.toHaveBeenCalled();
+  });
+
+  it('keeps pending, known untagged, and unavailable profiles distinct and retries failures only explicitly', async () => {
+    const pending = deferred<{ label: string; taggers_count: number }[]>();
+    let carolAttempts = 0;
+    mocks.edges = new Map([[VIEWER, [ALICE, BOB, CAROL]]]);
+    mocks.tags.mockImplementation(({ user_id }: { user_id: string }) => {
+      if (user_id === ALICE) return pending.promise;
+      if (user_id === CAROL && ++carolAttempts === 1) return Promise.reject(new TypeError('Unavailable test read'));
+      return Promise.resolve([]);
+    });
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === CAROL)?.profileTagsStatus).toBe('error'),
+    );
+    expect(result.current.people.find((person) => person.id === ALICE)?.profileTagsStatus).toBe('pending');
+    expect(result.current.people.find((person) => person.id === BOB)).toMatchObject({
+      profileTagsStatus: 'loaded',
+      profileTags: [],
+    });
+    expect(result.current.people.find((person) => person.id === CAROL)?.profileTags).toBeUndefined();
+    expect(carolAttempts).toBe(1);
+    await act(async () => {
+      pending.resolve([{ label: 'synonym', taggers_count: 3 }]);
+      await result.current.retry();
+    });
+    await waitFor(() =>
+      expect(result.current.people.every((person) => person.profileTagsStatus === 'loaded')).toBe(true),
+    );
+    expect(carolAttempts).toBe(2);
+    expect(mocks.tags.mock.calls.filter(([params]) => params.user_id === BOB)).toHaveLength(1);
+  });
+
+  it('hydrates a visible profile after its tag-only placeholder without losing either field', async () => {
+    mocks.tags.mockResolvedValue([{ label: 'synonym', taggers_count: 3 }]);
+    const { result, rerender } = renderHook(
+      ({ directoryIds }) => useWorldSocial({ enabled: true, selectedId: null, directoryIds }),
+      { initialProps: { directoryIds: [] as string[] } },
+    );
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === ALICE)?.profileTagsStatus).toBe('loaded'),
+    );
+    expect(result.current.people.find((person) => person.id === ALICE)?.profileLoaded).toBe(false);
+    rerender({ directoryIds: [ALICE] });
+    await waitFor(() => expect(result.current.people.find((person) => person.id === ALICE)?.name).toBe('Alice'));
+    expect(result.current.people.find((person) => person.id === ALICE)).toMatchObject({
+      profileLoaded: true,
+      avatarUrl: `https://nexus.pubky.app/static/avatar/${ALICE}?v=17`,
+      profileTagsStatus: 'loaded',
+      profileTags: [{ label: 'synonym', count: 3 }],
+    });
+    expect(mocks.tags).toHaveBeenCalledTimes(1);
+    expect(mocks.tags.mock.calls[0][0].user_id).toBe(ALICE);
+  });
+
+  it('merges late profile tags into an already hydrated profile', async () => {
+    const pending = deferred<{ label: string; taggers_count: number }[]>();
+    mocks.tags.mockImplementationOnce(() => pending.promise);
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null, directoryIds: [ALICE] }));
+    await waitFor(() => expect(result.current.people.find((person) => person.id === ALICE)?.profileLoaded).toBe(true));
+    await act(async () => pending.resolve([{ label: 'synonym', taggers_count: 3 }]));
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === ALICE)?.profileTagsStatus).toBe('loaded'),
+    );
+    expect(result.current.people.find((person) => person.id === ALICE)).toMatchObject({
+      name: 'Alice',
+      profileLoaded: true,
+    });
+  });
+
+  it('uses the same physical two-request budget for graph pages and automatic tags', async () => {
+    const direct = Array.from({ length: 12 }, (_, index) => key(index + 1));
+    mocks.edges = new Map([[VIEWER, direct]]);
+    let running = 0;
+    let maximum = 0;
+    const wait = async () => {
+      maximum = Math.max(maximum, ++running);
+      await new Promise<void>((resolve) => setTimeout(resolve, 2));
+      running -= 1;
+    };
+    mocks.refreshIds.mockImplementation(async ({ streamId }: { streamId: string }) => {
+      await wait();
+      const ids = mocks.edges.get(streamId.split(':')[0]) ?? [];
+      return { nextPageIds: ids, skip: ids.length, isExhausted: true };
+    });
+    mocks.tags.mockImplementation(async () => {
+      await wait();
+      return [];
+    });
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await waitFor(() =>
+      expect(result.current.people.every((person) => person.profileTagsStatus === 'loaded')).toBe(true),
+    );
+    expect(mocks.tags).toHaveBeenCalledTimes(12);
+    expect(maximum).toBe(2);
+  });
+
+  it('discards a delayed tag prefix after an actor switch even when both actors follow the same person', async () => {
+    const oldTags = deferred<{ label: string; taggers_count: number }[]>();
+    mocks.edges.set(CAROL, [ALICE]);
+    mocks.tags
+      .mockImplementationOnce(() => oldTags.promise)
+      .mockResolvedValue([{ label: 'current', taggers_count: 2 }]);
+    const { result, rerender } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() => expect(mocks.tags).toHaveBeenCalledTimes(1));
+    mocks.actor = CAROL;
+    rerender();
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === ALICE)?.profileTagsStatus).toBe('loaded'),
+    );
+    await act(async () => oldTags.resolve([{ label: 'old', taggers_count: 99 }]));
+    expect(result.current.people.find((person) => person.id === ALICE)?.profileTags).toEqual([
+      { label: 'current', count: 2 },
+    ]);
+  });
+
+  it('fences a delayed tag prefix on a network change before React rerenders', async () => {
+    const oldTags = deferred<{ label: string; taggers_count: number }[]>();
+    mocks.tags.mockImplementationOnce(() => oldTags.promise);
+    const { result, rerender } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() => expect(mocks.tags).toHaveBeenCalledTimes(1));
+    mocks.network = 'staging';
+    await act(async () => oldTags.resolve([{ label: 'stale', taggers_count: 99 }]));
+    expect(result.current.people.every((person) => person.profileTags === undefined)).toBe(true);
+    rerender();
+    expect(result.current.people).toEqual([]);
+    expect(result.current.status).toBe('inactive');
+  });
+
+  it('refreshes the tag prefix and rejects the older response within the same account', async () => {
+    const oldTags = deferred<{ label: string; taggers_count: number }[]>();
+    mocks.tags.mockImplementationOnce(() => oldTags.promise).mockResolvedValue([{ label: 'fresh', taggers_count: 2 }]);
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: null }));
+    await waitFor(() => expect(mocks.tags).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === ALICE)?.profileTagsStatus).toBe('loaded'),
+    );
+    await act(async () => oldTags.resolve([{ label: 'stale', taggers_count: 99 }]));
+    expect(result.current.people.find((person) => person.id === ALICE)?.profileTags).toEqual([
+      { label: 'fresh', count: 2 },
+    ]);
   });
 
   it('keeps placeholder membership when profile metadata is unavailable', async () => {
@@ -207,6 +374,7 @@ describe('useWorldSocial', () => {
     expect(mocks.postStream.mock.calls[0][0]).toMatchObject({ streamId: `timeline:author:${ALICE}:all`, limit: 1 });
     expect(result.current.follow.canFollow).toBe(false);
     expect(mocks.refreshIds).not.toHaveBeenCalled();
+    expect(mocks.tags).not.toHaveBeenCalled();
     await act(async () => {
       await result.current.follow.toggle();
     });
@@ -356,6 +524,7 @@ describe('useWorldSocial', () => {
     const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: BOB }));
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.people.find((person) => person.id === BOB)?.degree).toBe(2);
+    expect(mocks.tags.mock.calls.some(([params]) => params.user_id === BOB)).toBe(false);
     await act(async () => {
       await result.current.follow.toggle();
     });
@@ -363,6 +532,10 @@ describe('useWorldSocial', () => {
     expect(result.current.people.find((person) => person.id === BOB)?.degree).toBe(1);
     expect(result.current.people.find((person) => person.id === CAROL)?.parentIds).toEqual([BOB]);
     expect(mocks.commitFollow).toHaveBeenCalledExactlyOnceWith(HttpMethod.PUT, { follower: VIEWER, followee: BOB });
+    await waitFor(() =>
+      expect(result.current.people.find((person) => person.id === BOB)?.profileTagsStatus).toBe('loaded'),
+    );
+    expect(mocks.tags.mock.calls.some(([params]) => params.user_id === CAROL)).toBe(false);
   });
 
   it('rejects old rendered follow callbacks after an account switch or a selection change', async () => {

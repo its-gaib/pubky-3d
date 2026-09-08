@@ -49,9 +49,11 @@ import { WORLD_CONFERENCES } from '@/libs/world/world-conference-catalog';
 import { consumeWorldEntry } from '@/libs/world/world-entry';
 import { WORLD_PORTALS, WORLD_RADIUS } from '@/libs/world/world-layout';
 import {
+  resolveSocialView,
   SOCIAL_PAGE_SIZE,
   socialSectorCountLabel,
   socialSectorFollowingPage,
+  socialSectorForView,
   socialSectorPreview,
   socialSectorProfileIds,
   socialSectors,
@@ -143,11 +145,13 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
             ? 'A fictional neighbor in our example social graph.'
             : 'A public profile from Pubky production. This is a profile marker, not a player online.',
       };
-    case 'social-cluster':
+    case 'social-cluster': {
+      const sector = socialSectorForView(socialSectors(data.people), panel);
       return {
-        title: `Sector ${panel.sector + 1} · who’s here?`,
+        title: `${sector?.label ?? 'Neighborhood updated'} · who’s here?`,
         subtitle: 'Browse your people, then choose where to step into the constellation.',
       };
+    }
     case 'fun':
       return {
         duck: {
@@ -746,6 +750,7 @@ export function World() {
   const { data: baseData, status: dataStatus, error: dataError, loadProduction } = useWorldData();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
+  const [socialViewChanged, setSocialViewChanged] = useState(false);
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [directoryScope, setDirectoryScope] = useState<WorldDirectoryScope>('all');
   const [directoryPage, setDirectoryPage] = useState(0);
@@ -789,15 +794,27 @@ export function World() {
   }, [isFullyAuthenticated, isAuthLoading]);
 
   useEffect(() => {
-    if (autoActorRef.current === social.viewerId) return;
-    autoActorRef.current = social.viewerId;
-    setPanel(null);
-    setSocialView({ sector: null, page: 0 });
-    setDirectoryQuery('');
-    setDirectoryPage(0);
-    setSectorPreviewPage(0);
-    setDirectoryScope('all');
-  }, [social.viewerId]);
+    if (autoActorRef.current !== social.viewerId) {
+      autoActorRef.current = social.viewerId;
+      setPanel(null);
+      setSocialView({ sector: null, page: 0 });
+      setSocialViewChanged(false);
+      setDirectoryQuery('');
+      setDirectoryPage(0);
+      setSectorPreviewPage(0);
+      setDirectoryScope('all');
+      return;
+    }
+    const resolved = resolveSocialView(socialSectors(data.people), socialView);
+    if (
+      resolved.sector !== socialView.sector ||
+      resolved.sectorKey !== socialView.sectorKey ||
+      resolved.page !== socialView.page
+    ) {
+      if (socialView.sectorKey && resolved.sector === null) setSocialViewChanged(true);
+      setSocialView(resolved);
+    }
+  }, [data.people, socialView, social.viewerId]);
 
   useEffect(() => {
     void firstLoad.current();
@@ -806,7 +823,16 @@ export function World() {
   useEffect(() => {
     if (panel?.kind === 'social-cluster') {
       const sectors = socialSectors(data.people);
-      const preview = socialSectorFollowingPage(sectors[panel.sector] ?? sectors[0], sectorPreviewPage);
+      const sector = socialSectorForView(sectors, panel);
+      if (!sector) {
+        setPanel(null);
+        setSectorPreviewPage(0);
+        setDirectoryIds([]);
+        return;
+      }
+      if (panel.sector !== sector.sector || panel.sectorKey !== sector.key)
+        setPanel({ kind: 'social-cluster', sector: sector.sector, sectorKey: sector.key });
+      const preview = socialSectorFollowingPage(sector, sectorPreviewPage);
       const nextIds = personal ? preview.people.map((person) => person.id) : [];
       setDirectoryIds((current) => (current.join(',') === nextIds.join(',') ? current : nextIds));
       if (preview.page !== sectorPreviewPage) setSectorPreviewPage(preview.page);
@@ -924,7 +950,8 @@ export function World() {
   const socialPages = socialViewPageCount(data.people, socialView);
   const socialPage = Math.min(socialView.page, socialPages - 1);
   const sectors = socialSectors(data.people);
-  const selectedSector = socialView.sector === null ? null : sectors[socialView.sector];
+  const selectedSector = socialSectorForView(sectors, socialView);
+  const previewedSector = panel?.kind === 'social-cluster' ? socialSectorForView(sectors, panel) : undefined;
 
   function wander() {
     setWelcome(false);
@@ -936,11 +963,16 @@ export function World() {
     setPanel(nextPanel);
   }
   function previewSector(sector: number) {
+    const target = sectors[sector];
+    if (!target) return;
     setSectorPreviewPage(0);
-    selectPanel({ kind: 'social-cluster', sector });
+    selectPanel({ kind: 'social-cluster', sector, sectorKey: target.key });
   }
   function enterSector(sector: number) {
-    setSocialView({ sector, page: 0 });
+    const target = sectors[sector];
+    if (!target) return;
+    setSocialView({ sector, sectorKey: target.key, page: 0 });
+    setSocialViewChanged(false);
     controllerRef.current?.setSocialFocus(null);
     travelTo('plaza');
   }
@@ -970,6 +1002,7 @@ export function World() {
   }
   function showAllSectors() {
     setSocialView({ sector: null, page: 0 });
+    setSocialViewChanged(false);
     controllerRef.current?.setSocialFocus(null);
     travelTo('plaza');
   }
@@ -1199,89 +1232,101 @@ export function World() {
         </aside>
       )}
 
-      {!welcome && !panel && !cameraOpen && (worldStatus.zone === 'plaza' || socialView.sector !== null) && (
-        <aside className={styles.socialHud} aria-label="Social plaza view">
-          {socialView.sector !== null && (
-            <>
-              <Button overrideDefaults className={styles.socialBackButton} onClick={showAllSectors}>
-                <ArrowLeft size={17} aria-hidden="true" />
-                Back to all sectors
-              </Button>
-              <div className={styles.socialSectorNavigation}>
-                <div className={styles.socialSectorHeading}>
-                  <strong>Sector {socialView.sector + 1}</strong>
-                  {selectedSector && <span>{socialSectorCountLabel(selectedSector)}</span>}
+      {!welcome &&
+        !panel &&
+        !cameraOpen &&
+        (worldStatus.zone === 'plaza' || socialView.sector !== null || socialViewChanged) && (
+          <aside className={styles.socialHud} aria-label="Social plaza view">
+            {(socialView.sector !== null || socialViewChanged) && (
+              <>
+                <Button overrideDefaults className={styles.socialBackButton} onClick={showAllSectors}>
+                  <ArrowLeft size={17} aria-hidden="true" />
+                  Back to all sectors
+                </Button>
+                <div className={styles.socialSectorNavigation}>
+                  <div className={styles.socialSectorHeading}>
+                    <strong>{selectedSector?.label ?? 'Neighborhood updated'}</strong>
+                    {selectedSector && <span>{socialSectorCountLabel(selectedSector)}</span>}
+                  </div>
+                  {selectedSector && (
+                    <p className={styles.socialSectorPreview}>{socialSectorPreview(selectedSector)}</p>
+                  )}
+                  {socialViewChanged && (
+                    <p className={styles.socialSectorPreview}>
+                      The tags have shifted. Everyone is still reachable in the full plaza.
+                    </p>
+                  )}
                 </div>
-                {selectedSector && <p className={styles.socialSectorPreview}>{socialSectorPreview(selectedSector)}</p>}
-              </div>
-            </>
-          )}
-          <div className={styles.socialHudLegend}>
-            <span>
-              <i className={styles.followingMarker} />
-              {personal ? `${social.directCount.toLocaleString()} following` : 'Public profiles'}
-            </span>
-            {personal && (
+              </>
+            )}
+            <div className={styles.socialHudLegend}>
               <span>
-                <i className={styles.discoveryMarker} />
-                {social.discoveryCount.toLocaleString()} one hop away
+                <i className={styles.followingMarker} />
+                {personal ? `${social.directCount.toLocaleString()} following` : 'Public profiles'}
+              </span>
+              {personal && (
+                <span>
+                  <i className={styles.discoveryMarker} />
+                  {social.discoveryCount.toLocaleString()} one hop away
+                </span>
+              )}
+            </div>
+            {personal && (
+              <Button
+                overrideDefaults
+                className={styles.textLink}
+                onClick={() =>
+                  previewSector(
+                    selectedSector?.sector ?? sectors.find((sector) => sector.following.length)?.sector ?? 0,
+                  )
+                }
+              >
+                {socialView.sector === null ? 'Preview all sector follows' : 'Preview all follows in this sector'}
+                <ArrowRight size={13} aria-hidden="true" />
+              </Button>
+            )}
+            {social.status === 'loading' && personal && (
+              <span className={styles.socialHudStatus}>
+                <LoaderCircle size={12} className={styles.spin} />
+                Discovering your circle…
               </span>
             )}
-          </div>
-          {personal && (
-            <Button
-              overrideDefaults
-              className={styles.textLink}
-              onClick={() =>
-                previewSector(socialView.sector ?? sectors.find((sector) => sector.following.length)?.sector ?? 0)
-              }
-            >
-              {socialView.sector === null ? 'Preview all sector follows' : 'Preview all follows in this sector'}
-              <ArrowRight size={13} aria-hidden="true" />
-            </Button>
-          )}
-          {social.status === 'loading' && personal && (
-            <span className={styles.socialHudStatus}>
-              <LoaderCircle size={12} className={styles.spin} />
-              Discovering your circle…
-            </span>
-          )}
-          {social.status === 'paused' && personal && (
-            <Button overrideDefaults className={styles.textLink} onClick={social.loadMore}>
-              Continue discovering
-              <ArrowRight size={13} />
-            </Button>
-          )}
-          {socialView.sector !== null && socialPages > 1 && (
-            <div className={styles.socialPaging} role="group" aria-label="Sector pages">
-              <Button
-                overrideDefaults
-                aria-label="Previous sector page"
-                disabled={socialPage === 0}
-                onClick={() => setSocialView({ ...socialView, page: socialPage - 1 })}
-              >
-                <ArrowLeft size={15} />
+            {social.status === 'paused' && personal && (
+              <Button overrideDefaults className={styles.textLink} onClick={social.loadMore}>
+                Continue discovering
+                <ArrowRight size={13} />
               </Button>
-              <span>
-                Page {socialPage + 1} of {socialPages}
-              </span>
-              <Button
-                overrideDefaults
-                aria-label="Next sector page"
-                disabled={socialPage + 1 >= socialPages}
-                onClick={() => setSocialView({ ...socialView, page: socialPage + 1 })}
-              >
-                <ArrowRight size={15} />
+            )}
+            {socialView.sector !== null && socialPages > 1 && (
+              <div className={styles.socialPaging} role="group" aria-label="Sector pages">
+                <Button
+                  overrideDefaults
+                  aria-label="Previous sector page"
+                  disabled={socialPage === 0}
+                  onClick={() => setSocialView({ ...socialView, page: socialPage - 1 })}
+                >
+                  <ArrowLeft size={15} />
+                </Button>
+                <span>
+                  Page {socialPage + 1} of {socialPages}
+                </span>
+                <Button
+                  overrideDefaults
+                  aria-label="Next sector page"
+                  disabled={socialPage + 1 >= socialPages}
+                  onClick={() => setSocialView({ ...socialView, page: socialPage + 1 })}
+                >
+                  <ArrowRight size={15} />
+                </Button>
+              </div>
+            )}
+            {!personal && (
+              <Button overrideDefaults className={styles.textLink} onClick={signInToFollow}>
+                Sign in to see your circle
               </Button>
-            </div>
-          )}
-          {!personal && (
-            <Button overrideDefaults className={styles.textLink} onClick={signInToFollow}>
-              Sign in to see your circle
-            </Button>
-          )}
-        </aside>
-      )}
+            )}
+          </aside>
+        )}
 
       {worldStatus.nearby && !welcome && !panel && (
         <Button overrideDefaults className={styles.interactPrompt} onClick={() => controllerRef.current?.interact()}>
@@ -1438,11 +1483,11 @@ export function World() {
           </div>
           <DialogTitle className={styles.dialogTitle}>{heading?.title ?? 'Explore the world'}</DialogTitle>
           <DialogDescription className={styles.dialogDescription}>{heading?.subtitle}</DialogDescription>
-          {panel?.kind === 'social-cluster' ? (
+          {panel?.kind === 'social-cluster' && previewedSector ? (
             <WorldSectorPreview
-              key={`${social.viewerId ?? 'guest'}:${panel.sector}`}
+              key={`${social.viewerId ?? 'guest'}:${previewedSector.key}`}
               sectors={sectors}
-              sector={panel.sector}
+              sector={previewedSector.sector}
               page={sectorPreviewPage}
               personal={personal}
               social={social}

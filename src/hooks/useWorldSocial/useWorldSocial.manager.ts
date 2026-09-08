@@ -18,7 +18,8 @@ import {
   worldPersonPlaceholder,
   WorldSocialGraph,
 } from './useWorldSocial.graph';
-import { WORLD_SOCIAL_CANCELLED, WorldSocialReadQueue } from './useWorldSocial.queue';
+import { WORLD_SOCIAL_CANCELLED, WORLD_SOCIAL_CONCURRENCY, WorldSocialReadQueue } from './useWorldSocial.queue';
+import { normalizeWorldProfileTags, worldProfileTagParams } from './useWorldSocial.tags';
 import type { WorldGraphSnapshot, WorldSocialStatus } from './useWorldSocial.types';
 
 export const WORLD_SOCIAL_PROFILE_LIMIT = 20;
@@ -71,9 +72,21 @@ export interface WorldSocialContext {
   graph: WorldSocialGraph | null;
   profiles: Map<string, WorldPerson>;
   profileRequests: Map<string, Promise<void>>;
+  tagWork: ProfileTagWork;
   running: boolean;
   status: WorldSocialStatus;
   error: string | null;
+}
+
+interface ProfileTagWork {
+  ids: string[];
+  index: number;
+  scheduled: Set<string>;
+  running: number;
+}
+
+function newTagWork(): ProfileTagWork {
+  return { ids: [], index: 0, scheduled: new Set(), running: 0 };
 }
 
 function plainText(value: unknown, limit: number): string {
@@ -104,6 +117,7 @@ export class WorldSocialManager {
       graph: enabled && viewerId ? new WorldSocialGraph(viewerId) : null,
       profiles: new Map(),
       profileRequests: new Map(),
+      tagWork: newTagWork(),
       running: false,
       status: !enabled ? 'inactive' : viewerId ? 'loading' : 'signed-out',
       error: null,
@@ -165,6 +179,8 @@ export class WorldSocialManager {
     const context = this.context;
     if (!this.isActive(context) || !context.graph) return;
     context.graph.applyLocalFollow(id, desired);
+    if (desired) this.enqueueProfileTags(context, [id]);
+    else this.queue.cancelInactive();
     this.publish(context);
     if (desired && !context.running && !context.graph.complete) void this.loadMore();
   }
@@ -197,6 +213,7 @@ export class WorldSocialManager {
             );
             if (!active()) throw WORLD_SOCIAL_CANCELLED;
             if (!graph.acceptPage(task, page)) return false;
+            if (task.parentId === context.viewerId) this.enqueueProfileTags(context, page.nextPageIds);
             this.publish(context);
             return true;
           }),
@@ -225,8 +242,17 @@ export class WorldSocialManager {
   };
 
   retry = async (): Promise<void> => {
-    if (!this.isActive(this.context)) return;
-    this.context.graph?.retryFailed();
+    const context = this.context;
+    if (!this.isActive(context)) return;
+    context.graph?.retryFailed();
+    const failedIds: string[] = [];
+    for (const [id, person] of context.profiles) {
+      if (person.profileTagsStatus !== 'error' || !context.graph?.isFollowing(id)) continue;
+      context.profiles.set(id, { ...person, profileTagsStatus: undefined });
+      failedIds.push(id);
+    }
+    this.enqueueProfileTags(context, failedIds);
+    this.publish(context);
     await this.loadMore();
   };
 
@@ -235,17 +261,98 @@ export class WorldSocialManager {
     if (!this.isActive(context) || !context.viewerId) return;
     const graph = new WorldSocialGraph(context.viewerId);
     if (context.graph) graph.copyLocalIntentsFrom(context.graph);
+    context.tagWork = newTagWork();
+    for (const [id, person] of context.profiles) {
+      if (person.profileTagsStatus !== undefined)
+        context.profiles.set(id, { ...person, profileTags: undefined, profileTagsStatus: undefined });
+    }
     graph.updateProfiles(Array.from(context.profiles.values()));
     context.graph = graph;
     context.running = false;
     this.queue.cancelInactive();
+    this.enqueueProfileTags(context, graph.directIds());
     await this.loadMore();
   };
+
+  /** Queue IDs cheaply, but submit at most two tag jobs; metadata reads retain priority. */
+  private enqueueProfileTags(context: WorldSocialContext, ids: Iterable<string>): void {
+    if (!this.isActive(context) || !context.graph || !context.viewerId) return;
+    const work = context.tagWork;
+    const pending: WorldPerson[] = [];
+    for (const id of ids) {
+      if (!isPubkyIdentifier(id) || id === context.viewerId || !context.graph.isFollowing(id)) continue;
+      const previous = context.profiles.get(id) ?? worldPersonPlaceholder(id);
+      if (work.scheduled.has(id) || previous.profileTagsStatus === 'loaded' || previous.profileTagsStatus === 'error')
+        continue;
+      work.ids.push(id);
+      work.scheduled.add(id);
+      const person: WorldPerson = { ...previous, profileTagsStatus: 'pending' };
+      context.profiles.set(id, person);
+      pending.push(person);
+    }
+    context.graph.updateProfiles(pending);
+    while (work.running < WORLD_SOCIAL_CONCURRENCY && work.index < work.ids.length) {
+      work.running += 1;
+      void this.readProfileTags(context, work);
+    }
+  }
+
+  private async readProfileTags(context: WorldSocialContext, work: ProfileTagWork): Promise<void> {
+    const active = () => this.isActive(context) && context.tagWork === work;
+    let completed = 0;
+    try {
+      while (active() && work.index < work.ids.length) {
+        const id = work.ids[work.index++];
+        const current = () => active() && context.graph?.isFollowing(id) === true;
+        if (!current()) {
+          work.scheduled.delete(id);
+          continue;
+        }
+        let tags: WorldPerson['profileTags'] = undefined;
+        let status: WorldPerson['profileTagsStatus'] = 'error';
+        let cancelled = false;
+        try {
+          const response = await this.queue.run(() => UserController.fetchTags(worldProfileTagParams(id)), current);
+          if (!current()) continue;
+          const normalized = normalizeWorldProfileTags(response);
+          if (normalized) {
+            tags = normalized;
+            status = 'loaded';
+          }
+        } catch (error) {
+          // Failed labels remain explicitly unavailable; retry is a user action.
+          cancelled = error === WORLD_SOCIAL_CANCELLED;
+        } finally {
+          work.scheduled.delete(id);
+        }
+        if (!current()) continue;
+        if (cancelled) {
+          // A quick unfollow/refollow can cancel its old queued read. Start a
+          // fresh read only while the person is a direct follow again.
+          this.enqueueProfileTags(context, [id]);
+          continue;
+        }
+        const previous = context.profiles.get(id) ?? worldPersonPlaceholder(id);
+        const person = { ...previous, profileTags: tags, profileTagsStatus: status };
+        context.profiles.set(id, person);
+        context.graph?.updateProfiles([person]);
+        this.publish(context);
+        // Fast cached responses must still yield during very large direct circles.
+        if (++completed % 20 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    } finally {
+      work.running -= 1;
+      if (active() && work.index > 1_000) {
+        work.ids = work.ids.slice(work.index);
+        work.index = 0;
+      }
+    }
+  }
 
   async ensureProfiles(ids: string[], context = this.context): Promise<void> {
     if (!this.isActive(context)) throw WORLD_SOCIAL_CANCELLED;
     const wanted = [...new Set(ids.slice(0, WORLD_SOCIAL_PROFILE_LIMIT).filter((id) => isPubkyIdentifier(id)))];
-    const missing = wanted.filter((id) => !context.profiles.has(id) && !context.profileRequests.has(id));
+    const missing = wanted.filter((id) => !context.profiles.get(id)?.profileLoaded && !context.profileRequests.has(id));
     if (missing.length) {
       const request = (async () => {
         await this.queue.run(
@@ -266,6 +373,7 @@ export class WorldSocialManager {
           if (!details || details.id !== id) continue;
           const person: WorldPerson = {
             ...worldPersonPlaceholder(id),
+            ...context.profiles.get(id),
             name: plainText(details.name, 48) || worldPersonPlaceholder(id).name,
             bio: plainText(details.bio, 320),
             profileLoaded: true,

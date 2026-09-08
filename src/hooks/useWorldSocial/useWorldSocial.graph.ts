@@ -1,5 +1,6 @@
 import { isPubkyIdentifier } from '@/libs/utils/utils';
 import type { WorldPerson, WorldRelationship } from '@/libs/world/world-types';
+import { equalWorldProfileTags } from './useWorldSocial.tags';
 import type { WorldGraphSnapshot } from './useWorldSocial.types';
 
 export const WORLD_SOCIAL_PAGE_SIZE = 20;
@@ -203,7 +204,9 @@ export class WorldSocialGraph {
         previous?.name === person.name &&
         previous?.bio === person.bio &&
         previous?.avatarUrl === person.avatarUrl &&
-        previous?.profileLoaded === person.profileLoaded
+        previous?.profileLoaded === person.profileLoaded &&
+        previous?.profileTagsStatus === person.profileTagsStatus &&
+        equalWorldProfileTags(previous?.profileTags, person.profileTags)
       )
         continue;
       this.profiles.set(person.id, person);

@@ -43,7 +43,7 @@ export function WorldSectorPreview({
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = 0;
-  }, [index, directory.page]);
+  }, [sector.key, directory.page]);
 
   return (
     <div className={styles.preview}>
@@ -51,17 +51,24 @@ export function WorldSectorPreview({
         {sectors.map((item) => (
           <Button
             overrideDefaults
-            key={item.sector}
-            aria-label={`Preview sector ${item.sector + 1}, ${item.following.length.toLocaleString('en')} following`}
+            key={item.key}
+            aria-label={`Preview ${item.label}, ${item.following.length.toLocaleString('en')} following`}
             aria-pressed={item.sector === index}
             onClick={() => onSector(item.sector)}
           >
-            <strong>{item.sector + 1}</strong>
-            <span>{item.following.length.toLocaleString('en')}</span>
+            <strong>{item.label}</strong>
+            <span>{item.following.length.toLocaleString('en')} following</span>
           </Button>
         ))}
       </div>
-      <p className={styles.counts}>{socialSectorCountLabel(sector)}</p>
+      <p className={styles.counts}>
+        {personal ? socialSectorCountLabel(sector) : `${sector.members.length.toLocaleString('en')} public profiles`}
+      </p>
+      <p className={styles.explanation}>
+        {sector.tag
+          ? `Community profile tag #${sector.tag}. Grouped from each follow’s top 20 profile tags; more specific shared groups win, and each follow appears once.`
+          : 'Other, missing, and still-loading profile tags gather here. Groups use each follow’s top 20 profile tags; everybody keeps a place.'}
+      </p>
       {personal ? (
         <>
           <p className={styles.explanation}>
@@ -92,7 +99,7 @@ export function WorldSectorPreview({
             </Button>
           </div>
           {directory.people.length ? (
-            <ul ref={listRef} className={styles.people} aria-label={`Following in sector ${index + 1}`} tabIndex={0}>
+            <ul ref={listRef} className={styles.people} aria-label={`Following in ${sector.label}`} tabIndex={0}>
               {directory.people.map((person) => {
                 const name = socialPersonPreviewName(person);
                 return (
@@ -117,9 +124,40 @@ export function WorldSectorPreview({
               })}
             </ul>
           ) : (
-            <p className={styles.empty}>No direct follows in this sector{social.complete ? '.' : ' yet.'}</p>
+            <p className={styles.empty}>No direct follows in this neighborhood{social.complete ? '.' : ' yet.'}</p>
           )}
           <div className={styles.progress}>
+            {sector.tagStatus.pending > 0 && (
+              <p role="status">
+                Tags loading for {sector.tagStatus.pending.toLocaleString('en')}{' '}
+                {sector.tagStatus.pending === 1 ? 'follow' : 'follows'}.
+              </p>
+            )}
+            {sector.tagStatus.untagged > 0 && (
+              <p>
+                {sector.tagStatus.untagged.toLocaleString('en')}{' '}
+                {sector.tagStatus.untagged === 1 ? 'follow has' : 'follows have'} no profile tags.
+              </p>
+            )}
+            {sector.tagStatus.other > 0 && (
+              <p>
+                {sector.tagStatus.other.toLocaleString('en')}{' '}
+                {sector.tagStatus.other === 1 ? 'follow has' : 'follows have'} tags outside the featured neighborhoods.
+              </p>
+            )}
+            {sector.tagStatus.unavailable > 0 && (
+              <div>
+                <p>
+                  Tags unavailable for {sector.tagStatus.unavailable.toLocaleString('en')}{' '}
+                  {sector.tagStatus.unavailable === 1 ? 'follow' : 'follows'}. Everyone remains here.
+                </p>
+                {!social.error && (
+                  <Button overrideDefaults className={styles.textButton} onClick={social.retry}>
+                    Retry tag loading
+                  </Button>
+                )}
+              </div>
+            )}
             {social.status === 'loading' ? (
               <p role="status">
                 <LoaderCircle size={14} className={styles.spin} aria-hidden="true" />
@@ -156,7 +194,7 @@ export function WorldSectorPreview({
         </div>
       )}
       <Button overrideDefaults className={styles.enter} onClick={() => onEnter(index)}>
-        Enter sector {index + 1}
+        Enter {sector.label}
         <Footprints size={18} aria-hidden="true" />
       </Button>
     </div>

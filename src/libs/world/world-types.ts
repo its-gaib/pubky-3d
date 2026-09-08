@@ -46,6 +46,10 @@ export interface WorldPerson {
   /** Known direct follows introducing this person; never invented relationships. */
   parentIds?: string[];
   profileLoaded?: boolean;
+  /** First 20 public profile tags by popularity; not an exhaustive tag history. */
+  profileTags?: { label: string; count: number }[];
+  /** Loaded with an empty array means no profile tags; missing is still unresolved. */
+  profileTagsStatus?: 'pending' | 'loaded' | 'error';
   color: string;
   bio: string;
   position: [number, number];
@@ -79,7 +83,7 @@ export type WorldInteraction =
   | { kind: 'tag'; index: number }
   | { kind: 'post'; tagIndex: number; postIndex: number }
   | { kind: 'person'; id: string }
-  | { kind: 'social-cluster'; sector: number }
+  | { kind: 'social-cluster'; sector: number; sectorKey?: string }
   | { kind: 'fun'; id: 'duck' | 'trampoline' | 'satoshi' | 'bank' | 'tether' | 'graph' | 'runner' };
 
 export interface PersonaState {
@@ -107,6 +111,8 @@ export interface WorldOptions {
 
 export interface WorldSocialView {
   sector: number | null;
+  /** Tag identity survives late metadata and changes to the neighborhood order. */
+  sectorKey?: string;
   page: number;
 }
 
