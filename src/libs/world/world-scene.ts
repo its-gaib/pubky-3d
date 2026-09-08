@@ -5,7 +5,7 @@ import { ARENA_DIMENSIONS, createArena } from '@/libs/world/world-arena';
 import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
 import { createChess } from '@/libs/world/world-chess';
-import { createCinema } from '@/libs/world/world-cinema';
+import { CINEMA_DIMENSIONS, createCinema } from '@/libs/world/world-cinema';
 import { createCinemaScreen } from '@/libs/world/world-cinema-screen';
 import { createConferences } from '@/libs/world/world-conferences';
 import {
@@ -37,7 +37,6 @@ import { createPortalTransit } from '@/libs/world/world-portals';
 import { createRunner } from '@/libs/world/world-runner';
 import { createSatoshi } from '@/libs/world/world-satoshi';
 import { createSocialPlaza } from '@/libs/world/world-social';
-import { SOCIAL_PLAZA_RADIUS } from '@/libs/world/world-social-layout';
 import { createTether } from '@/libs/world/world-tether';
 import { createTheater } from '@/libs/world/world-theater';
 import type {
@@ -47,6 +46,7 @@ import type {
   WorldInteraction,
   WorldOptions,
 } from '@/libs/world/world-types';
+import { createZoneGround } from '@/libs/world/world-zone-ground';
 
 interface Interactive {
   object: THREE.Object3D;
@@ -242,15 +242,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     } else if (zone.id !== 'plaza') {
       addPath([plazaGround, new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4), groundPoint(zone.position)]);
     }
-    cylinder(
-      scene,
-      zone.id === 'plaza' ? SOCIAL_PLAZA_RADIUS : 10,
-      zone.id === 'plaza' ? SOCIAL_PLAZA_RADIUS : 10,
-      0.16,
-      zone.id === 'plaza' ? '#3B3B42' : '#2A2A30',
-      [x, 0.04, z],
-      48,
-    );
+    createZoneGround(scene, zone);
   });
   addPath([groundPoint(WORLD_ANCHORS.bitkit), new THREE.Vector3(5, 0, 71), arenaEntrance]);
   addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(7, 0, -74), groundPoint(WORLD_ANCHORS.forest)]);
@@ -286,7 +278,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       WORLD_ZONES.some(
         (zone) =>
           Math.hypot(x - zone.position[0], z - zone.position[1]) <
-          (zone.id === 'cinema' ? 22 : zone.id === 'arena' ? 25 : zone.id === 'chess' ? 24 : 15),
+          (zone.id === 'cinema'
+            ? Math.hypot(CINEMA_DIMENSIONS.halfWidth, CINEMA_DIMENSIONS.back) + 3
+            : zone.id === 'arena'
+              ? 25
+              : zone.id === 'chess'
+                ? 24
+                : 15),
       )
     )
       continue;

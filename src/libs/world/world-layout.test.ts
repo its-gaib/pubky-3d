@@ -68,14 +68,32 @@ describe('expanded world layout', () => {
             WORLD_ANCHORS.cinema[0] + Math.cos(CINEMA_YAW) * x + Math.sin(CINEMA_YAW) * z,
             WORLD_ANCHORS.cinema[1] - Math.sin(CINEMA_YAW) * x + Math.cos(CINEMA_YAW) * z,
           ),
-        ).toBeLessThan(WORLD_DIMENSIONS.landRadius);
+        ).toBeLessThan(WORLD_RADIUS - 5);
       }
     const arrival = worldArrival('cinema');
     const forward =
       (arrival.x - WORLD_ANCHORS.cinema[0]) * Math.sin(CINEMA_YAW) +
       (arrival.z - WORLD_ANCHORS.cinema[1]) * Math.cos(CINEMA_YAW);
-    expect(forward).toBeGreaterThan(CINEMA_DIMENSIONS.front);
+    expect(forward).toBeGreaterThan(CINEMA_DIMENSIONS.front + 4);
     expect(Math.hypot(WORLD_ANCHORS.tether[0], WORLD_ANCHORS.tether[1]) + 10).toBeLessThan(WORLD_RADIUS);
+  });
+
+  it('leaves open ground between the enlarged cinema, Bitkit and the western portal', () => {
+    const [cx, cz] = WORLD_ANCHORS.cinema;
+    for (const [position, clearance] of [
+      [WORLD_ANCHORS.bitkit, 20],
+      [WORLD_PORTALS[1].position, 15],
+    ] as const) {
+      const dx = position[0] - cx;
+      const dz = position[1] - cz;
+      const localX = dx * Math.cos(CINEMA_YAW) - dz * Math.sin(CINEMA_YAW);
+      const localZ = dx * Math.sin(CINEMA_YAW) + dz * Math.cos(CINEMA_YAW);
+      const gap = Math.hypot(
+        Math.max(0, Math.abs(localX) - CINEMA_DIMENSIONS.halfWidth),
+        Math.max(0, -CINEMA_DIMENSIONS.back - localZ, localZ - CINEMA_DIMENSIONS.front),
+      );
+      expect(gap).toBeGreaterThan(clearance);
+    }
   });
 
   it('separates the theaters into distant districts and gives new attractions open ground', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { label, mesh } from '@/libs/world/world-geometry';
 import type { WorldObstacle } from '@/libs/world/world-motion';
 
 export const CHESS_DIMENSIONS = { square: 3.2, boardSize: 25.6, halfExtent: 14, entranceZ: 16 } as const;
@@ -215,7 +215,6 @@ export function createChess(
   entrance.name = 'Chessboard entrance';
   entrance.position.z = CHESS_DIMENSIONS.entranceZ;
   group.add(entrance);
-  label(entrance, 'CHECKMATE CITADEL', [0, 1.75, 0], 10.5, WORLD_PALETTE.text);
   label(group, 'SILVER', [0, 0.2, 13.25], 3.5, '#D2DCEF');
   label(group, 'OBSIDIAN', [0, 0.2, -13.25], 3.5, '#C4AD6A');
   chessCollisionObstacles(anchor).forEach(({ x, z, radius }) => obstacle(x, z, radius));

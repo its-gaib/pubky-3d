@@ -2,7 +2,7 @@
 
 A frontend experiment forked from `pubky/pubky-app` at the head of `dev`.
 The exact fork point and destination are in [fork.json](./fork.json). The project
-lives in the private `its-gaib/pubky-3d` repository, on `vibe/pubky-3d`, retaining
+lives in the public `its-gaib/pubky-3d` repository, on `vibe/pubky-3d`, retaining
 upstream history.
 
 The root route is a walkable island connected to **Pubky production**. Public data
@@ -19,7 +19,7 @@ plain graphite walking paths. Your character wears a black hoodie with the
 bundled Pubky logo on its chest and back, with no backpack. Sneaker accents are
 customizable. Walk to discover places: there is no global destination menu or map
 teleport navigation. The pocket map shows locations and your position.
-The arena, Bitkit, portals, Satoshi and Tether have no floating name labels;
+The arena, Bitkit, portals, Satoshi, Tether and chessboard have no floating name labels;
 their readers and nearby interactions reveal more as you approach.
 
 ## Places
@@ -53,7 +53,8 @@ their readers and nearby interactions reveal more as you approach.
   with unavailable notices for malformed content. Eight seated spectators are
   decorative scenery, not online users.
 - **Midnight Cinema:** a crimson Art Deco movie house on the southwest coast,
-  far from Trending Theater and rotated toward the plaza. An 18×10.125 screen
+  far from Trending Theater and rotated toward the plaza. The building and its
+  36×20.25 screen are twice their previous width and height. The live screen
   carries a persistent muted YouTube playlist, projected with the world camera.
   The 18 supplied videos shuffle and advance using the native player. Browser
   autoplay restrictions or unavailable videos may interrupt playback; the reader
@@ -102,9 +103,10 @@ The world does not show other connected players or claim live presence.
 
 ## Layout
 
-The walkable radius is **142 world units**, with land radius 150, coast radius 154
-and overview distance 390. This adds about 61% walkable area over the previous
-112-unit radius. The Social Plaza retains radius 32. Shared anchors align buildings,
+The walkable radius is **160 world units**, with land radius 168, coast radius 172
+and overview distance 435. This adds about 27% walkable area over the previous
+142-unit radius, leaving space around the enlarged cinema. The Social Plaza retains
+radius 32. Shared anchors align buildings,
 paths, collisions, interactions, arrivals and the pocket map. The theaters are
 about 143 units apart and face different directions. Walking mode uses a lower
 camera angle to reveal the coastline and cosmic scenery.

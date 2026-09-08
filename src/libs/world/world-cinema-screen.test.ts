@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CINEMA_SCREEN } from '@/libs/world/world-cinema';
 import { WORLD_FILMS, type WorldFilm } from '@/libs/world/world-cinema-program';
 import { createCinemaScreen, createCinemaVisibility, worldCinemaAmbientUrl } from '@/libs/world/world-cinema-screen';
 import { disposeObject } from '@/libs/world/world-geometry';
@@ -61,7 +62,7 @@ describe('in-world cinema projection', () => {
   it('conservatively hides the whole video when a corner sample is blocked even if its center is clear', () => {
     const { world, frame, camera } = setup();
     const blocker = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.5), new THREE.MeshBasicMaterial());
-    blocker.position.set(4.32, 7.43, 15);
+    blocker.position.set(CINEMA_SCREEN.width * 0.24, 5 + CINEMA_SCREEN.height * 0.24, 15);
     world.add(blocker);
     world.updateMatrixWorld(true);
     expect(createCinemaVisibility(world, frame)(camera)).toBe(false);
@@ -82,6 +83,13 @@ describe('in-world cinema projection', () => {
     expect(iframe.tabIndex).toBe(-1);
     expect(iframe.style.pointerEvents).toBe('none');
     expect(iframe.parentElement!.style.pointerEvents).toBe('none');
+    cinema.render(camera, 0);
+    const transform = iframe
+      .parentElement!.style.transform.match(/matrix3d\(([^)]+)\)/)![1]
+      .split(',')
+      .map(Number);
+    expect(Math.abs(transform[0]) * Number(iframe.width)).toBeCloseTo(CINEMA_SCREEN.width);
+    expect(Math.abs(transform[5]) * Number(iframe.height)).toBeCloseTo(CINEMA_SCREEN.height);
     for (let index = 0; index < 50; index++) {
       camera.position.x = Math.sin(index) * 2;
       camera.lookAt(0, 5, 0);

@@ -1,5 +1,34 @@
 # Pubky World validation record
 
+## Complete chessboard and enlarged cinema — 2026-09-08
+
+Open PRs were checked in the fork and upstream before this increment; none
+addressed the chessboard or these labels. The user made the repository public;
+the GitHub API confirmed `its-gaib/pubky-3d` is public, and fork metadata now agrees.
+
+The floating CHECKMATE CITADEL and "18 films · one more?" labels are removed.
+The chessboard's apparent circular hole was an overlapping district-ground disk:
+its top sat at 0.12, above the checker tiles at 0.0775. Chess now uses its own
+square foundation without that generic disk. The other districts keep their
+existing ground, and the complete armies, walking gaps and Chessky link remain.
+
+Midnight Cinema's architecture and live screen are doubled together. The screen
+is 36×20.25, with its frame in world units so the DOM projection does not receive
+the building's scale twice. The building, collision footprints and entrance
+approach scale consistently. The walkable radius grows from 142 to 160, leaving
+a walkable margin around the rotated building. The footprint also reserves more
+space from decorative trees, Bitkit and the nearby portal. The movie program
+and iframe permissions are unchanged.
+
+The chess regression first failed with the old overlapping disk, then passed
+after the exclusion was restored. Rays through all 64 tile centers now reach the
+checker surface, and control cases preserve ordinary district and plaza ground.
+All **34 focused tests passed across seven files**, including cinema geometry,
+actual CSS projection dimensions, collision/arrival alignment, map clearance,
+planets and jellyfish bounds. Formatting, ESLint and whitespace checks passed.
+The final security gate reported no actionable findings. The complete runtime
+build and browser check are the next checkpoint.
+
 ## World sign-in, conference deck and arena duel — 2026-09-08
 
 The welcome screen prioritizes signing in to Pubky World, with guest exploration

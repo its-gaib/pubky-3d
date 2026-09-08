@@ -1,17 +1,17 @@
 import type { WorldZoneId } from '@/libs/world/world-types';
 
 /** Shared ground coordinates keep the scene, collisions, travel and pocket map aligned. */
-export const WORLD_RADIUS = 142;
+export const WORLD_RADIUS = 160;
 export const CINEMA_YAW = Math.PI * 0.75;
 
 export const WORLD_DIMENSIONS = {
-  landRadius: 150,
-  coastRadius: 154,
-  overviewDistance: 390,
+  landRadius: 168,
+  coastRadius: 172,
+  overviewDistance: 435,
   cameraNear: 0.5,
   cameraFar: 1400,
-  shadowExtent: 170,
-  shadowFar: 390,
+  shadowExtent: 188,
+  shadowFar: 435,
 } as const;
 
 export const WORLD_ANCHORS = {
@@ -54,7 +54,7 @@ export const WORLD_TREE_POSITIONS = [
 /** Arrive on the ground in front of a landmark; the arena and theater have open interiors. */
 export function worldArrival(id: WorldZoneId) {
   const [x, z] = WORLD_ANCHORS[id];
-  if (id === 'cinema') return { x: x + Math.sin(CINEMA_YAW) * 9, z: z + Math.cos(CINEMA_YAW) * 9 };
+  if (id === 'cinema') return { x: x + Math.sin(CINEMA_YAW) * 18, z: z + Math.cos(CINEMA_YAW) * 18 };
   return { x, z: z + (id === 'arena' ? 2 : id === 'theater' ? 7 : id === 'chess' ? 16 : 11) };
 }
 

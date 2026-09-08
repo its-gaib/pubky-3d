@@ -4,7 +4,7 @@
   "upstream": "https://github.com/pubky/pubky-app",
   "defaultBranch": "vibe/pubky-3d",
   "upstreamDefaultBranch": "dev",
-  "visibility": "private",
+  "visibility": "public",
   "baseCommit": "aaba2b8da18af33e066ded10e5e538f1855a07d0",
   "branch": "vibe/pubky-3d",
   "stack": "frontend-only",
