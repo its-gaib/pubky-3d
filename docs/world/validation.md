@@ -29,6 +29,31 @@ planets and jellyfish bounds. Formatting, ESLint and whitespace checks passed.
 The final security gate reported no actionable findings. The complete runtime
 build and browser check are the next checkpoint.
 
+The complete build at `c413d901c0bfedce4a12e3bf54f332d5b8df4492` passed in
+[run 34214487086](https://github.com/its-gaib/pubky-3d/actions/runs/34214487086):
+webpack compilation, full TypeScript, all eight static pages, standalone packaging
+and production startup. The smoke check confirmed all nine production runtime
+values and root/sign-in readiness. Artifact `10051313175` is about 62 MiB; its
+source, repository, branch, workflow and run metadata matched exactly, and it
+was verified unexpired before download.
+
+The fresh runtime returned HTTP 200 for `/` and `/sign-in` on isolated port 4323,
+with all nine production values matching. The actual 640×480 browser check reached
+an enabled Camera button, a WebGL canvas and two animation frames; guest entry
+dismissed the welcome. No JavaScript, console or shader errors were recorded.
+The optional normal-input approach to chess did not reach its target within
+14.5 seconds, and the six-second screenshot attempt timed out. The overall timer
+fired during cleanup; the browser closed normally after 45.8 seconds. This pass
+produced no new board image. The source-level geometry and CSS projection checks
+above remain the direct evidence for the repaired board and enlarged screen.
+Results and logs are `world-chess-label-mini-results.json` and
+`world-chess-label-mini-run.log` in `/home/gaib/.cache/pubky-3d-browser/`.
+
+The new source now serves `127.0.0.1:4321`. Root and sign-in both returned 200 after
+replacement, with the complete production tuple confirmed again. The temporary
+4323 server and browser are closed; the earlier runtime remains on disk for
+rollback. Later documentation-only commits do not change the serving source.
+
 ## World sign-in, conference deck and arena duel — 2026-09-08
 
 The welcome screen prioritizes signing in to Pubky World, with guest exploration
