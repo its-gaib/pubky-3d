@@ -54,7 +54,14 @@ describe('Next Stop: Pubky conference deck', () => {
     expect(obstacles).toHaveLength(3);
     conferences.group.updateMatrixWorld(true);
     const meshes = objects(conferences.group);
-    expect(meshes.length).toBeLessThanOrEqual(36);
+    expect(meshes.length).toBeLessThanOrEqual(16);
+    const surfaces = new Set(
+      meshes
+        .map((mesh) => mesh.material)
+        .filter((material): material is THREE.MeshStandardMaterial => material instanceof THREE.MeshStandardMaterial),
+    );
+    expect(surfaces.size).toBe(4);
+    for (const material of surfaces) expect(material.vertexColors).toBe(true);
     expect(meshes.reduce((count, mesh) => count + mesh.geometry.getAttribute('position').count, 0)).toBeLessThan(
       40_000,
     );
@@ -78,6 +85,7 @@ describe('Next Stop: Pubky conference deck', () => {
     const fillText = vi.fn();
     const context = asOpaque<CanvasRenderingContext2D>({
       fillText,
+      scale: vi.fn(),
       fillRect: vi.fn(),
       setLineDash: vi.fn(),
       beginPath: vi.fn(),
@@ -98,7 +106,38 @@ describe('Next Stop: Pubky conference deck', () => {
       'map' in object.material && object.material.map instanceof THREE.CanvasTexture ? [object.material.map] : [],
     );
     expect(textures).toHaveLength(4);
+    expect(textures.map((texture) => [texture.image.width, texture.image.height])).toEqual([
+      [1536, 261],
+      [1152, 672],
+      [1152, 672],
+      [1152, 672],
+    ]);
     expect(fetchSpy).not.toHaveBeenCalled();
+    conferences.dispose();
+  });
+
+  it('keeps the raised event text in front of its frame and leaves arrival approaches open', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const conferences = createConferences(new THREE.Scene(), [0, 0], vi.fn());
+    conferences.group.updateMatrixWorld(true);
+    const meshes = objects(conferences.group);
+    const ray = new THREE.Raycaster();
+    const forward = new THREE.Vector3(0, 0, -1);
+    for (const event of WORLD_CONFERENCES) {
+      const pass = conferences.group.getObjectByName(`${event.city} official event dates`)!;
+      const center = pass.getWorldPosition(new THREE.Vector3());
+      ray.set(new THREE.Vector3(center.x, center.y, 8), forward);
+      expect(ray.intersectObjects(meshes, false)[0]?.object).toBe(pass);
+      // Eye-height approach remains clear before the selectable diorama's collision circle.
+      ray.set(new THREE.Vector3(center.x, 1.7, 8.5), forward);
+      ray.far = 4.4;
+      expect(ray.intersectObjects(meshes, false)).toHaveLength(0);
+      ray.far = Infinity;
+    }
+    const board = conferences.group.getObjectByName('Pubky departure board')!;
+    const center = board.getWorldPosition(new THREE.Vector3());
+    ray.set(new THREE.Vector3(0, center.y, 8), forward);
+    expect(ray.intersectObjects(meshes, false)[0]?.object).toBe(board);
     conferences.dispose();
   });
 

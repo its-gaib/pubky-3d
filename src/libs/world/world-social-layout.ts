@@ -34,6 +34,11 @@ export interface SocialSector {
   tagStatus: { pending: number; unavailable: number; untagged: number; other: number };
 }
 
+export interface SocialSectorRepresentatives {
+  central: WorldPerson | null;
+  satellites: WorldPerson[];
+}
+
 interface SupportedTag {
   label: string;
   people: number;
@@ -232,6 +237,29 @@ export function socialViewPeople(
   }
   const resolved = resolveSocialView(sectors, view);
   return selected.members.slice(resolved.page * SOCIAL_PAGE_SIZE, (resolved.page + 1) * SOCIAL_PAGE_SIZE);
+}
+
+/** Fixed actual members for the four overview figures; image availability never changes who is represented. */
+export function socialSectorRepresentatives(sector: SocialSector): SocialSectorRepresentatives {
+  const members = [...sector.members].sort(comparePeople);
+  const central = members[0] ?? null;
+  return {
+    central,
+    satellites: members.filter((person) => person.degree === 2 && person.id !== central?.id).slice(0, 3),
+  };
+}
+
+/** The image-permission window matches the individual page or the overview's at most 32 representative heads. */
+export function socialAvatarPeople(people: readonly WorldPerson[], view: WorldSocialView): WorldPerson[] {
+  const sectors = socialSectors(people);
+  const grouped =
+    !socialSectorForView(sectors, view) &&
+    sectors.reduce((count, sector) => count + sector.members.length, 0) > SOCIAL_PAGE_SIZE;
+  if (!grouped) return socialViewPeople(people, view, sectors);
+  return sectors.flatMap((sector) => {
+    const { central, satellites } = socialSectorRepresentatives(sector);
+    return central ? [central, ...satellites] : [];
+  });
 }
 
 /** Every loaded ID, including a profile placeholder, has a reachable neighborhood and page. */

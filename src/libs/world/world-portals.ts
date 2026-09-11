@@ -22,7 +22,10 @@ interface GroundPosition {
 }
 
 /** Observes all positions, but only a deliberate walking entry can start a trip. */
-export function createPortalTransit(random: () => number = Math.random) {
+export function createPortalTransit(
+  random: () => number = Math.random,
+  isAvailable: (index: number) => boolean = () => true,
+) {
   let occupied: boolean[] | null = null;
   let leaveDestination: number | null = null;
   let availableAt = 0;
@@ -39,9 +42,10 @@ export function createPortalTransit(random: () => number = Math.random) {
       if (leaveDestination !== null && distances[leaveDestination] > PORTAL_TRANSIT.leaveRadius)
         leaveDestination = null;
       if (!previous || !walking || time < availableAt || leaveDestination !== null) return null;
-      const from = inside.findIndex((value, index) => value && !previous[index]);
+      const from = inside.findIndex((value, index) => value && !previous[index] && isAvailable(index));
       if (from < 0) return null;
-      const exits = WORLD_PORTALS.map((_, index) => index).filter((index) => index !== from);
+      const exits = WORLD_PORTALS.map((_, index) => index).filter((index) => index !== from && isAvailable(index));
+      if (!exits.length) return null;
       const sample = random();
       const choice = Number.isFinite(sample) ? Math.max(0, Math.min(1 - Number.EPSILON, sample)) : 0;
       const to = exits[Math.floor(choice * exits.length)];

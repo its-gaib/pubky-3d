@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import type { WorldBurnTarget } from '@/libs/world/world-burning';
 import { disposeObject } from '@/libs/world/world-geometry';
 import { WORLD_DIMENSIONS } from '@/libs/world/world-layout';
 
@@ -177,40 +178,155 @@ function merge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return combined;
 }
 
-function rimGeometry() {
-  const parts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(1, 0.032, 6, 64).rotateX(Math.PI / 2)];
-  for (let rib = 0; rib < 8; rib++) {
-    const angle = (rib / 8) * Math.PI * 2;
-    const points = Array.from({ length: 6 }, (_, index) => {
-      const arc = ((index / 5) * Math.PI) / 2;
-      return new THREE.Vector3(Math.sin(arc) * Math.cos(angle), Math.cos(arc) * 0.72, Math.sin(arc) * Math.sin(angle));
-    });
-    parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 18, 0.013, 3, false));
+function colorGeometry(geometry: THREE.BufferGeometry, alpha: (x: number, y: number, z: number) => number) {
+  const positions = geometry.getAttribute('position');
+  const colors = new Float32Array(positions.count * 4);
+  for (let index = 0; index < positions.count; index++) {
+    colors[index * 4] = 1;
+    colors[index * 4 + 1] = 1;
+    colors[index * 4 + 2] = 1;
+    colors[index * 4 + 3] = alpha(positions.getX(index), positions.getY(index), positions.getZ(index));
   }
-  return merge(parts);
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+  return geometry;
+}
+
+function bellPoint(angle: number, fraction: number) {
+  const arc = (fraction * Math.PI) / 2;
+  const scallop = Math.cos(angle * 12);
+  const radius = Math.sin(arc) * (1 + scallop * 0.035 * fraction ** 5);
+  return new THREE.Vector3(
+    radius * Math.cos(angle),
+    Math.cos(arc) * 0.72 - (1 - scallop) * 0.028 * fraction ** 8,
+    radius * Math.sin(angle),
+  );
+}
+
+function bellGeometry() {
+  const geometry = new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+  const positions = geometry.getAttribute('position');
+  for (let index = 0; index < positions.count; index++) {
+    const angle = Math.atan2(positions.getZ(index), positions.getX(index));
+    const fraction = (Math.acos(THREE.MathUtils.clamp(positions.getY(index), -1, 1)) * 2) / Math.PI;
+    const point = bellPoint(angle, fraction);
+    positions.setXYZ(index, point.x, point.y, point.z);
+  }
+  geometry.computeVertexNormals();
+  return colorGeometry(geometry, (x, y, z) => {
+    const edge = 1 - Math.max(0, y) / 0.72;
+    const radial = Math.cos(Math.atan2(z, x) * 12) * 0.08;
+    return 0.2 + edge * 0.6 + radial * edge;
+  });
+}
+
+function rimGeometry() {
+  const edge = Array.from({ length: 96 }, (_, index) => bellPoint((index / 96) * Math.PI * 2, 1));
+  const parts: THREE.BufferGeometry[] = [
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge, true), 128, 0.025, 4, true),
+  ];
+  for (let rib = 0; rib < 12; rib++) {
+    const angle = (rib / 12) * Math.PI * 2;
+    const points = Array.from({ length: 9 }, (_, index) =>
+      bellPoint(angle + Math.sin((index / 8) * Math.PI) * 0.06, index / 8),
+    );
+    parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 24, 0.011, 3, false));
+    const bead = bellPoint(angle + Math.PI / 12, 0.99);
+    parts.push(new THREE.OctahedronGeometry(0.035).translate(bead.x, bead.y, bead.z));
+  }
+  const geometry = merge(parts);
+  return colorGeometry(geometry, (_x, y) => 0.45 + (1 - Math.max(0, y) / 0.75) * 0.5);
+}
+
+function oralArmGeometry(arm: number) {
+  const steps = 32;
+  const widthSteps = 4;
+  const angle = (arm / 4) * Math.PI * 2;
+  const vertices: number[] = [];
+  const uv: number[] = [];
+  const indices: number[] = [];
+  for (let step = 0; step <= steps; step++) {
+    const t = step / steps;
+    const radius = 0.16 + t * 0.23;
+    const width = (0.055 + Math.sin(t * Math.PI) * 0.1) * (1 - t * 0.6);
+    const centerX = Math.cos(angle) * radius + Math.sin(t * 8 + angle) * t * 0.16;
+    const centerZ = Math.sin(angle) * radius + Math.cos(t * 7 + angle) * t * 0.16;
+    for (let cross = 0; cross <= widthSteps; cross++) {
+      const across = (cross / widthSteps) * 2 - 1;
+      const ruffle = Math.sin(t * 46 + angle + across) * Math.abs(across) * 0.065 * Math.sin(t * Math.PI);
+      vertices.push(
+        centerX + Math.cos(angle + Math.PI / 2) * across * width + Math.cos(angle) * ruffle,
+        0.08 - t * (2.42 + (arm % 2) * 0.12) + ruffle * 0.35,
+        centerZ + Math.sin(angle + Math.PI / 2) * across * width + Math.sin(angle) * ruffle,
+      );
+      uv.push(cross / widthSteps, t);
+      if (step < steps && cross < widthSteps) {
+        const base = step * (widthSteps + 1) + cross;
+        indices.push(base, base + widthSteps + 1, base + 1, base + 1, base + widthSteps + 1, base + widthSteps + 2);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 function tentacleGeometry() {
   const parts: THREE.BufferGeometry[] = [];
-  for (let arm = 0; arm < 11; arm++) {
-    const angle = (arm / 8) * Math.PI * 2;
-    const inner = arm >= 8;
-    const length = inner ? 2.5 : 2.35 + (arm % 3) * 0.34;
-    const points = Array.from({ length: 10 }, (_, index) => {
-      const t = index / 9;
-      const radius = inner ? 0.2 + t * 0.1 : 0.77 + t * 0.14;
+  for (let arm = 0; arm < 12; arm++) {
+    const angle = (arm / 12) * Math.PI * 2;
+    const length = 2.3 + (arm % 4) * 0.17;
+    const points = Array.from({ length: 12 }, (_, index) => {
+      const t = index / 11;
+      const radius = 0.77 + t * 0.09;
       return new THREE.Vector3(
-        Math.cos(angle) * radius + Math.sin(t * 8 + angle) * t * 0.23,
-        -0.03 - t * length,
-        Math.sin(angle) * radius + Math.cos(t * 6 + angle) * t * 0.23,
+        Math.cos(angle) * radius + Math.sin(t * 8 + angle) * t * 0.2,
+        -0.025 - t * length,
+        Math.sin(angle) * radius + Math.cos(t * 7 + angle) * t * 0.2,
       );
     });
-    parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 28, inner ? 0.047 : 0.019, 4, false));
+    const curve = new THREE.CatmullRomCurve3(points);
+    const geometry = new THREE.TubeGeometry(curve, 32, 0.021, 5, false);
+    const positions = geometry.getAttribute('position');
+    for (let step = 0; step <= 32; step++) {
+      const t = step / 32;
+      const center = curve.getPointAt(t);
+      const taper = 1 - t * 0.82;
+      for (let side = 0; side <= 5; side++) {
+        const index = step * 6 + side;
+        positions.setXYZ(
+          index,
+          center.x + (positions.getX(index) - center.x) * taper,
+          center.y + (positions.getY(index) - center.y) * taper,
+          center.z + (positions.getZ(index) - center.z) * taper,
+        );
+      }
+    }
+    geometry.computeVertexNormals();
+    parts.push(geometry);
   }
-  return merge(parts);
+  for (let arm = 0; arm < 4; arm++) parts.push(oralArmGeometry(arm));
+  return colorGeometry(merge(parts), (_x, y) => 0.92 - THREE.MathUtils.clamp(-y / 3, 0, 1) ** 2 * 0.66);
 }
 
-/** Four instanced draw calls render a fixed, genuinely three-dimensional population. */
+function coreGeometry() {
+  const parts: THREE.BufferGeometry[] = [new THREE.SphereGeometry(0.12, 12, 8).translate(0, 0.19, 0)];
+  for (let lobe = 0; lobe < 4; lobe++) {
+    const angle = (lobe / 4) * Math.PI * 2;
+    parts.push(
+      new THREE.TorusGeometry(0.12, 0.033, 4, 28)
+        .scale(1, 1.35, 1)
+        .rotateX(Math.PI / 2)
+        .rotateY(-angle)
+        .translate(Math.cos(angle) * 0.17, 0.17, Math.sin(angle) * 0.17),
+    );
+  }
+  return colorGeometry(merge(parts), () => 0.8);
+}
+
+/** Four shared instance pools hold eight sculpted bells, veined rims, oral arms and trailing filaments. */
 export function createGalacticJellyfish(scene: THREE.Scene) {
   const group = new THREE.Group();
   group.name = 'Galactic jellyfish';
@@ -221,6 +337,7 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
   const makeInstances = (geometry: THREE.BufferGeometry, opacity: number, name: string) => {
     const material = new THREE.MeshBasicMaterial({
       color: '#FFFFFF',
+      vertexColors: true,
       transparent: true,
       opacity,
       blending: THREE.AdditiveBlending,
@@ -240,15 +357,34 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
     group.add(instances);
     return instances;
   };
-  const bell = makeInstances(
-    new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.72, 1),
-    0.18,
-    'Translucent bells',
-  );
-  const rim = makeInstances(rimGeometry(), 0.82, 'Glowing bell ribs');
-  const tentacles = makeInstances(tentacleGeometry(), 0.68, 'Trailing tentacles');
-  const core = makeInstances(new THREE.SphereGeometry(0.24, 12, 8), 0.42, 'Luminous hearts');
+  const bell = makeInstances(bellGeometry(), 0.34, 'Translucent bells');
+  const rim = makeInstances(rimGeometry(), 0.72, 'Glowing bell ribs');
+  const tentacles = makeInstances(tentacleGeometry(), 0.67, 'Trailing tentacles');
+  const core = makeInstances(coreGeometry(), 0.55, 'Luminous hearts');
+  const tentacleTime = { value: 0 };
+  const phases = new THREE.InstancedBufferAttribute(new Float32Array(GALACTIC_JELLYFISH.count), 1);
+  phases.setUsage(THREE.DynamicDrawUsage);
+  tentacles.geometry.setAttribute('jellyfishPhase', phases);
+  // Vertex motion keeps every strand rooted to its bell without rebuilding geometry or textures.
+  tentacles.material.onBeforeCompile = (shader) => {
+    shader.uniforms.jellyfishTime = tentacleTime;
+    shader.vertexShader = `uniform float jellyfishTime;\nattribute float jellyfishPhase;\n${shader.vertexShader}`;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      float trail = pow(clamp(-position.y / 3.0, 0.0, 1.0), 1.35);
+      float wave = jellyfishTime * 1.25 + jellyfishPhase - position.y * 2.4;
+      transformed.x += sin(wave + position.z * 2.0) * 0.1 * trail;
+      transformed.z += cos(wave * 0.87 + position.x * 2.0) * 0.08 * trail;`,
+    );
+  };
+  tentacles.material.customProgramCacheKey = () => 'pubky-jellyfish-trailing-filaments-v1';
   const instances = [bell, rim, tentacles, core];
+  const baseMatrices = instances.map(() => states.map(() => new THREE.Matrix4()));
+  const ignited = new Set<number>();
+  const gone = new Set<number>();
+  const burnMatrix = new THREE.Matrix4();
+  const burnScale = new THREE.Vector3();
   const transform = new THREE.Object3D();
   const direction = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
@@ -261,11 +397,36 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
   const tint = new THREE.Color();
   const white = new THREE.Color('#FFFFFF');
 
+  function writeInstance(part: number, index: number, matrix: THREE.Matrix4) {
+    baseMatrices[part][index].copy(matrix);
+    instances[part].setMatrixAt(index, matrix);
+    instances[part].boundingBox = null;
+    instances[part].boundingSphere = null;
+  }
+
+  function applyBurn(index: number) {
+    const scale = gone.has(index) ? 0 : 1;
+    burnScale.setScalar(scale);
+    instances.forEach((instance, part) => {
+      burnMatrix.copy(baseMatrices[part][index]).scale(burnScale);
+      instance.setMatrixAt(index, burnMatrix);
+      instance.instanceMatrix.needsUpdate = true;
+      instance.boundingBox = null;
+      instance.boundingSphere = null;
+    });
+  }
+
   function paint(delta: number) {
+    tentacleTime.value = simulationTime;
     states.forEach((state, index) => {
+      if (gone.has(index)) {
+        applyBurn(index);
+        return;
+      }
       const phase = simulationTime * (0.9 + state.speed * 0.16) + state.phase;
       const pulse = Math.sin(phase);
       const brightness = jellyfishOpacity(state);
+      phases.setX(index, state.phase);
       targetRotation.setFromUnitVectors(up, direction.set(...state.velocity).normalize());
       rotations[index].slerp(targetRotation, delta ? 1 - Math.exp(-delta * 2.5) : 1);
       transform.position.set(...state.position);
@@ -276,8 +437,8 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
         state.scale * (1 + pulse * 0.075),
       );
       transform.updateMatrix();
-      bell.setMatrixAt(index, transform.matrix);
-      rim.setMatrixAt(index, transform.matrix);
+      writeInstance(0, index, transform.matrix);
+      writeInstance(1, index, transform.matrix);
       tint.copy(colors[state.color]).multiplyScalar(brightness);
       bell.setColorAt(index, tint);
       rim.setColorAt(index, tint);
@@ -290,17 +451,18 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
         state.scale * (1 - pulse * 0.045),
       );
       transform.updateMatrix();
-      tentacles.setMatrixAt(index, transform.matrix);
+      writeInstance(2, index, transform.matrix);
       tint.copy(colors[state.color]).lerp(white, 0.2).multiplyScalar(brightness);
       tentacles.setColorAt(index, tint);
 
       transform.quaternion.copy(rotations[index]);
       transform.scale.setScalar(state.scale * (1 + pulse * 0.16));
       transform.updateMatrix();
-      core.setMatrixAt(index, transform.matrix);
+      writeInstance(3, index, transform.matrix);
       tint.copy(colors[state.color]).lerp(white, 0.6).multiplyScalar(brightness);
       core.setColorAt(index, tint);
     });
+    phases.needsUpdate = true;
     for (const object of instances) {
       object.instanceMatrix.needsUpdate = true;
       if (object.instanceColor) object.instanceColor.needsUpdate = true;
@@ -308,13 +470,67 @@ export function createGalacticJellyfish(scene: THREE.Scene) {
   }
   paint(0);
 
+  const instanceMatrix = new THREE.Matrix4();
+  const worldMatrix = new THREE.Matrix4();
+  const partBounds = new THREE.Box3();
+  const hits: THREE.Intersection[] = [];
+  // One non-rendered ray proxy borrows the four pools' resources sequentially.
+  const rayProxy = new THREE.Mesh(bell.geometry, bell.material);
+  const burnTargets: WorldBurnTarget[] = states.map((state, index) => ({
+    id: `prop:jellyfish:${state.id}`,
+    canIgnite: () => !disposed && !gone.has(index) && group.visible && jellyfishOpacity(states[index]) > 0.01,
+    getBounds(out) {
+      out.makeEmpty();
+      if (disposed || gone.has(index) || !group.visible) return false;
+      group.updateWorldMatrix(true, true);
+      for (const instance of instances) {
+        instance.getMatrixAt(index, instanceMatrix);
+        worldMatrix.multiplyMatrices(instance.matrixWorld, instanceMatrix);
+        if (!instance.geometry.boundingBox) instance.geometry.computeBoundingBox();
+        partBounds.copy(instance.geometry.boundingBox!).applyMatrix4(worldMatrix);
+        // CPU bounds include the bounded shader displacement of trailing strands.
+        if (instance === tentacles) partBounds.expandByScalar(worldMatrix.getMaxScaleOnAxis() * 0.13);
+        out.union(partBounds);
+      }
+      return !out.isEmpty();
+    },
+    raycast(raycaster) {
+      if (disposed || gone.has(index) || !group.visible) return null;
+      group.updateWorldMatrix(true, true);
+      let closest = Infinity;
+      for (const instance of instances) {
+        instance.getMatrixAt(index, instanceMatrix);
+        rayProxy.geometry = instance.geometry;
+        rayProxy.material = instance.material;
+        rayProxy.matrixWorld.multiplyMatrices(instance.matrixWorld, instanceMatrix);
+        hits.length = 0;
+        rayProxy.raycast(raycaster, hits);
+        for (const hit of hits) closest = Math.min(closest, hit.distance);
+      }
+      return Number.isFinite(closest) ? closest : null;
+    },
+    onIgnite() {
+      if (!disposed) ignited.add(index);
+    },
+    hide() {
+      if (disposed) return;
+      gone.add(index);
+      ignited.delete(index);
+      applyBurn(index);
+    },
+  }));
+
   return {
     group,
+    burnTargets,
     animate(_time: number, delta: number, reducedMotion = false) {
       if (disposed || reducedMotion || !Number.isFinite(delta) || delta <= 0) return;
       const step = Math.min(delta, GALACTIC_JELLYFISH.maxDelta);
       simulationTime += step;
-      states = states.map((state) => stepJellyfish(state, step));
+      // An ignited body stays with its fire; burning never teleports to a replacement.
+      states = states.map((state, index) =>
+        ignited.has(index) || gone.has(index) ? state : stepJellyfish(state, step),
+      );
       paint(step);
     },
     dispose() {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CINEMA_DIMENSIONS, CINEMA_SCREEN, cinemaCollisionObstacles, createCinema } from '@/libs/world/world-cinema';
+import { createCinemaVisibility } from '@/libs/world/world-cinema-screen';
 import { disposeObject } from '@/libs/world/world-geometry';
 import { CINEMA_YAW, WORLD_ANCHORS, worldArrival } from '@/libs/world/world-layout';
 import { resolvePosition } from '@/libs/world/world-motion';
@@ -73,5 +74,33 @@ describe('Midnight Cinema facade', () => {
     );
     expect(obstacle).toHaveBeenCalledTimes(3);
     disposeObject(scene);
+  });
+  it('batches the Art Deco details and keeps the real movie opening visible across front viewing angles', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const scene = new THREE.Scene();
+    const cinema = createCinema(scene, vi.fn(), vi.fn());
+    scene.updateMatrixWorld(true);
+    const meshes: THREE.Mesh[] = [];
+    cinema.group.traverse((object) => {
+      if (object instanceof THREE.Mesh) meshes.push(object);
+    });
+    expect(meshes).toHaveLength(5);
+    const visible = createCinemaVisibility(scene, cinema.screenFrame);
+    const camera = new THREE.PerspectiveCamera(40, 16 / 9, 0.1, 200);
+    const target = cinema.screenFrame.getWorldPosition(new THREE.Vector3());
+    for (const x of [-16, 0, 16]) {
+      camera.position.copy(new THREE.Vector3(x, 18, 62).applyMatrix4(cinema.group.matrixWorld));
+      camera.lookAt(target);
+      expect(visible(camera)).toBe(true);
+    }
+    const resources = new Set<THREE.BufferGeometry | THREE.Material>();
+    for (const object of meshes) {
+      resources.add(object.geometry);
+      for (const surface of Array.isArray(object.material) ? object.material : [object.material])
+        resources.add(surface);
+    }
+    const releases = [...resources].map((resource) => vi.spyOn(resource, 'dispose'));
+    disposeObject(scene);
+    releases.forEach((release) => expect(release).toHaveBeenCalledOnce());
   });
 });

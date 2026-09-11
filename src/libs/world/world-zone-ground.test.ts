@@ -12,7 +12,7 @@ function floorMeshes(scene: THREE.Scene) {
     if (!(object instanceof THREE.Mesh)) return;
     let ancestor: THREE.Object3D | null = object;
     while (ancestor) {
-      if (ancestor.userData.chessPiece) return;
+      if (ancestor.userData.chessPiece || ancestor.userData.chessBatch) return;
       ancestor = ancestor.parent;
     }
     meshes.push(object);

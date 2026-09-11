@@ -1,17 +1,17 @@
 import type { WorldZoneId } from '@/libs/world/world-types';
 
 /** Shared ground coordinates keep the scene, collisions, travel and pocket map aligned. */
-export const WORLD_RADIUS = 160;
+export const WORLD_RADIUS = 180;
 export const CINEMA_YAW = Math.PI * 0.75;
 
 export const WORLD_DIMENSIONS = {
-  landRadius: 168,
-  coastRadius: 172,
-  overviewDistance: 435,
+  landRadius: 188,
+  coastRadius: 192,
+  overviewDistance: 485,
   cameraNear: 0.5,
   cameraFar: 1400,
-  shadowExtent: 188,
-  shadowFar: 435,
+  shadowExtent: 208,
+  shadowFar: 485,
 } as const;
 
 export const WORLD_ANCHORS = {
@@ -21,6 +21,7 @@ export const WORLD_ANCHORS = {
   university: [-26, -77],
   github: [-82, 22],
   bitkit: [-26, 94],
+  hotSauce: [-108, -103],
   theater: [-86, -52],
   cinema: [-77, 91],
   conferences: [0, -101],

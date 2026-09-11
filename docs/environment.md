@@ -68,6 +68,31 @@ const debugMode = Env.NEXT_PUBLIC_DEBUG_MODE; // boolean
 
 ## Runtime configuration (`PUBKY_RUNTIME_*`)
 
+In this Pubky World fork, `npm run dev`, `npm run dev:webpack`, and `npm run start`
+use `tools/world/run.mjs`. That wrapper supplies all nine production network
+values from `src/libs/world/world-production.json`. The app can therefore run
+locally and sign in to a real production account through Pubky Ring. Running
+`next dev` directly skips this wrapper and follows the defaults described below.
+The separate visual-review harness uses fixtures and cannot authenticate.
+
+### Local development on a small host
+
+`PUBKY_WORLD_LOW_MEMORY_DEV=true` disables the optional React Compiler pass and
+development source maps. For Turbopack it also requests a 384 MiB cache target
+and disables the server-component HMR cache; this is a cache target, not a hard
+limit on total process memory. Webpack removes only its inline source-map plugin.
+This is a build-tool setting, not application runtime configuration. It changes
+local optimization and source-level debugging; authentication and network
+settings remain the same. The flag has no effect when `NODE_ENV=production`.
+
+```sh
+PUBKY_WORLD_LOW_MEMORY_DEV=true npm run dev -- --hostname 127.0.0.1 --port 4321
+```
+
+The first request may need a full compilation. Let that request finish: Next's
+development server checks its V8 memory threshold when requests end and may
+restart if short warm-up probes abort while compilation is using most of its heap.
+
 All **environment-specific and deployer-facing public values** are configured at **runtime**, not build time, so a single Docker image can be promoted across staging / prod / testnet — and deployed by third parties against their own infrastructure — without rebuilding. See [ADR 0017](adr/0017-runtime-config-injection.md) and [ADR 0018](adr/0018-runtime-sentry-and-decoupled-source-maps.md).
 
 The contract has three tiers:

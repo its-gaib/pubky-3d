@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { box, label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { label, mesh, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { createLandmarkBuilder } from '@/libs/world/world-landmark-details';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldInteraction } from '@/libs/world/world-types';
 
 /**
- * An original low-poly homage to Valentina Picozzi / Satoshigallery's Lugano
+ * An original sculptural homage to Valentina Picozzi / Satoshigallery's Lugano
  * monument: a faceless coder made from spaced vertical steel contour sheets.
  * No photographed artwork or third-party model is bundled.
  */
@@ -15,30 +15,53 @@ export function createSatoshi(
   obstacle: (x: number, z: number, radius: number) => void,
 ) {
   const monument = new THREE.Group();
+  monument.name = 'Satoshi monument';
   monument.position.set(WORLD_ANCHORS.satoshi[0], 0, WORLD_ANCHORS.satoshi[1]);
   scene.add(monument);
-  box(monument, [6.5, 0.25, 5.8], WORLD_PALETTE.neutral, [0, 0.12, 0]);
-  box(monument, [5.6, 1.2, 4.8], WORLD_PALETTE.surface, [0, 0.82, 0]);
-  box(monument, [5.75, 0.12, 4.95], '#74747C', [0, 1.48, 0]);
-  box(monument, [5.4, 0.055, 0.12], WORLD_PALETTE.lime, [0, 0.3, 2.44]);
+  const detail = createLandmarkBuilder();
+  const { box, cylinder } = detail;
+  box(monument, [6.5, 0.25, 5.8], 'stone', '#454950', [0, 0.12, 0], 0.045);
+  box(monument, [5.95, 0.085, 5.15], 'metal', '#777F87', [0, 0.287, 0], 0.022);
+  box(monument, [5.6, 1.2, 4.8], 'stone', '#242B31', [0, 0.82, 0], 0.06);
+  box(monument, [5.75, 0.12, 4.95], 'metal', '#909BA1', [0, 1.48, 0], 0.027);
+  box(monument, [5.43, 0.045, 4.64], 'metal', '#535F67', [0, 1.566, 0], 0.016);
+  box(monument, [5.4, 0.055, 0.12], 'light:#C8FF03', WORLD_PALETTE.lime, [0, 0.3, 2.44]);
+  for (const x of [-2.5, 2.5]) {
+    for (const z of [-2.14, 2.14]) cylinder(monument, 0.072, 0.072, 0.025, 'metal', '#CAD1CF', [x, 1.596, z], 6);
+  }
+  for (const side of [-1, 1]) {
+    for (const z of [-1.57, 0, 1.57]) box(monument, [0.018, 1.03, 0.028], 'stone', '#3E484F', [side * 2.805, 0.83, z]);
+    box(monument, [0.055, 0.45, 3.86], 'stone', '#303A41', [side * 2.812, 0.82, 0], 0.018);
+  }
+  box(monument, [4.98, 1.015, 0.12], 'metal', '#616B6E', [0, 0.87, 2.434], 0.04);
+  for (const x of [-2.31, 2.31]) {
+    for (const y of [0.52, 1.22])
+      cylinder(monument, 0.04, 0.04, 0.03, 'metal', '#ACB9B4', [x, y, 2.508], 6, [Math.PI / 2, 0, 0]);
+  }
 
   const figure = new THREE.Group();
+  figure.name = 'satoshi-steel-contours';
   figure.position.y = 1.58;
   figure.rotation.y = -0.52;
   monument.add(figure);
-  const steels = ['#BDC2CB', '#8D949F', '#D7DCE4'].map(
-    (color) => new THREE.MeshStandardMaterial({ color, metalness: 0.48, roughness: 0.3, flatShading: true }),
-  );
-  const slices: THREE.BufferGeometry[][] = steels.map(() => []);
+  const steels = ['#BDC6CC', '#929EA7', '#D7DEDF'];
 
   function sheet(points: [number, number][], x: number, index: number) {
     const shape = new THREE.Shape();
     points.forEach(([z, y], point) => (point ? shape.lineTo(-z, y) : shape.moveTo(-z, y)));
     shape.closePath();
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.052, bevelEnabled: false, curveSegments: 1 });
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.04,
+      bevelEnabled: true,
+      bevelSize: 0.006,
+      bevelThickness: 0.006,
+      bevelSegments: 1,
+      curveSegments: 1,
+    });
     geometry.rotateY(Math.PI / 2);
-    geometry.translate(x - 0.026, 0, 0);
-    slices[index % steels.length].push(geometry);
+    // Bevel plus core retain the original 0.052 sheet thickness and 0.175 pitch.
+    geometry.translate(x - 0.02, 0, 0);
+    detail.add(figure, geometry, 'metal', steels[index % steels.length]);
   }
 
   function ellipseSlice(x: number, center: [number, number, number], radius: [number, number, number], index: number) {
@@ -46,8 +69,8 @@ export function createSatoshi(
     if (Math.abs(across) >= 1) return;
     const size = Math.sqrt(1 - across * across);
     const points: [number, number][] = [];
-    for (let i = 0; i < 16; i++) {
-      const angle = (i * Math.PI * 2) / 16;
+    for (let i = 0; i < 28; i++) {
+      const angle = (i * Math.PI * 2) / 28;
       points.push([center[2] + Math.cos(angle) * radius[2] * size, center[1] + Math.sin(angle) * radius[1] * size]);
     }
     sheet(points, x, index);
@@ -102,14 +125,19 @@ export function createSatoshi(
     }
   }
 
-  // Keep the separated steel sheets visually, with only three figure draw calls.
-  slices.forEach((parts, index) => {
-    const geometry = mergeGeometries(parts);
-    if (geometry) mesh(figure, geometry, steels[index]);
-    parts.forEach((part) => part.dispose());
-  });
-
-  label(monument, 'WE ARE ALL SATOSHI', [0, 0.87, 2.52], 4.6, WORLD_PALETTE.lime);
+  // Vertex colors keep the three steel tones in one draw without closing gaps.
+  detail.flush();
+  const lettering = label(monument, 'WE ARE ALL SATOSHI', [0, 0.87, 2.52], 4.6, WORLD_PALETTE.lime);
+  const plaque = mesh(
+    monument,
+    new THREE.PlaneGeometry(4.6, 0.92),
+    new THREE.MeshBasicMaterial({ map: lettering.material.map }),
+    [0, 0.87, 2.509],
+  );
+  plaque.name = 'Satoshi dedication plaque';
+  plaque.castShadow = false;
+  lettering.removeFromParent();
+  lettering.material.dispose();
   register(monument, { kind: 'fun', id: 'satoshi' }, 'Read the Satoshi monument plaque');
   obstacle(monument.position.x, monument.position.z, 3.05);
 }

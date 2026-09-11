@@ -134,21 +134,27 @@ export function WorldPeopleDirectory({
       )}
       <div className={styles.peopleGrid}>
         {directory.people.map((person) => (
-          <Button
+          <div
             key={person.id}
-            overrideDefaults
-            className={`${styles.personButton} ${person.degree === 2 ? styles.discoveryPerson : ''}`}
-            onClick={() => onSelect(person.id)}
+            className={`${styles.directoryPerson} ${person.degree === 2 ? styles.discoveryPerson : ''}`}
           >
-            <span style={{ background: person.color }}>••</span>
-            <strong>
-              {person.name}
-              <small>
-                {person.degree === 1 ? 'Following' : person.degree === 2 ? 'One hop away' : 'Public profile'}
-              </small>
-            </strong>
-            <ChevronRight size={16} />
-          </Button>
+            <AvatarWithFallback
+              avatarUrl={person.profileLoaded === false ? undefined : person.avatarUrl}
+              name={person.name}
+              fallbackSeed={person.id}
+              alt={`${person.name}’s profile picture`}
+              className={styles.directoryAvatar}
+            />
+            <Button overrideDefaults className={styles.personButton} onClick={() => onSelect(person.id)}>
+              <strong>
+                {person.name}
+                <small>
+                  {person.degree === 1 ? 'Following' : person.degree === 2 ? 'One hop away' : 'Public profile'}
+                </small>
+              </strong>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Button>
+          </div>
         ))}
       </div>
       {!directory.total && (

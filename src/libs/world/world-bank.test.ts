@@ -4,7 +4,7 @@ import { BANK_BILL_COUNT, BANK_BILL_LIFETIME, bankBillFrame, createBank } from '
 
 describe('bank bill life cycles', () => {
   it('keeps the reusable pool staggered instead of fading every bill together', () => {
-    expect(BANK_BILL_COUNT).toBe(300);
+    expect(BANK_BILL_COUNT).toBe(150);
     const frames = Array.from({ length: BANK_BILL_COUNT }, (_, index) => bankBillFrame(0, index));
     expect(frames.some((frame) => frame.opacity === 1)).toBe(true);
     expect(frames.some((frame) => frame.opacity > 0 && frame.opacity < 0.3)).toBe(true);
@@ -13,21 +13,21 @@ describe('bank bill life cycles', () => {
   });
 
   it('fades and shrinks an individual bill before recycling its own launch position', () => {
-    const fresh = bankBillFrame(10, 0);
-    const evaporating = bankBillFrame(68, 0);
+    const fresh = bankBillFrame(1, 0);
+    const evaporating = bankBillFrame(6.8, 0);
     expect(fresh.opacity).toBe(1);
     expect(evaporating.opacity).toBeLessThan(0.05);
     expect(evaporating.scale).toBeLessThan(0.2);
-    const recycled = bankBillFrame(BANK_BILL_LIFETIME + 10, 0);
+    const recycled = bankBillFrame(BANK_BILL_LIFETIME + 1, 0);
     expect(recycled.opacity).toBeCloseTo(fresh.opacity);
     recycled.position.forEach((value, index) => expect(value).toBeCloseTo(fresh.position[index]));
   });
 
   it('lets some individual bills settle on the ground while others remain airborne', () => {
-    const landed = bankBillFrame(42, 0);
-    const resting = bankBillFrame(50, 0);
-    const drifting = bankBillFrame(42, 2);
-    expect(BANK_BILL_LIFETIME).toBe(70);
+    const landed = bankBillFrame(4.2, 0);
+    const resting = bankBillFrame(5, 0);
+    const drifting = bankBillFrame(4.2, 2);
+    expect(BANK_BILL_LIFETIME).toBe(7);
     expect(landed.settled).toBe(true);
     expect(resting.settled).toBe(true);
     expect(landed.position[1]).toBeCloseTo(0.24);
@@ -40,7 +40,7 @@ describe('bank bill life cycles', () => {
 
   it('lays settled notes flat at every heading instead of tilting them through the floor', () => {
     let checked = 0;
-    for (const time of [0, 14, 42, 60]) {
+    for (const time of [0, 1.4, 4.2, 6]) {
       for (let index = 0; index < BANK_BILL_COUNT; index++) {
         const frame = bankBillFrame(time, index);
         if (!frame.settled) continue;
@@ -83,19 +83,47 @@ describe('bank printer renderer', () => {
     return { scene, bank, bills };
   }
 
-  it('prints ten times as many notes in one fixed draw while retaining their 70-second independent lives', () => {
+  it('keeps the detailed bank in five mesh draws inside its original steps and foundation', () => {
+    const { scene, bank, bills } = build();
+    const structure = scene.getObjectByName('Bank stonework and metalwork')!;
+    scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(structure);
+    bounds.min.sub(structure.parent!.position);
+    bounds.max.sub(structure.parent!.position);
+    expect(bounds.min.x).toBeGreaterThanOrEqual(-5.01);
+    expect(bounds.max.x).toBeLessThanOrEqual(5.01);
+    expect(bounds.min.z).toBeGreaterThanOrEqual(-3.76);
+    expect(bounds.max.z).toBeLessThanOrEqual(4.01);
+    expect(bounds.max.y).toBeLessThan(7.15);
+    const meshes: THREE.Mesh[] = [];
+    scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) meshes.push(object);
+    });
+    expect(meshes).toHaveLength(5);
+    const sign = scene.getObjectByName('bank-facade-brrr')!;
+    const ray = new THREE.Raycaster(
+      new THREE.Vector3(structure.parent!.position.x, 4.2, structure.parent!.position.z + 12),
+      new THREE.Vector3(0, 0, -1),
+    );
+    expect(ray.intersectObjects(meshes.filter((object) => object !== bills))[0].object).toBe(sign);
+    expect(bills.material.map!.image.width).toBe(768);
+    expect(bills.material.map!.image.height).toBe(384);
+    bank.dispose();
+  });
+
+  it('renders half as many notes in one fixed draw with ten-times-faster seven-second lives', () => {
     const { bank, bills } = build();
-    expect(bills.count).toBe(300);
-    expect(bills.count / BANK_BILL_LIFETIME).toBeCloseTo((30 / 70) * 10);
+    expect(bills.count).toBe(150);
+    expect(bills.count / BANK_BILL_LIFETIME).toBeCloseTo((300 / 70) * 5);
     expect(bills.frustumCulled).toBe(false);
     expect(bills.material.forceSinglePass).toBe(true);
     const opacity = bills.geometry.getAttribute('billOpacity');
-    expect(opacity.count).toBe(300);
+    expect(opacity.count).toBe(150);
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
-    bank.animate(68, false);
-    for (const index of [0, 1, 29, 99, 299]) {
-      const frame = bankBillFrame(68, index);
+    bank.animate(6.8, false);
+    for (const index of [0, 1, 29, 99, 149]) {
+      const frame = bankBillFrame(6.8, index);
       bills.getMatrixAt(index, matrix);
       position.setFromMatrixPosition(matrix);
       position.toArray().forEach((value, axis) => expect(value).toBeCloseTo(frame.position[axis], 5));
@@ -123,7 +151,13 @@ describe('bank printer renderer', () => {
     }
     bank.animate(1, true);
     const frozen = Array.from(bills.instanceMatrix.array);
+    const frozenVersion = bills.instanceMatrix.version;
+    const frozenOpacityVersion = (bills.geometry.getAttribute('billOpacity') as THREE.InstancedBufferAttribute).version;
     bank.animate(100, true);
+    expect(bills.instanceMatrix.version).toBe(frozenVersion);
+    expect((bills.geometry.getAttribute('billOpacity') as THREE.InstancedBufferAttribute).version).toBe(
+      frozenOpacityVersion,
+    );
     expect(Array.from(bills.instanceMatrix.array)).toEqual(frozen);
     expect(sign.position.x).toBe(0);
     expect(sign.rotation.z).toBe(0);
@@ -144,7 +178,7 @@ describe('bank printer renderer', () => {
     expect(scene.getObjectByName('bank-recycled-money')).toBe(bills);
     expect(bills.geometry).toBe(geometry);
     expect(bills.material).toBe(material);
-    expect(bills.count).toBe(300);
+    expect(bills.count).toBe(150);
     bank.dispose();
     bank.dispose();
     bank.animate(100_000, false);

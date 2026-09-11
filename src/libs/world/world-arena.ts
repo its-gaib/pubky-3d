@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import type { WorldBurnEscapeFrame } from '@/libs/world/world-burn-escape';
 import { label, mesh } from '@/libs/world/world-geometry';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import type { WorldObstacle } from '@/libs/world/world-motion';
@@ -132,103 +133,325 @@ function bannerTexture(brand: (typeof ARENA_BRAND_SYMBOLS)[number]) {
   return texture;
 }
 
-/** Two local toy performers, never network users or collision obstacles. */
-function createGladiatorDuel(parent: THREE.Group, bronze: THREE.Material, iron: THREE.Material) {
+/** Two local sculpted performers, never network users or collision obstacles. */
+function createGladiatorDuel(parent: THREE.Group) {
   const duel = new THREE.Group();
   duel.name = 'arena-gladiator-duel';
   duel.position.set(0, 0.17, -1.4);
   parent.add(duel);
-
-  const cube = new THREE.BoxGeometry(1, 1, 1);
-  const round = new THREE.IcosahedronGeometry(1, 1);
-  const cylinder = new THREE.CylinderGeometry(0.85, 1, 1, 12);
-  const bladeShape = new THREE.Shape();
-  bladeShape.moveTo(-0.07, 0);
-  bladeShape.lineTo(0.07, 0);
-  bladeShape.lineTo(0.07, -0.47);
-  bladeShape.lineTo(0, -0.69);
-  bladeShape.lineTo(-0.07, -0.47);
-  bladeShape.closePath();
-  const blade = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.035, bevelEnabled: false }).translate(0, 0, -0.0175);
-  const steel = new THREE.MeshStandardMaterial({ color: '#D0D8E0', metalness: 0.8, roughness: 0.25 });
-  const skin = new THREE.MeshStandardMaterial({ color: '#BA896E', roughness: 0.9 });
-  const tunics = ['#A73D46', '#2A8790'].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
-  const part = (
+  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
+  const bronze = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.43, metalness: 0.72 });
+  const steel = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.29, metalness: 0.8 });
+  const batches = new Map<THREE.Object3D, Map<THREE.Material, THREE.BufferGeometry[]>>();
+  const add = (
     target: THREE.Object3D,
     geometry: THREE.BufferGeometry,
     surface: THREE.Material,
+    color: string,
+    position: [number, number, number] = [0, 0, 0],
+  ) => {
+    geometry.translate(...position);
+    const tint = new THREE.Color(color);
+    const colors = new Float32Array(geometry.getAttribute('position').count * 3);
+    for (let vertex = 0; vertex < colors.length; vertex += 3) tint.toArray(colors, vertex);
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const surfaces = batches.get(target) ?? new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const parts = surfaces.get(surface) ?? [];
+    // The beveled sword is non-indexed; normalize the other primitives once at
+    // creation so each joint/material can still become a single draw call.
+    parts.push(geometry.index ? geometry.toNonIndexed() : geometry);
+    if (geometry.index) geometry.dispose();
+    surfaces.set(surface, parts);
+    batches.set(target, surfaces);
+  };
+  const oval = (
+    target: THREE.Object3D,
+    surface: THREE.Material,
+    color: string,
     size: [number, number, number],
     position: [number, number, number],
-  ) => {
-    const object = mesh(target, geometry, surface, position);
-    object.scale.set(...size);
-    return object;
-  };
+  ) => add(target, new THREE.SphereGeometry(1, 16, 10).scale(...size), surface, color, position);
+  const limb = (
+    target: THREE.Object3D,
+    color: string,
+    radius: number,
+    length: number,
+    position: [number, number, number],
+  ) => add(target, new THREE.CapsuleGeometry(radius, length - radius * 2, 4, 12), cloth, color, position);
+  const band = (
+    target: THREE.Object3D,
+    surface: THREE.Material,
+    color: string,
+    radius: number,
+    height: number,
+    position: [number, number, number],
+    depth = 1,
+  ) => add(target, new THREE.CylinderGeometry(radius, radius, height, 20).scale(1, 1, depth), surface, color, position);
+  const strip = (
+    target: THREE.Object3D,
+    surface: THREE.Material,
+    color: string,
+    size: [number, number, number],
+    position: [number, number, number],
+  ) => add(target, new THREE.BoxGeometry(...size), surface, color, position);
+  const gold = '#B28A50';
+  const edge = '#D4B27B';
+  const leather = '#4F3930';
+  const iron = '#343B40';
 
-  const fighters = tunics.map((tunic, index) => {
+  const fighters = ['#A84450', '#397F86'].map((tunic, index) => {
+    const complexion = index ? '#A57154' : '#C59170';
     const fighter = new THREE.Group();
     fighter.name = `arena-gladiator-${index === 0 ? 'crimson' : 'teal'}`;
     duel.add(fighter);
-    part(fighter, cube, tunic, [0.47, 0.55, 0.3], [0, 1.05, 0]);
-    part(fighter, round, iron, [0.31, 0.34, 0.2], [0, 1.14, 0.03]);
-    part(fighter, cylinder, tunic, [0.32, 0.3, 0.3], [0, 0.78, 0]);
-    part(fighter, cube, bronze, [0.57, 0.08, 0.37], [0, 0.92, 0]);
-    part(fighter, round, skin, [0.23, 0.26, 0.24], [0, 1.5, 0.015]);
-    part(fighter, round, bronze, [0.29, 0.19, 0.29], [0, 1.67, -0.025]);
-    part(fighter, cube, iron, [0.36, 0.07, 0.045], [0, 1.54, 0.246]);
-    part(fighter, cube, bronze, [0.055, 0.23, 0.055], [0, 1.51, 0.265]);
-    part(fighter, cube, bronze, [0.15, 0.07, 0.48], [0, 1.82, -0.03]);
-    for (const offset of [-1, 0, 1]) {
-      const plume = part(
+    add(
+      fighter,
+      new THREE.LatheGeometry(
+        [
+          [0, 0.81],
+          [0.21, 0.81],
+          [0.225, 0.94],
+          [0.26, 1.16],
+          [0.275, 1.25],
+          [0.17, 1.355],
+          [0, 1.37],
+        ].map(([radius, y]) => new THREE.Vector2(radius, y)),
+        20,
+      ).scale(1, 1, 0.68),
+      cloth,
+      tunic,
+    );
+    oval(fighter, bronze, iron, [0.27, 0.268, 0.157], [0, 1.135, 0.018]);
+    oval(fighter, bronze, '#434B4C', [0.239, 0.226, 0.034], [0, 1.137, -0.178]);
+    strip(fighter, bronze, '#67716E', [0.019, 0.27, 0.013], [0, 1.149, -0.212]);
+    for (const side of [-1, 1]) {
+      strip(fighter, bronze, gold, [0.046, 0.143, 0.036], [side * 0.173, 1.32, -0.108]);
+      oval(fighter, bronze, edge, [0.016, 0.016, 0.011], [side * 0.165, 1.257, -0.2]);
+    }
+    // Cuirass plates have a raised sternum and overlapping abdominal bands;
+    // bronze rivets and leather pteruges make the miniature read as constructed.
+    for (const side of [-1, 1]) {
+      oval(fighter, bronze, '#555B5C', [0.127, 0.131, 0.036], [side * 0.126, 1.217, 0.147]);
+      strip(fighter, bronze, gold, [0.053, 0.153, 0.041], [side * 0.176, 1.328, 0.083]);
+      oval(fighter, bronze, edge, [0.017, 0.017, 0.014], [side * 0.178, 1.268, 0.176]);
+    }
+    for (let plate = 0; plate < 3; plate++) {
+      oval(
         fighter,
-        cube,
-        tunic,
-        [0.12, 0.17, 0.19],
-        [0, 1.91 - Math.abs(offset) * 0.045, offset * 0.16 - 0.03],
+        bronze,
+        plate % 2 ? '#475052' : '#596162',
+        [0.214 - plate * 0.01, 0.07, 0.025],
+        [0, 1.082 - plate * 0.079, 0.161 - plate * 0.008],
       );
-      plume.rotation.x = offset * 0.27;
+      for (const side of [-1, 1])
+        oval(
+          fighter,
+          bronze,
+          gold,
+          [0.011, 0.011, 0.012],
+          [side * (0.172 - plate * 0.009), 1.086 - plate * 0.079, 0.18 - plate * 0.008],
+        );
+    }
+    add(fighter, new THREE.CylinderGeometry(0.255, 0.322, 0.28, 20).scale(1, 1, 0.76), cloth, tunic, [0, 0.78, 0]);
+    for (let panel = 0; panel < 12; panel++) {
+      const angle = (panel / 12) * Math.PI * 2;
+      add(
+        fighter,
+        new THREE.CapsuleGeometry(0.042, 0.165, 3, 8).scale(1, 1, 0.24).rotateY(angle),
+        cloth,
+        panel % 2 ? '#634739' : leather,
+        [Math.sin(angle) * 0.293, 0.78, Math.cos(angle) * 0.229],
+      );
+      oval(fighter, bronze, gold, [0.012, 0.012, 0.012], [Math.sin(angle) * 0.297, 0.877, Math.cos(angle) * 0.233]);
+    }
+    band(fighter, cloth, leather, 0.255, 0.074, [0, 0.918, 0], 0.74);
+    for (const y of [0.889, 0.948])
+      add(fighter, new THREE.TorusGeometry(0.254, 0.011, 4, 24).rotateX(Math.PI / 2).scale(1, 1, 0.745), bronze, gold, [
+        0,
+        y,
+        0,
+      ]);
+    strip(fighter, bronze, edge, [0.101, 0.069, 0.026], [0, 0.918, 0.204]);
+    strip(fighter, cloth, leather, [0.062, 0.037, 0.028], [0, 0.918, 0.219]);
+    limb(fighter, complexion, 0.086, 0.18, [0, 1.39, 0]);
+    oval(fighter, cloth, complexion, [0.214, 0.257, 0.21], [0, 1.592, 0.012]);
+    oval(fighter, cloth, complexion, [0.171, 0.113, 0.166], [0, 1.453, 0.035]);
+    for (const side of [-1, 1]) {
+      oval(fighter, cloth, '#D7CCB9', [0.034, 0.012, 0.01], [side * 0.087, 1.592, 0.208]);
+      oval(fighter, cloth, '#2C2623', [0.013, 0.011, 0.009], [side * 0.087, 1.591, 0.219]);
+      oval(fighter, cloth, '#DAD2BD', [0.0025, 0.0025, 0.002], [side * 0.087 - 0.004, 1.595, 0.227]);
+      add(fighter, new THREE.BoxGeometry(0.067, 0.022, 0.017).rotateZ(side * 0.15), cloth, '#3A291F', [
+        side * 0.086,
+        1.621,
+        0.21,
+      ]);
+      // Curved cheek guards leave the face and chin open below a domed helmet.
+      oval(fighter, bronze, gold, [0.074, 0.135, 0.047], [side * 0.187, 1.509, 0.133]);
+      oval(fighter, bronze, edge, [0.04, 0.092, 0.012], [side * 0.19, 1.503, 0.172]);
+      for (const y of [1.451, 1.567]) oval(fighter, bronze, '#E0C48F', [0.01, 0.01, 0.009], [side * 0.19, y, 0.186]);
+    }
+    oval(fighter, cloth, complexion, [0.032, 0.052, 0.049], [0, 1.547, 0.22]);
+    strip(fighter, cloth, '#7F5442', [0.079, 0.009, 0.013], [0, 1.459, 0.202]);
+    add(
+      fighter,
+      new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, 1.74).scale(0.264, 0.211, 0.256),
+      bronze,
+      gold,
+      [0, 1.681, -0.016],
+    );
+    add(
+      fighter,
+      new THREE.TorusGeometry(0.26, 0.018, 6, 32).rotateX(Math.PI / 2).scale(1, 1, 0.976),
+      bronze,
+      edge,
+      [0, 1.647, -0.016],
+    );
+    for (let rivet = 0; rivet < 10; rivet++) {
+      const angle = (rivet / 10) * Math.PI * 2;
+      oval(
+        fighter,
+        bronze,
+        '#E0C48F',
+        [0.011, 0.011, 0.011],
+        [Math.sin(angle) * 0.256, 1.674, Math.cos(angle) * 0.252 - 0.016],
+      );
+    }
+    add(fighter, new THREE.CapsuleGeometry(0.02, 0.15, 4, 8).scale(1, 1, 0.65), bronze, edge, [0, 1.561, 0.241]);
+    strip(fighter, bronze, '#795A35', [0.091, 0.041, 0.404], [0, 1.878, -0.033]);
+    for (let tuft = 0; tuft < 7; tuft++) {
+      const offset = tuft - 3;
+      add(
+        fighter,
+        new THREE.SphereGeometry(1, 12, 8).scale(0.041, 0.115, 0.054).rotateX(offset * 0.09),
+        cloth,
+        tuft % 2 ? tunic : index ? '#64A2A4' : '#CC6370',
+        [0, 1.965 - Math.abs(offset) * 0.02, offset * 0.062 - 0.032],
+      );
     }
 
+    const knees: THREE.Group[] = [];
     const legs = [-1, 1].map((side) => {
       const leg = new THREE.Group();
       leg.name = 'gladiator-leg';
-      leg.position.set(side * 0.16, 0.66, 0);
+      leg.position.set(side * 0.16, 0.748, 0);
       fighter.add(leg);
-      part(leg, cube, skin, [0.16, 0.52, 0.18], [0, -0.25, 0]);
-      part(leg, cube, bronze, [0.19, 0.3, 0.07], [0, -0.34, 0.1]);
-      part(leg, cube, iron, [0.23, 0.12, 0.37], [0, -0.6, 0.085]);
+      limb(leg, complexion, 0.095, 0.365, [0, -0.143, 0]);
+      const knee = new THREE.Group();
+      knee.name = 'gladiator-knee';
+      knee.position.y = -0.325;
+      leg.add(knee);
+      oval(knee, cloth, complexion, [0.089, 0.093, 0.081], [0, 0, 0]);
+      limb(knee, complexion, 0.072, 0.315, [0, -0.156, 0]);
+      oval(knee, bronze, gold, [0.094, 0.097, 0.038], [0, -0.006, 0.071]);
+      oval(knee, bronze, gold, [0.085, 0.136, 0.032], [0, -0.181, 0.064]);
+      strip(knee, bronze, edge, [0.014, 0.188, 0.013], [0, -0.178, 0.097]);
+      for (const y of [-0.082, -0.258]) band(knee, cloth, leather, 0.076, 0.03, [0, y, 0]);
+      oval(knee, cloth, complexion, [0.089, 0.058, 0.161], [0, -0.321, 0.064]);
+      oval(knee, cloth, '#292B2C', [0.107, 0.029, 0.188], [0, -0.37, 0.069]);
+      oval(knee, cloth, leather, [0.105, 0.019, 0.186], [0, -0.347, 0.069]);
+      for (let strap = 0; strap < 3; strap++) {
+        strip(knee, cloth, leather, [0.182, 0.028, 0.027], [0, -0.275 - strap * 0.006, 0.03 + strap * 0.057]);
+        oval(knee, bronze, gold, [0.011, 0.011, 0.012], [side * 0.07, -0.257 - strap * 0.006, 0.03 + strap * 0.057]);
+      }
+      band(knee, cloth, leather, 0.074, 0.034, [0, -0.275, 0]);
+      knees.push(knee);
       return leg;
     });
+    const elbows: THREE.Group[] = [];
     const arms = [-1, 1].map((side) => {
       const arm = new THREE.Group();
-      arm.position.set(side * 0.4, 1.25, 0);
+      arm.position.set(side * 0.355, 1.29, 0);
       fighter.add(arm);
-      part(arm, round, bronze, [0.18, 0.17, 0.18], [0, -0.035, 0]);
-      part(arm, cube, skin, [0.15, 0.36, 0.16], [0, -0.23, 0]);
+      limb(arm, complexion, 0.087, 0.335, [0, -0.116, 0]);
+      for (let plate = 0; plate < 3; plate++) {
+        add(
+          arm,
+          new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, 1.75).scale(
+            0.155 - plate * 0.011,
+            0.104,
+            0.143 - plate * 0.01,
+          ),
+          bronze,
+          plate % 2 ? '#96713E' : gold,
+          [side * 0.011, 0.024 - plate * 0.065, 0],
+        );
+        oval(arm, bronze, edge, [0.012, 0.012, 0.012], [side * (0.145 - plate * 0.01), 0.025 - plate * 0.065, 0.007]);
+      }
+      const elbow = new THREE.Group();
+      elbow.name = 'gladiator-elbow';
+      elbow.position.y = -0.281;
+      arm.add(elbow);
+      limb(elbow, complexion, 0.071, 0.303, [0, -0.12, 0]);
+      oval(elbow, bronze, gold, [0.078, 0.106, 0.022], [0, -0.126, 0.059]);
+      for (const y of [-0.053, -0.203]) band(elbow, bronze, gold, 0.075, 0.026, [0, y, 0]);
+      oval(elbow, cloth, complexion, [0.078, 0.088, 0.063], [0, -0.285, 0.006]);
+      oval(elbow, cloth, complexion, [0.031, 0.049, 0.037], [-side * 0.062, -0.287, 0.037]);
+      for (let finger = 0; finger < 3; finger++)
+        strip(elbow, cloth, '#99664D', [0.095, 0.007, 0.008], [0, -0.262 - finger * 0.027, 0.067]);
+      elbows.push(elbow);
       return arm;
     });
     const [swordArm, shieldArm] = arms;
+    const [swordElbow, shieldElbow] = elbows;
     swordArm.name = 'gladiator-sword-arm';
-    part(swordArm, cube, iron, [0.07, 0.15, 0.08], [0, -0.41, 0]);
-    part(swordArm, cube, bronze, [0.28, 0.055, 0.09], [0, -0.49, 0]);
-    mesh(swordArm, blade, steel, [0, -0.52, 0]);
     shieldArm.name = 'gladiator-shield-arm';
+    band(swordElbow, cloth, leather, 0.031, 0.159, [0, -0.298, 0]);
+    for (let wrap = 0; wrap < 4; wrap++)
+      band(swordElbow, bronze, '#89683F', 0.033, 0.008, [0, -0.23 - wrap * 0.043, 0]);
+    oval(swordElbow, bronze, edge, [0.055, 0.046, 0.045], [0, -0.202, 0]);
+    add(swordElbow, new THREE.CapsuleGeometry(0.024, 0.205, 4, 12).rotateZ(Math.PI / 2), bronze, edge, [0, -0.401, 0]);
+    const bladeShape = new THREE.Shape();
+    bladeShape.moveTo(-0.054, 0);
+    bladeShape.lineTo(0.054, 0);
+    bladeShape.lineTo(0.061, -0.325);
+    bladeShape.quadraticCurveTo(0.035, -0.419, 0, -0.459);
+    bladeShape.quadraticCurveTo(-0.035, -0.419, -0.061, -0.325);
+    bladeShape.closePath();
+    add(
+      swordElbow,
+      new THREE.ExtrudeGeometry(bladeShape, {
+        depth: 0.023,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.008,
+        bevelThickness: 0.006,
+        curveSegments: 5,
+      }).translate(0, 0, -0.0115),
+      steel,
+      '#CDD6D8',
+      [0, -0.438, 0],
+    );
+    strip(swordElbow, steel, '#8A9CA3', [0.012, 0.365, 0.006], [0, -0.65, 0.02]);
     const shield = new THREE.Group();
-    shield.position.set(0, -0.43, 0.1);
-    shield.rotation.x = 1.02;
-    shieldArm.add(shield);
-    const rim = part(shield, cylinder, bronze, [0.37, 0.07, 0.47], [0, 0, 0]);
-    rim.rotation.x = Math.PI / 2;
-    const face = part(shield, cylinder, tunic, [0.32, 0.08, 0.42], [0, 0, 0.035]);
-    face.rotation.x = Math.PI / 2;
-    part(shield, cube, bronze, [0.055, 0.62, 0.035], [0, 0, 0.1]);
-    part(shield, round, steel, [0.09, 0.09, 0.065], [0, 0, 0.125]);
-    return { fighter, legs, swordArm, shieldArm };
+    shield.name = 'gladiator-riveted-shield';
+    shield.position.set(0, -0.299, 0.077);
+    shield.rotation.x = 1.24;
+    shieldElbow.add(shield);
+    oval(shield, bronze, '#745633', [0.358, 0.455, 0.06], [0, 0, 0]);
+    oval(shield, cloth, tunic, [0.324, 0.42, 0.064], [0, 0, 0.025]);
+    add(shield, new THREE.TorusGeometry(0.338, 0.02, 6, 36).scale(1, 1.277, 1), bronze, edge, [0, 0, 0.031]);
+    strip(shield, bronze, gold, [0.037, 0.708, 0.019], [0, 0, 0.091]);
+    strip(shield, bronze, gold, [0.469, 0.028, 0.022], [0, 0, 0.091]);
+    for (let rivet = 0; rivet < 12; rivet++) {
+      const angle = (rivet / 12) * Math.PI * 2;
+      oval(shield, bronze, '#E3C28C', [0.013, 0.013, 0.013], [Math.sin(angle) * 0.299, Math.cos(angle) * 0.387, 0.062]);
+    }
+    oval(shield, bronze, gold, [0.097, 0.097, 0.027], [0, 0, 0.108]);
+    oval(shield, steel, '#C6CECC', [0.073, 0.073, 0.053], [0, 0, 0.126]);
+    return { fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow };
   });
+  for (const [target, surfaces] of batches) {
+    for (const [surface, parts] of surfaces) {
+      const geometry = mergeGeometries(parts);
+      parts.forEach((part) => part.dispose());
+      if (geometry) mesh(target, geometry, surface);
+    }
+  }
 
-  // Absolute, bounded phases avoid accumulating drift or allocating per frame.
-  // Each six-second exchange swaps attacker and defender; the pair circles once
-  // per full twelve-second loop, with a high guard, lunge, parry and retreat.
+  // Keep the existing twelve-second duel exactly: each six-second exchange
+  // swaps attacker and defender through the same orbit, lunge, parry and retreat.
+  // Extra knee/elbow articulation is a bounded, allocation-free part of that pose.
   const pulse = (phase: number, start: number, end: number) => {
     if (phase <= start || phase >= end) return 0;
     return Math.sin(((phase - start) / (end - start)) * Math.PI) ** 2;
@@ -237,7 +460,8 @@ function createGladiatorDuel(parent: THREE.Group, bronze: THREE.Material, iron: 
     const phase = ((time % 12) + 12) % 12;
     const orbit = (phase / 12) * Math.PI * 2;
     for (let index = 0; index < fighters.length; index++) {
-      const { fighter, legs, swordArm, shieldArm } = fighters[index];
+      const { fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow } = fighters[index];
+      if (fighter.parent !== duel || fighter.userData.worldBurnPending === true || !fighter.visible) continue;
       const turn = (phase + index * 6) % 12;
       const attacking = turn < 6;
       const beat = turn % 6;
@@ -251,12 +475,34 @@ function createGladiatorDuel(parent: THREE.Group, bronze: THREE.Material, iron: 
       fighter.rotation.set(attacking ? approach * 0.09 : -parry * 0.045, angle + Math.PI, 0);
       legs[0].rotation.x = step * 0.23 - (attacking ? approach * 0.15 : 0);
       legs[1].rotation.x = -step * 0.23 + (attacking ? approach * 0.15 : 0);
+      knees[0].rotation.x = 0.06 + Math.max(0, step) * 0.2 + approach * 0.08;
+      knees[1].rotation.x = 0.06 + Math.max(0, -step) * 0.2 + approach * 0.08;
       swordArm.rotation.set(attacking ? -2.25 + strike * 1.35 : -1.65 - parry * 0.2, 0, -0.12);
       shieldArm.rotation.set(-1.02 - (attacking ? 0.08 : parry * 0.43), 0, 0.12 + parry * 0.08);
+      swordElbow.rotation.x = attacking ? -0.28 + strike * 0.25 : -0.23 - parry * 0.1;
+      shieldElbow.rotation.x = -0.22 - (attacking ? 0 : parry * 0.14);
     }
   };
   animate(0);
-  return animate;
+  return {
+    animate,
+    gladiators: fighters.map(({ fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow }) => ({
+      group: fighter,
+      setEscapePose(frame: WorldBurnEscapeFrame, reducedMotion: boolean) {
+        const stride = reducedMotion ? 0 : frame.stride;
+        const falling = frame.falling && !reducedMotion;
+        for (let index = 0; index < legs.length; index++) {
+          const swing = stride * (index ? 0.88 : -0.88);
+          legs[index].rotation.set(falling ? 0.2 : swing, 0, 0);
+          knees[index].rotation.x = reducedMotion ? 0 : 0.16 + Math.max(0, swing) * 1.25;
+        }
+        swordArm.rotation.set(falling ? -2.2 : stride * 0.7, 0, falling ? -0.7 : -0.18);
+        shieldArm.rotation.set(falling ? -2.2 : -stride * 0.7, 0, falling ? 0.7 : 0.18);
+        swordElbow.rotation.x = reducedMotion ? -0.3 : -1.1;
+        shieldElbow.rotation.x = reducedMotion ? -0.3 : -0.9;
+      },
+    })),
+  };
 }
 
 /** A walkable Roman amphitheater with shared draw calls and no external assets or IO. */
@@ -423,7 +669,7 @@ export function createArena(
     if (geometry) mesh(group, geometry, surface);
     parts.forEach((part) => part.dispose());
   }
-  const animateGladiators = createGladiatorDuel(group, surfaces.bronze, surfaces.iron);
+  const duel = createGladiatorDuel(group);
   label(group, 'VENI. VIDI. TINY VICTORIES.', [0, 9.3, 15.2], 8.7, '#DCC7A0');
   register(group, { kind: 'zone', id: 'arena' }, 'Enter the Roman Arena');
   arenaCollisionObstacles().forEach((item) => obstacle(item.x, item.z, item.radius));
@@ -432,13 +678,14 @@ export function createArena(
   // scene's existing disposeObject lifecycle. This module owns no timers or IO.
   return {
     group,
+    gladiators: duel.gladiators,
     animate(time: number) {
       if (!Number.isFinite(time)) return;
       flames.forEach((flame, index) => {
         flame.scale.y = 1.55 + Math.sin(time * 7.5 + index * 2.4) * 0.17;
         flame.rotation.y = time * 0.6 + index;
       });
-      animateGladiators(time);
+      duel.animate(time);
     },
   };
 }

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { CHESS_DIMENSIONS, CHESS_PIECES, chessCollisionObstacles, createChess } from '@/libs/world/world-chess';
-import { disposeObject } from '@/libs/world/world-geometry';
 import { resolvePosition } from '@/libs/world/world-motion';
 import { asOpaque } from '@/test-utils/type-assertions';
 
@@ -45,6 +44,13 @@ describe('giant chessboard', () => {
     expect(promoted.name).toBe('silver queen');
     expect(promoted.position.x).toBeCloseTo(-11.2);
     expect(promoted.position.z).toBeCloseTo(-11.2);
+    const promotedBody = chess.group.getObjectByName('chess-silver-queen-body') as THREE.InstancedMesh;
+    const promotedMatrix = new THREE.Matrix4();
+    promotedBody.getMatrixAt(promoted.userData.chessInstance, promotedMatrix);
+    expect(promotedBody.count).toBe(1);
+    expect(new THREE.Vector3().setFromMatrixPosition(promotedMatrix).distanceTo(promoted.position)).toBeLessThan(
+      0.00001,
+    );
     expect(resolvePosition(1.6, 1.6, chess.obstacles)).toEqual({ x: 1.6, z: 1.6 });
     expect(resolvePosition(-11.2, -11.2, chess.obstacles)).not.toEqual({ x: -11.2, z: -11.2 });
 
@@ -124,9 +130,22 @@ describe('giant chessboard', () => {
     const pieces = chess.group.children.filter((child) => child.userData.chessPiece);
     expect(pieces).toHaveLength(32);
     for (const piece of pieces) {
-      const height = new THREE.Box3().setFromObject(piece).getSize(new THREE.Vector3()).y;
+      const descriptor = piece.userData.chessPiece;
+      const bounds = new THREE.Box3();
+      for (const surface of ['body', 'trim']) {
+        const batch = chess.group.getObjectByName(
+          `chess-${descriptor.side}-${descriptor.kind}-${surface}`,
+        ) as THREE.InstancedMesh;
+        batch.geometry.computeBoundingBox();
+        bounds.union(batch.geometry.boundingBox!);
+      }
+      const height = bounds.getSize(new THREE.Vector3()).y;
       expect(height).toBeGreaterThan(3.9);
       if (piece.userData.chessPiece.kind === 'king') expect(height).toBeGreaterThan(6.5);
+      expect(bounds.min.x).toBeGreaterThan(-CHESS_DIMENSIONS.square / 2);
+      expect(bounds.max.x).toBeLessThan(CHESS_DIMENSIONS.square / 2);
+      expect(bounds.min.z).toBeGreaterThan(-CHESS_DIMENSIONS.square / 2);
+      expect(bounds.max.z).toBeLessThan(CHESS_DIMENSIONS.square / 2);
     }
     const geometries = new Set<THREE.BufferGeometry>();
     const materials = new Set<THREE.Material>();
@@ -139,7 +158,10 @@ describe('giant chessboard', () => {
         materials.add(surface),
       );
       object.geometry.computeBoundingBox();
-      footprint.union(object.geometry.boundingBox!.clone().applyMatrix4(object.matrixWorld));
+      if (object instanceof THREE.InstancedMesh) {
+        object.computeBoundingBox();
+        footprint.union(object.boundingBox!.clone().applyMatrix4(object.matrixWorld));
+      } else footprint.union(object.geometry.boundingBox!.clone().applyMatrix4(object.matrixWorld));
     });
     expect(geometries.size).toBeLessThanOrEqual(16);
     expect(materials.size).toBeLessThanOrEqual(7);
@@ -150,7 +172,46 @@ describe('giant chessboard', () => {
     expect(chess.entrance.position.z).toBeGreaterThan(CHESS_DIMENSIONS.halfExtent);
     expect(obstacle).toHaveBeenCalledTimes(32);
     const releases = [...geometries].map((geometry) => vi.spyOn(geometry, 'dispose'));
-    disposeObject(scene);
+    const instanceReleases = chess.group.children
+      .filter((object): object is THREE.InstancedMesh => object instanceof THREE.InstancedMesh)
+      .map((object) => vi.spyOn(object, 'dispose'));
+    chess.dispose();
     releases.forEach((release) => expect(release).toHaveBeenCalledOnce());
+    instanceReleases.forEach((release) => expect(release).toHaveBeenCalledOnce());
+  });
+
+  it('keeps square heights and supports a fully promoted saved army within fixed instance buffers', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const scene = new THREE.Scene();
+    const chess = createChess(scene, [0, 0]);
+    const batches = chess.group.children.filter(
+      (object): object is THREE.InstancedMesh => object instanceof THREE.InstancedMesh,
+    );
+    expect(batches).toHaveLength(24);
+    expect(batches.reduce((total, batch) => total + batch.count, 0)).toBe(64);
+    const attributes = batches.map((batch) => batch.instanceMatrix);
+    const ray = new THREE.Raycaster(new THREE.Vector3(1.6, 1, 1.6), new THREE.Vector3(0, -1, 0));
+    scene.updateMatrixWorld(true);
+    const squares = chess.group.children.filter((object) => object.name.endsWith('-squares'));
+    const top = ray.intersectObjects(squares, false)[0];
+    expect(top.point.y).toBeCloseTo(0.0775, 5);
+    chess.setGame({
+      ...savedGame,
+      pieces: Array.from({ length: 32 }, (_, index) => ({
+        square: `${'abcdefgh'[index % 8]}${Math.floor(index / 8) + 1}`,
+        type: 'q' as const,
+        color: 'w' as const,
+      })),
+    });
+    expect((chess.group.getObjectByName('chess-silver-queen-body') as THREE.InstancedMesh).count).toBe(32);
+    expect(batches.reduce((total, batch) => total + batch.count, 0)).toBe(64);
+    expect(chess.obstacles.filter((item) => item.enabled)).toHaveLength(32);
+    chess.setGame(savedGame);
+    expect(batches.reduce((total, batch) => total + batch.count, 0)).toBe(6);
+    chess.setGame(null);
+    expect(batches.map((batch) => batch.instanceMatrix)).toEqual(attributes);
+    expect(batches.every((batch) => batch.instanceMatrix.count === 32)).toBe(true);
+    expect(chess.group.children.filter((object) => object instanceof THREE.Mesh && object.visible)).toHaveLength(28);
+    chess.dispose();
   });
 });

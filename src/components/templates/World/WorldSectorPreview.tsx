@@ -66,8 +66,8 @@ export function WorldSectorPreview({
       </p>
       <p className={styles.explanation}>
         {sector.tag
-          ? `Community profile tag #${sector.tag}. Grouped from each follow’s top 20 profile tags; more specific shared groups win, and each follow appears once.`
-          : 'Other, missing, and still-loading profile tags gather here. Groups use each follow’s top 20 profile tags; everybody keeps a place.'}
+          ? `Community profile tag #${sector.tag}. People with shared tags gather together, and each follow appears once.`
+          : 'A home for people with other tags, no tags, or tags still on their way. Everybody keeps a place.'}
       </p>
       {personal ? (
         <>

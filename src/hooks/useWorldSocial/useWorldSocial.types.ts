@@ -37,6 +37,8 @@ export interface UseWorldSocialResult {
   loadMore: () => Promise<void>;
   retry: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Shares the selected-profile queue and its existing per-request limit. */
+  ensureProfiles: (ids: string[]) => Promise<void>;
   profile: WorldSocialProfile;
   follow: WorldSocialFollow;
 }

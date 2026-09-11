@@ -35,7 +35,7 @@ describe('seven world-space planets', () => {
     const planets = createWorldPlanets(scene);
     expect(planets.group.children).toHaveLength(7);
     const objects = meshes(planets.group);
-    expect(objects).toHaveLength(12);
+    expect(objects).toHaveLength(13);
     expect(new Set(objects.map((object) => object.geometry.type)).size).toBeGreaterThanOrEqual(4);
     expect(objects.reduce((total, object) => total + object.geometry.getAttribute('position').count, 0)).toBeLessThan(
       25_000,
@@ -54,6 +54,40 @@ describe('seven world-space planets', () => {
         expect(point.length()).toBeLessThanOrEqual(WORLD_PLANET_ENVELOPE);
       }
     }
+    planets.dispose();
+  });
+
+  it('paints bounded seamless surfaces with separate weather and lava emission', () => {
+    const planets = createWorldPlanets(new THREE.Scene());
+    const objects = meshes(planets.group);
+    const textures = new Set<THREE.DataTexture>();
+    for (const object of objects) {
+      const material = object.material as THREE.MeshStandardMaterial;
+      for (const value of Object.values(material)) {
+        if (value instanceof THREE.DataTexture) textures.add(value);
+      }
+      if (!object.name.endsWith(' body')) continue;
+      expect(material.map).toBeInstanceOf(THREE.DataTexture);
+      expect(material.bumpMap).toBe(material.roughnessMap);
+      const surface = material.map as THREE.DataTexture;
+      expect(surface.image.width).toBeGreaterThanOrEqual(512);
+      expect(surface.image.width).toBeLessThanOrEqual(1024);
+      expect(surface.image.width).toBe(surface.image.height * 2);
+      expect(surface.generateMipmaps).toBe(true);
+      const { data, width, height } = surface.image;
+      for (let row = 0; row < height; row++) {
+        for (let channel = 0; channel < 3; channel++) {
+          expect(
+            Math.abs(data[row * width * 4 + channel] - data[(row * width + width - 1) * 4 + channel]),
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+    expect([...textures].reduce((total, value) => total + value.image.data.byteLength, 0)).toBeLessThan(17_000_000);
+    const ocean = objects.find((object) => object.name === 'Cobalt garden cloud layer')!;
+    expect((ocean.material as THREE.MeshStandardMaterial).transparent).toBe(true);
+    const ember = objects.find((object) => object.name === 'Ember body')!;
+    expect((ember.material as THREE.MeshStandardMaterial).emissiveMap).toBeInstanceOf(THREE.DataTexture);
     planets.dispose();
   });
 
@@ -89,9 +123,17 @@ describe('seven world-space planets', () => {
     const identities = objects.map((object) => [object, object.geometry, object.material]);
     const geometries = new Set(objects.map((object) => object.geometry));
     const materials = new Set(objects.map((object) => object.material));
-    const disposals = [...geometries, ...materials].map((resource) => vi.spyOn(resource, 'dispose'));
+    const textures = new Set<THREE.Texture>();
+    materials.forEach((material) => {
+      Object.values(material).forEach((value) => {
+        if (value instanceof THREE.Texture) textures.add(value);
+      });
+    });
+    const versions = [...textures].map((value) => value.version);
+    const disposals = [...geometries, ...materials, ...textures].map((resource) => vi.spyOn(resource, 'dispose'));
     for (let frame = 0; frame < 1_000; frame++) planets.animate(frame, 0.03);
     expect(meshes(planets.group).map((object) => [object, object.geometry, object.material])).toEqual(identities);
+    expect([...textures].map((value) => value.version)).toEqual(versions);
     planets.dispose();
     planets.dispose();
     planets.animate(10_000, 0.05);

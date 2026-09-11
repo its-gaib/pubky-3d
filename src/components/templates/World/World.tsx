@@ -40,6 +40,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { Switch } from '@/atoms/Switch/Switch';
 import { useAuthStatus } from '@/hooks/useAuthStatus/useAuthStatus';
 import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
+import { useWorldAvatarIdentities } from '@/hooks/useWorldAvatarIdentities/useWorldAvatarIdentities';
 import { useWorldChess } from '@/hooks/useWorldChess/useWorldChess';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
@@ -61,6 +62,7 @@ import {
   socialViewPageCount,
   socialViewPeople,
 } from '@/libs/world/world-social-layout';
+import { worldRideCanFly, worldRideIsAutonomous } from '@/libs/world/world-transport-motion';
 import type {
   WorldController,
   WorldData,
@@ -76,6 +78,8 @@ import { WorldCamera } from './WorldCamera';
 import { WorldChess } from './WorldChess';
 import { WorldCinema } from './WorldCinema';
 import { WorldConferences } from './WorldConferences';
+import { WorldRideControls } from './WorldRideControls';
+import rideStyles from './WorldRideControls.module.css';
 import { WorldSectorPreview } from './WorldSectorPreview';
 import {
   worldDirectoryPage,
@@ -84,6 +88,7 @@ import {
   WorldPersonPanel,
   type WorldSocialState,
 } from './WorldSocialPanel';
+import { WorldToolControls } from './WorldToolControls';
 
 const PERSONA_COLORS = ['#c8ff03', '#ff9155', '#b59bff', '#5fe5e7', '#ff89c8'];
 const MAP_SCALE = 39.2 / WORLD_RADIUS;
@@ -166,6 +171,10 @@ function panelHeading(panel: Panel, data: WorldData): { title: string; subtitle:
         bank: {
           title: 'Brrr. There it goes.',
           subtitle: 'The bank where money is always in the air. And occasionally on your shoes.',
+        },
+        'hot-sauce': {
+          title: 'BITKIT HOT SAUCE',
+          subtitle: 'Fiat Meltdown. Handle with conviction.',
         },
         tether: {
           title: 'The Tether monument.',
@@ -471,6 +480,33 @@ function WorldPanel({
     );
   }
   if (panel.kind === 'fun') {
+    if (panel.id === 'hot-sauce')
+      return (
+        <div className={styles.satoshiPanel}>
+          {/* A fixed local image keeps this discovery independent of X embeds. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className={styles.hotSaucePhoto}
+            src="/world/bitkit-hot-sauce-fiat-meltdown.jpg"
+            width={1024}
+            height={1024}
+            alt="Three views of the orange Bitkit Fiat Meltdown hot sauce bottle"
+          />
+          <p>
+            Want to know where you can get this sauce for free? Follow Bitkit Wallet for the latest drops and pickup
+            locations.
+          </p>
+          <ExternalWorldLink href="https://x.com/bitkitwallet" className={styles.primaryButton}>
+            Follow @bitkitwallet
+          </ExternalWorldLink>
+          <ExternalWorldLink
+            href="https://x.com/bitkitwallet/status/2095148827699274000/photo/4"
+            className={styles.textLink}
+          >
+            See the original photo
+          </ExternalWorldLink>
+        </div>
+      );
     if (panel.id === 'graph')
       return (
         <div className={styles.funPanel}>
@@ -521,7 +557,7 @@ function WorldPanel({
           </span>
           <blockquote>Unlimited supply. Extremely limited shelf life.</blockquote>
           <p>
-            The printer never clocks out. Fresh dollars take a long ride on the wind. Some settle at your feet before
+            The printer never clocks out. Fresh dollars race through the air. Some settle at your feet before
             evaporating, one bill at a time. Finally, a bank with transparent assets.
           </p>
           <p className={styles.smallPrint}>
@@ -766,6 +802,13 @@ export function World() {
   const data: WorldData = personal
     ? { ...baseData, people: social.people, relationships: social.relationships }
     : baseData;
+  const { viewer: avatarViewer, people: avatarPeople } = useWorldAvatarIdentities({
+    data,
+    socialView,
+    socialViewerId: social.viewerId,
+    priorityProfileIds: [...(panel?.kind === 'person' ? [panel.id] : []), ...directoryIds],
+    ensureProfiles: social.ensureProfiles,
+  });
   const firstLoad = useRef(loadProduction);
   const autoActorRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -783,6 +826,7 @@ export function World() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
+  const autonomousRide = worldRideIsAutonomous(worldStatus.ride?.id);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -891,6 +935,9 @@ export function World() {
       });
     return () => {
       cancelled = true;
+      // Parent cleanup runs before the held controls can release their input.
+      controller?.setRideLift(0);
+      controller?.setFiring(false);
       controller?.dispose();
       controllerRef.current = null;
     };
@@ -910,6 +957,9 @@ export function World() {
     controllerRef.current?.setSocialView(socialView);
   }, [socialView, sceneState]);
   useEffect(() => {
+    controllerRef.current?.setAvatarIdentities(avatarViewer, avatarPeople);
+  }, [avatarViewer, avatarPeople, sceneState]);
+  useEffect(() => {
     controllerRef.current?.setSocialFocus(panel?.kind === 'person' ? panel.id : null);
   }, [panel, sceneState]);
   useEffect(() => {
@@ -917,7 +967,12 @@ export function World() {
     controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
   }, [dataStatus]);
   useEffect(() => {
-    controllerRef.current?.setPaused(panel !== null || cameraOpen || accountMenuOpen);
+    const paused = panel !== null || cameraOpen || accountMenuOpen;
+    if (paused) {
+      controllerRef.current?.setRideLift(0);
+      controllerRef.current?.setFiring(false);
+    }
+    controllerRef.current?.setPaused(paused);
   }, [panel, cameraOpen, accountMenuOpen, sceneState]);
   useEffect(() => {
     if (panel?.kind === 'zone' && panel.id === 'theater') {
@@ -1043,12 +1098,22 @@ export function World() {
       data-world-x={worldStatus.position[0].toFixed(2)}
       data-world-z={worldStatus.position[1].toFixed(2)}
       data-world-zone={worldStatus.zone}
+      data-world-ride={worldStatus.ride?.id ?? 'walking'}
+      data-world-tool={worldStatus.tool?.id ?? 'none'}
+      data-welcome={welcome}
+      data-map-visible={showMap && !welcome}
     >
       <div
         ref={containerRef}
         className={styles.canvas}
         tabIndex={0}
-        aria-label="Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera."
+        aria-label={
+          autonomousRide
+            ? 'Interactive Pubky island. The dragon flies itself. Press F to roll and breathe fire or E to land and get off. Drag to orbit the camera.'
+            : worldStatus.tool
+              ? 'Interactive Pubky island. Drag to aim, hold the mouse or B to fire, and press E to drop the flamethrower. Use W A S D or arrow keys to move.'
+              : 'Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera.'
+        }
       />
       <div className={styles.vignette} aria-hidden="true" />
 
@@ -1116,6 +1181,7 @@ export function World() {
                 </Link>
                 <Button overrideDefaults className={styles.guestButton} onClick={wander}>
                   Explore as a guest
+                  <ArrowUpRight size={16} aria-hidden="true" />
                 </Button>
               </>
             )}
@@ -1185,31 +1251,53 @@ export function World() {
       )}
 
       {showMap && !welcome && (
-        <aside className={styles.minimap} aria-label="Island map">
+        <aside id="world-pocket-map" className={styles.minimap} aria-label="Island map">
           <div className={styles.mapHeader}>
-            <span>THE LITTLE BIG PICTURE</span>
-            <span>N ↑</span>
+            <span>POCKET MAP</span>
+            <span>
+              N <ArrowUp size={12} aria-hidden="true" />
+            </span>
           </div>
           <div className={styles.mapIsland}>
-            <svg viewBox="0 0 180 130" aria-hidden="true">
-              <path d="M30 14 113 8 159 37 171 90 120 120 39 112 9 67Z" />
+            <svg viewBox="0 0 200 200" aria-hidden="true">
+              <path className={styles.mapGrid} d="M0 50H200M0 100H200M0 150H200M50 0V200M100 0V200M150 0V200" />
+              <circle className={styles.mapTide} cx="100" cy="100" r="94" />
+              <circle className={styles.mapCoast} cx="100" cy="100" r="85" />
+              <circle className={styles.mapLand} cx="100" cy="100" r="82" />
               <path
+                className={styles.mapContour}
+                d="M36 74A69 69 0 0 1 121 33M164 67A73 73 0 0 1 161 144M124 169A72 72 0 0 1 38 136"
+              />
+              <path
+                className={styles.mapTrees}
+                d="m50 49 3-6 3 6Zm17-11 3-6 3 6Zm72 13 3-6 3 6Zm21 43 3-6 3 6Zm-4 36 3-6 3 6Zm-94 24 3-6 3 6Zm-18-26 3-6 3 6Z"
+              />
+              <path
+                className={styles.mapPaths}
                 d={WORLD_ZONES.filter((destination) => destination.id !== 'plaza')
                   .map(
                     (destination) =>
-                      `M${(50 + MAP_CENTER[0] * MAP_SCALE) * 1.8} ${(48 + MAP_CENTER[1] * MAP_SCALE) * 1.3} L${(50 + destination.position[0] * MAP_SCALE) * 1.8} ${(48 + destination.position[1] * MAP_SCALE) * 1.3}`,
+                      `M${(50 + MAP_CENTER[0] * MAP_SCALE) * 2} ${(50 + MAP_CENTER[1] * MAP_SCALE) * 2} Q${(50 + destination.position[0] * MAP_SCALE * 0.6) * 2} ${(50 + (destination.position[1] * 0.35 + 4) * MAP_SCALE) * 2} ${(50 + destination.position[0] * MAP_SCALE) * 2} ${(50 + destination.position[1] * MAP_SCALE) * 2}`,
                   )
                   .join(' ')}
               />
+              <circle
+                className={styles.mapPlaza}
+                cx={(50 + MAP_CENTER[0] * MAP_SCALE) * 2}
+                cy={(50 + MAP_CENTER[1] * MAP_SCALE) * 2}
+                r={32 * MAP_SCALE * 2}
+              />
+              <path className={styles.mapTicks} d="M100 3V8M100 192V197M3 100H8M192 100H197" />
             </svg>
             {WORLD_ZONES.map((destination) => (
               <span
                 role="img"
                 className={styles.mapPoint}
                 key={destination.id}
+                data-current={destination.id === worldStatus.zone}
                 style={{
                   left: `${50 + destination.position[0] * MAP_SCALE}%`,
-                  top: `${48 + destination.position[1] * MAP_SCALE}%`,
+                  top: `${50 + destination.position[1] * MAP_SCALE}%`,
                   background: destination.color,
                 }}
                 aria-label={destination.name}
@@ -1218,16 +1306,17 @@ export function World() {
             ))}
             <span
               className={styles.mapPlayer}
+              role="img"
               style={{
                 left: `${50 + worldStatus.position[0] * MAP_SCALE}%`,
-                top: `${48 + worldStatus.position[1] * MAP_SCALE}%`,
+                top: `${50 + worldStatus.position[1] * MAP_SCALE}%`,
               }}
               aria-label="Your position"
             />
           </div>
           <div className={styles.mapCaption}>
             <span className={styles.playerDot} />
-            You, here and now<small>{worldStatus.collected} discoveries</small>
+            You are here<small>{worldStatus.collected} discoveries</small>
           </div>
         </aside>
       )}
@@ -1236,7 +1325,10 @@ export function World() {
         !panel &&
         !cameraOpen &&
         (worldStatus.zone === 'plaza' || socialView.sector !== null || socialViewChanged) && (
-          <aside className={styles.socialHud} aria-label="Social plaza view">
+          <aside
+            className={`${styles.socialHud} ${worldStatus.ride || worldStatus.tool ? rideStyles.ridingSocial : ''}`}
+            aria-label="Social plaza view"
+          >
             {(socialView.sector !== null || socialViewChanged) && (
               <>
                 <Button overrideDefaults className={styles.socialBackButton} onClick={showAllSectors}>
@@ -1328,7 +1420,7 @@ export function World() {
           </aside>
         )}
 
-      {worldStatus.nearby && !welcome && !panel && (
+      {worldStatus.nearby && !worldStatus.ride && !worldStatus.tool && !welcome && !panel && (
         <Button overrideDefaults className={styles.interactPrompt} onClick={() => controllerRef.current?.interact()}>
           <kbd>E</kbd>
           <span>{worldStatus.nearby}</span>
@@ -1336,48 +1428,78 @@ export function World() {
         </Button>
       )}
 
-      <div className={styles.touchControls} aria-label="Touch movement controls">
-        <div className={styles.directionPad}>
-          {[
-            { label: 'Walk forward', x: 0, z: -1, Icon: ArrowUp, area: 'up' },
-            { label: 'Walk left', x: -1, z: 0, Icon: ArrowLeft, area: 'left' },
-            { label: 'Walk backward', x: 0, z: 1, Icon: ArrowDown, area: 'down' },
-            { label: 'Walk right', x: 1, z: 0, Icon: ArrowRight, area: 'right' },
-          ].map(({ label, x, z, Icon, area }) => (
+      {worldStatus.ride && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+        <WorldRideControls
+          ride={worldStatus.ride}
+          onLift={(value) => controllerRef.current?.setRideLift(value)}
+          onStunt={() => {
+            controllerRef.current?.stunt();
+            containerRef.current?.focus({ preventScroll: true });
+          }}
+          onGetOff={() => {
+            controllerRef.current?.interact();
+            containerRef.current?.focus({ preventScroll: true });
+          }}
+        />
+      )}
+
+      {worldStatus.tool && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+        <WorldToolControls
+          firing={worldStatus.tool.firing}
+          onFire={(value) => controllerRef.current?.setFiring(value)}
+          onDrop={() => {
+            controllerRef.current?.interact();
+            containerRef.current?.focus({ preventScroll: true });
+          }}
+        />
+      )}
+
+      {!autonomousRide && (
+        <div className={styles.touchControls} aria-label="Touch movement controls">
+          <div className={styles.directionPad}>
+            {[
+              { label: 'Walk forward', x: 0, z: -1, Icon: ArrowUp, area: 'up' },
+              { label: 'Walk left', x: -1, z: 0, Icon: ArrowLeft, area: 'left' },
+              { label: 'Walk backward', x: 0, z: 1, Icon: ArrowDown, area: 'down' },
+              { label: 'Walk right', x: 1, z: 0, Icon: ArrowRight, area: 'right' },
+            ].map(({ label, x, z, Icon, area }) => (
+              <Button
+                overrideDefaults
+                key={label}
+                aria-label={label}
+                style={{ gridArea: area }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setWelcome(false);
+                  setOverview(false);
+                  move(x, z);
+                }}
+                onPointerUp={() => move(0, 0)}
+                onPointerCancel={() => move(0, 0)}
+                onLostPointerCapture={() => move(0, 0)}
+              >
+                <Icon size={20} />
+              </Button>
+            ))}
+          </div>
+          {!worldRideCanFly(worldStatus.ride?.id) && (
             <Button
               overrideDefaults
-              key={label}
-              aria-label={label}
-              style={{ gridArea: area }}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.currentTarget.setPointerCapture(event.pointerId);
+              className={styles.touchJump}
+              aria-label="Jump"
+              onClick={() => {
                 setWelcome(false);
                 setOverview(false);
-                move(x, z);
+                controllerRef.current?.jump();
               }}
-              onPointerUp={() => move(0, 0)}
-              onPointerCancel={() => move(0, 0)}
-              onLostPointerCapture={() => move(0, 0)}
             >
-              <Icon size={20} />
+              <MoveUp size={21} />
+              <span>JUMP</span>
             </Button>
-          ))}
+          )}
         </div>
-        <Button
-          overrideDefaults
-          className={styles.touchJump}
-          aria-label="Jump"
-          onClick={() => {
-            setWelcome(false);
-            setOverview(false);
-            controllerRef.current?.jump();
-          }}
-        >
-          <MoveUp size={21} />
-          <span>JUMP</span>
-        </Button>
-      </div>
+      )}
 
       <footer className={styles.bottomBar}>
         <div className={styles.worldStamp}>
@@ -1385,21 +1507,43 @@ export function World() {
           <span>AN OPEN WEB, WITH ROOM TO WANDER.</span>
         </div>
         <div className={styles.movementHelp}>
-          <span>
-            <kbd>W</kbd>
-            <kbd>A</kbd>
-            <kbd>S</kbd>
-            <kbd>D</kbd>Walk
-          </span>
+          {autonomousRide ? (
+            <span>
+              <kbd>F</kbd>Stunt + fire
+            </span>
+          ) : (
+            <span>
+              <kbd>W</kbd>
+              <kbd>A</kbd>
+              <kbd>S</kbd>
+              <kbd>D</kbd>
+              {worldStatus.ride ? (worldRideCanFly(worldStatus.ride.id) ? 'Fly' : 'Ride') : 'Walk'}
+            </span>
+          )}
           <span>
             <MousePointer2 size={14} />
-            Drag to orbit
+            {worldStatus.tool ? 'Drag to aim' : 'Drag to orbit'}
           </span>
+          {!autonomousRide && (
+            <span>
+              <kbd>SPACE</kbd>
+              {worldRideCanFly(worldStatus.ride?.id) ? 'Ascend' : 'Jump'}
+            </span>
+          )}
+          {worldStatus.tool && (
+            <span>
+              <kbd>B</kbd>Fire
+            </span>
+          )}
           <span>
-            <kbd>SPACE</kbd>Jump
-          </span>
-          <span>
-            <kbd>E</kbd>Interact
+            <kbd>E</kbd>
+            {autonomousRide
+              ? 'Land and get off'
+              : worldStatus.ride
+                ? 'Get off'
+                : worldStatus.tool
+                  ? 'Drop'
+                  : 'Interact'}
           </span>
         </div>
         <div className={styles.viewControls}>
@@ -1425,6 +1569,7 @@ export function World() {
             overrideDefaults
             aria-label={showMap ? 'Hide minimap' : 'Show minimap'}
             aria-pressed={showMap}
+            aria-controls="world-pocket-map"
             title="Toggle minimap"
             onClick={() => setShowMap(!showMap)}
           >
@@ -1499,6 +1644,9 @@ export function World() {
           ) : panel?.kind === 'settings' ? (
             <div className={styles.settingsPanel}>
               <div className={styles.settingRow}>
+                <span className={styles.settingIcon} aria-hidden="true">
+                  <Moon size={19} />
+                </span>
                 <div>
                   <strong>Moonlight mode</strong>
                   <p>Same world. A different kind of glow.</p>
@@ -1506,6 +1654,9 @@ export function World() {
                 <Switch aria-label="Moonlight mode" checked={night} onCheckedChange={setNight} />
               </div>
               <div className={styles.settingRow}>
+                <span className={styles.settingIcon} aria-hidden="true">
+                  <Orbit size={19} />
+                </span>
                 <div>
                   <strong>Quieter motion</strong>
                   <p>Reduce decorative animation and camera motion.</p>
@@ -1513,6 +1664,9 @@ export function World() {
                 <Switch aria-label="Reduce motion" checked={reducedMotion} onCheckedChange={setReducedMotion} />
               </div>
               <div className={styles.settingRow}>
+                <span className={styles.settingIcon} aria-hidden="true">
+                  <Map size={19} />
+                </span>
                 <div>
                   <strong>Pocket map</strong>
                   <p>A small reminder of where everything is.</p>

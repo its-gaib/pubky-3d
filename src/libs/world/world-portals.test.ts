@@ -14,6 +14,22 @@ function point(index: number, distance = 0) {
 }
 
 describe('three portal transit', () => {
+  it('never enters a burned gate or chooses one as the destination', () => {
+    const available = new Set([0, 2]);
+    const portals = createPortalTransit(
+      () => 0,
+      (index) => available.has(index),
+    );
+    portals.step(point(1, 8), 0, true);
+    expect(portals.step(point(1), 1, true)).toBeNull();
+    portals.step(point(0, 8), 2, true);
+    expect(portals.step(point(0), 3, true)?.to).toBe(2);
+    available.delete(0);
+    portals.reset();
+    portals.step(point(2, 8), 4, true);
+    expect(portals.step(point(2), 5, true)).toBeNull();
+  });
+
   it('can choose either other portal from every entrance and arrives facing safely away from its trigger', () => {
     for (let from = 0; from < WORLD_PORTALS.length; from++) {
       const destinations = new Set<number>();

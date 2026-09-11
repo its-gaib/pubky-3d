@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { disposeObject, label, mesh } from '@/libs/world/world-geometry';
+import { landmarkAnnulus } from '@/libs/world/world-landmark-details';
 import type { WorldObstacle } from '@/libs/world/world-motion';
 
 export const CHESS_DIMENSIONS = { square: 3.2, boardSize: 25.6, halfExtent: 14, entranceZ: 16 } as const;
@@ -67,6 +69,13 @@ function savedPieces(game: ChesskySnapshot) {
 
 function combine(parts: THREE.BufferGeometry[]) {
   const nonIndexed = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+  nonIndexed.forEach((part) => {
+    if (!part.hasAttribute('color'))
+      part.setAttribute(
+        'color',
+        new THREE.BufferAttribute(new Float32Array(part.getAttribute('position').count * 3).fill(1), 3),
+      );
+  });
   const combined = mergeGeometries(nonIndexed)!;
   new Set([...parts, ...nonIndexed]).forEach((part) => part.dispose());
   return combined;
@@ -75,8 +84,20 @@ function combine(parts: THREE.BufferGeometry[]) {
 function lathe(points: [number, number][]) {
   return new THREE.LatheGeometry(
     points.map(([radius, y]) => new THREE.Vector2(radius, y)),
-    16,
+    40,
   );
+}
+
+function shaded(geometry: THREE.BufferGeometry, color: string) {
+  const tint = new THREE.Color(color);
+  const colors = new Float32Array(geometry.getAttribute('position').count * 3);
+  for (let vertex = 0; vertex < colors.length; vertex += 3) tint.toArray(colors, vertex);
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geometry;
+}
+
+function bead(radius: number, tube: number, y: number) {
+  return new THREE.TorusGeometry(radius, tube, 6, 48).rotateX(Math.PI / 2).translate(0, y, 0);
 }
 
 function pieceGeometry(kind: ChessPieceKind) {
@@ -84,98 +105,437 @@ function pieceGeometry(kind: ChessPieceKind) {
   const body: THREE.BufferGeometry[] = [
     lathe([
       [0, 0],
-      [0.86, 0],
-      [0.92, 0.12],
-      [0.92, 0.35],
-      [0.8, 0.52],
-      [0.67, 0.65],
-      [0.65, 0.84],
-      [0.49, 1.05],
-      [0.35, shoulder - 0.5],
-      [0.57, shoulder - 0.2],
-      [0.6, shoulder],
-      [0, shoulder],
+      [0.79, 0],
+      [0.86, 0.035],
+      [0.911, 0.095],
+      [0.92, 0.16],
+      [0.914, 0.22],
+      [0.865, 0.26],
+      [0.855, 0.38],
+      [0.83, 0.44],
+      [0.75, 0.51],
+      [0.716, 0.57],
+      [0.688, 0.7],
+      [0.645, 0.78],
+      [0.632, 0.84],
+      [0.55, 0.91],
+      [0.49, 1.08],
+      [0.435, 1.26],
+      [0.385, shoulder - 1],
+      [0.33, shoulder - 0.62],
+      [0.365, shoulder - 0.4],
+      [0.43, shoulder - 0.3],
+      [0.56, shoulder - 0.21],
+      [0.62, shoulder - 0.11],
+      [0.62, shoulder - 0.01],
+      [0.58, shoulder + 0.07],
+      [0, shoulder + 0.07],
     ]),
   ];
   const trim: THREE.BufferGeometry[] = [
-    new THREE.TorusGeometry(0.79, 0.055, 5, 20).rotateX(Math.PI / 2).translate(0, 0.53, 0),
-    new THREE.TorusGeometry(0.6, 0.065, 5, 20).rotateX(Math.PI / 2).translate(0, shoulder - 0.12, 0),
+    bead(0.89, 0.018, 0.2),
+    bead(0.753, 0.035, 0.51),
+    bead(0.615, 0.035, shoulder - 0.08),
   ];
   if (kind === 'pawn') {
-    body.push(new THREE.IcosahedronGeometry(0.72, 1).translate(0, 3.34, 0));
-    trim.push(new THREE.CylinderGeometry(0.53, 0.65, 0.17, 16).translate(0, 2.73, 0));
+    body.push(new THREE.SphereGeometry(0.72, 32, 20).translate(0, 3.34, 0));
+    trim.push(
+      lathe([
+        [0.44, 2.66],
+        [0.55, 2.68],
+        [0.59, 2.73],
+        [0.54, 2.79],
+        [0.43, 2.8],
+      ]),
+    );
   } else if (kind === 'rook') {
-    body.push(new THREE.CylinderGeometry(0.83, 0.65, 0.95, 12).translate(0, 3.8, 0));
-    for (let index = 0; index < 6; index++) {
-      const angle = (index * Math.PI) / 3;
+    body.push(
+      lathe([
+        [0, 3.31],
+        [0.6, 3.31],
+        [0.68, 3.42],
+        [0.81, 3.64],
+        [0.85, 4.14],
+        [0.85, 4.26],
+        [0.59, 4.26],
+        [0.59, 3.92],
+        [0, 3.92],
+      ]),
+    );
+    for (let tower = 0; tower < 6; tower++) {
       body.push(
-        new THREE.BoxGeometry(0.46, 0.65, 0.46)
-          .rotateY(angle)
-          .translate(Math.sin(angle) * 0.61, 4.5, Math.cos(angle) * 0.61),
+        landmarkAnnulus(0.595, 0.875, 0.56, (tower * Math.PI) / 3 + 0.15, Math.PI / 3 - 0.3, 0.022).translate(
+          0,
+          4.25,
+          0,
+        ),
       );
     }
-    trim.push(new THREE.TorusGeometry(0.8, 0.07, 5, 24).rotateX(Math.PI / 2).translate(0, 4.17, 0));
+    trim.push(bead(0.82, 0.035, 4.12), bead(0.754, 0.025, 3.58));
   } else if (kind === 'knight') {
-    // Original angular horse profile; a deep extrusion makes the silhouette legible from every side.
+    // A curved, beveled horse profile, with sculpted cheeks and two separate ears.
     const profile = new THREE.Shape();
-    const points = [
-      [-0.62, 2.45],
-      [-0.75, 3.3],
-      [-0.4, 4.65],
-      [0, 5.25],
-      [0.28, 5.55],
-      [0.44, 5.15],
-      [1.04, 4.43],
-      [1.11, 3.92],
-      [0.48, 3.96],
-      [0.33, 3.47],
-      [0.35, 2.45],
-    ];
-    points.forEach(([z, y], index) => (index ? profile.lineTo(-z, y) : profile.moveTo(-z, y)));
+    profile.moveTo(0.62, 2.47);
+    profile.quadraticCurveTo(0.83, 3.04, 0.68, 3.8);
+    profile.bezierCurveTo(0.61, 4.46, 0.43, 4.87, 0.05, 5.12);
+    profile.quadraticCurveTo(-0.11, 5.24, -0.3, 5.12);
+    profile.quadraticCurveTo(-0.55, 4.94, -0.83, 4.65);
+    profile.quadraticCurveTo(-1.15, 4.46, -1.17, 4.22);
+    profile.quadraticCurveTo(-1.11, 4.04, -0.93, 4.02);
+    profile.lineTo(-0.42, 4.05);
+    profile.quadraticCurveTo(-0.18, 3.92, -0.25, 3.61);
+    profile.quadraticCurveTo(-0.51, 3.05, -0.44, 2.47);
     profile.closePath();
     body.push(
       new THREE.ExtrudeGeometry(profile, {
-        depth: 0.78,
+        depth: 0.65,
         bevelEnabled: true,
-        bevelThickness: 0.035,
-        bevelSize: 0.035,
-        bevelSegments: 1,
-        curveSegments: 1,
+        bevelThickness: 0.105,
+        bevelSize: 0.075,
+        bevelSegments: 3,
+        curveSegments: 7,
       })
         .rotateY(Math.PI / 2)
-        .translate(-0.39, 0, 0),
+        .translate(-0.325, 0, 0),
     );
-    for (const x of [-0.42, 0.42]) trim.push(new THREE.IcosahedronGeometry(0.09, 0).translate(x, 4.42, 0.65));
-    trim.push(new THREE.BoxGeometry(0.09, 1.5, 0.22).rotateX(-0.26).translate(0, 4.05, -0.63));
+    for (const side of [-1, 1]) {
+      body.push(
+        new THREE.ConeGeometry(0.15, 0.68, 16)
+          .scale(0.66, 1, 1)
+          .rotateX(-0.12)
+          .translate(side * 0.235, 5.3, -0.04),
+      );
+      body.push(new THREE.SphereGeometry(1, 20, 14).scale(0.083, 0.33, 0.37).translate(side * 0.405, 4.03, 0.26));
+      body.push(
+        shaded(
+          new THREE.SphereGeometry(1, 12, 10).scale(0.038, 0.067, 0.055).translate(side * 0.434, 4.72, 0.48),
+          '#1D2830',
+        ),
+      );
+      body.push(
+        shaded(
+          new THREE.SphereGeometry(1, 12, 8).scale(0.03, 0.035, 0.065).translate(side * 0.43, 4.27, 1.02),
+          '#253139',
+        ),
+      );
+      const bridle = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(side * 0.441, 4.76, 0.21),
+        new THREE.Vector3(side * 0.446, 4.4, 0.64),
+        new THREE.Vector3(side * 0.431, 4.17, 0.98),
+      ]);
+      trim.push(new THREE.TubeGeometry(bridle, 12, 0.024, 6, false));
+      const mouth = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(side * 0.432, 4.075, 0.77),
+        new THREE.Vector3(side * 0.432, 4.09, 0.96),
+        new THREE.Vector3(side * 0.43, 4.145, 1.13),
+      ]);
+      body.push(shaded(new THREE.TubeGeometry(mouth, 10, 0.015, 5, false), '#35424B'));
+    }
+    for (let ridge = 0; ridge < 7; ridge++) {
+      const y = 3.33 + ridge * 0.21;
+      const z = -0.733 + Math.max(0, ridge - 2) * 0.052;
+      trim.push(new RoundedBoxGeometry(0.54, 0.085, 0.19, 1, 0.025).rotateX(-0.25).translate(0, y, z));
+    }
   } else if (kind === 'bishop') {
     body.push(
       lathe([
-        [0, 3.4],
-        [0.48, 3.5],
-        [0.74, 4.2],
-        [0.63, 4.9],
-        [0, 5.7],
+        [0, 3.39],
+        [0.36, 3.46],
+        [0.53, 3.67],
+        [0.66, 4.03],
+        [0.67, 4.3],
+        [0.6, 4.65],
+        [0.43, 5.06],
+        [0.13, 5.52],
+        [0, 5.65],
       ]),
     );
-    trim.push(new THREE.BoxGeometry(0.14, 1.1, 0.12).rotateZ(-0.48).translate(0.12, 4.67, 0.61));
-    trim.push(new THREE.IcosahedronGeometry(0.16, 0).translate(0, 5.7, 0));
-  } else if (kind === 'queen') {
-    body.push(new THREE.CylinderGeometry(0.82, 0.55, 0.8, 12).translate(0, 4.36, 0));
-    for (let index = 0; index < 7; index++) {
-      const angle = (index * Math.PI * 2) / 7;
-      const x = Math.sin(angle) * 0.67;
-      const z = Math.cos(angle) * 0.67;
-      body.push(new THREE.ConeGeometry(0.18, 0.87, 4).translate(x, 5.1, z));
-      trim.push(new THREE.IcosahedronGeometry(0.13, 0).translate(x, 5.55, z));
+    for (const side of [-1, 1]) {
+      const incision = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.3, 4.6, side * 0.531),
+        new THREE.Vector3(0.01, 4.98, side * 0.461),
+        new THREE.Vector3(0.17, 5.17, side * 0.306),
+      ]);
+      body.push(shaded(new THREE.TubeGeometry(incision, 16, 0.048, 6, false), '#202C37'));
     }
-    trim.push(new THREE.IcosahedronGeometry(0.27, 1).translate(0, 5.96, 0));
+    trim.push(new THREE.SphereGeometry(0.15, 20, 12).translate(0, 5.68, 0), bead(0.427, 0.025, 3.54));
+  } else if (kind === 'queen') {
+    body.push(
+      lathe([
+        [0.5, 3.94],
+        [0.57, 4.06],
+        [0.72, 4.48],
+        [0.79, 4.65],
+        [0.65, 4.65],
+        [0.5, 4.15],
+      ]),
+    );
+    for (let prong = 0; prong < 7; prong++) {
+      const angle = (prong * Math.PI * 2) / 7;
+      const petal = new THREE.Shape();
+      petal.moveTo(-0.145, 4.52);
+      petal.quadraticCurveTo(-0.18, 4.97, -0.1, 5.34);
+      petal.lineTo(0, 5.55);
+      petal.lineTo(0.1, 5.34);
+      petal.quadraticCurveTo(0.18, 4.97, 0.145, 4.52);
+      petal.closePath();
+      body.push(
+        new THREE.ExtrudeGeometry(petal, {
+          depth: 0.15,
+          bevelEnabled: true,
+          bevelSize: 0.023,
+          bevelThickness: 0.023,
+          bevelSegments: 2,
+          curveSegments: 5,
+        })
+          .translate(0, 0, 0.565)
+          .rotateY(angle),
+      );
+      trim.push(new THREE.SphereGeometry(0.12, 16, 12).translate(Math.sin(angle) * 0.64, 5.52, Math.cos(angle) * 0.64));
+    }
+    body.push(new THREE.CylinderGeometry(0.08, 0.13, 0.94, 20).translate(0, 5.3, 0));
+    trim.push(bead(0.775, 0.032, 4.64), new THREE.SphereGeometry(0.27, 24, 16).translate(0, 5.96, 0));
   } else {
-    body.push(new THREE.CylinderGeometry(0.73, 0.55, 0.7, 12).translate(0, 4.4, 0));
-    body.push(new THREE.ConeGeometry(0.63, 0.72, 8).translate(0, 5.1, 0));
-    trim.push(new THREE.BoxGeometry(0.28, 1.25, 0.3).translate(0, 5.98, 0));
-    trim.push(new THREE.BoxGeometry(1.02, 0.27, 0.3).translate(0, 6.15, 0));
+    body.push(
+      lathe([
+        [0.55, 4.05],
+        [0.68, 4.2],
+        [0.76, 4.47],
+        [0.71, 4.67],
+        [0.51, 4.87],
+        [0.31, 5.05],
+        [0.24, 5.32],
+        [0.22, 5.38],
+        [0, 5.38],
+      ]),
+    );
+    trim.push(bead(0.723, 0.035, 4.58), bead(0.288, 0.03, 5.13));
+    trim.push(new RoundedBoxGeometry(0.28, 1.25, 0.3, 2, 0.045).translate(0, 5.98, 0));
+    trim.push(new RoundedBoxGeometry(1.02, 0.27, 0.3, 2, 0.045).translate(0, 6.15, 0));
+    body.push(shaded(new THREE.SphereGeometry(0.068, 16, 10).scale(1, 1, 0.45).translate(0, 6.15, 0.159), '#2D3E47'));
   }
   return { body: combine(body), trim: combine(trim) };
+}
+
+/** Small engraved coordinate strokes remain sharp without another texture or draw. */
+function coordinateGeometry(character: string) {
+  const glyphs: Record<string, number[][][]> = {
+    A: [
+      [
+        [0, 0],
+        [0.5, 1],
+        [1, 0],
+      ],
+      [
+        [0.22, 0.43],
+        [0.78, 0.43],
+      ],
+    ],
+    B: [
+      [
+        [0, 0],
+        [0, 1],
+        [0.67, 1],
+        [1, 0.83],
+        [1, 0.67],
+        [0.67, 0.5],
+        [0, 0.5],
+      ],
+      [
+        [0.67, 0.5],
+        [1, 0.33],
+        [1, 0.17],
+        [0.67, 0],
+        [0, 0],
+      ],
+    ],
+    C: [
+      [
+        [1, 0.84],
+        [0.75, 1],
+        [0.25, 1],
+        [0, 0.75],
+        [0, 0.25],
+        [0.25, 0],
+        [0.75, 0],
+        [1, 0.16],
+      ],
+    ],
+    D: [
+      [
+        [0, 0],
+        [0, 1],
+        [0.64, 1],
+        [1, 0.75],
+        [1, 0.25],
+        [0.64, 0],
+        [0, 0],
+      ],
+    ],
+    E: [
+      [
+        [1, 1],
+        [0, 1],
+        [0, 0],
+        [1, 0],
+      ],
+      [
+        [0, 0.5],
+        [0.82, 0.5],
+      ],
+    ],
+    F: [
+      [
+        [1, 1],
+        [0, 1],
+        [0, 0],
+      ],
+      [
+        [0, 0.5],
+        [0.82, 0.5],
+      ],
+    ],
+    G: [
+      [
+        [1, 0.84],
+        [0.75, 1],
+        [0.25, 1],
+        [0, 0.75],
+        [0, 0.25],
+        [0.25, 0],
+        [1, 0],
+        [1, 0.45],
+        [0.55, 0.45],
+      ],
+    ],
+    H: [
+      [
+        [0, 0],
+        [0, 1],
+      ],
+      [
+        [1, 0],
+        [1, 1],
+      ],
+      [
+        [0, 0.5],
+        [1, 0.5],
+      ],
+    ],
+    '1': [
+      [
+        [0.12, 0.72],
+        [0.5, 1],
+        [0.5, 0],
+      ],
+      [
+        [0.1, 0],
+        [0.9, 0],
+      ],
+    ],
+    '2': [
+      [
+        [0, 0.8],
+        [0.25, 1],
+        [0.75, 1],
+        [1, 0.8],
+        [1, 0.64],
+        [0, 0],
+        [1, 0],
+      ],
+    ],
+    '3': [
+      [
+        [0, 0.87],
+        [0.2, 1],
+        [0.77, 1],
+        [1, 0.78],
+        [0.7, 0.5],
+        [0.25, 0.5],
+      ],
+      [
+        [0.7, 0.5],
+        [1, 0.26],
+        [0.77, 0],
+        [0.2, 0],
+        [0, 0.13],
+      ],
+    ],
+    '4': [
+      [
+        [0.8, 0],
+        [0.8, 1],
+        [0, 0.32],
+        [1, 0.32],
+      ],
+    ],
+    '5': [
+      [
+        [1, 1],
+        [0, 1],
+        [0, 0.53],
+        [0.72, 0.53],
+        [1, 0.34],
+        [1, 0.2],
+        [0.75, 0],
+        [0.2, 0],
+        [0, 0.15],
+      ],
+    ],
+    '6': [
+      [
+        [0.92, 0.9],
+        [0.68, 1],
+        [0.22, 1],
+        [0, 0.73],
+        [0, 0.22],
+        [0.23, 0],
+        [0.76, 0],
+        [1, 0.22],
+        [1, 0.4],
+        [0.75, 0.6],
+        [0, 0.6],
+      ],
+    ],
+    '7': [
+      [
+        [0, 1],
+        [1, 1],
+        [0.25, 0],
+      ],
+    ],
+    '8': [
+      [
+        [0.23, 0.5],
+        [0, 0.73],
+        [0.22, 1],
+        [0.78, 1],
+        [1, 0.73],
+        [0.77, 0.5],
+        [0.23, 0.5],
+        [0, 0.24],
+        [0.22, 0],
+        [0.78, 0],
+        [1, 0.24],
+        [0.77, 0.5],
+      ],
+    ],
+  };
+  const strokes: THREE.BufferGeometry[] = [];
+  for (const path of glyphs[character]) {
+    for (let point = 1; point < path.length; point++) {
+      const from = path[point - 1];
+      const to = path[point];
+      const dx = (to[0] - from[0]) * 0.3;
+      const dz = (from[1] - to[1]) * 0.44;
+      strokes.push(
+        new THREE.BoxGeometry(Math.hypot(dx, dz), 0.016, 0.026)
+          .rotateY(-Math.atan2(dz, dx))
+          .translate(((from[0] + to[0]) / 2 - 0.5) * 0.3, 0.044, (0.5 - (from[1] + to[1]) / 2) * 0.44),
+      );
+    }
+  }
+  return combine(strokes);
 }
 
 /** Reused sculptural pieces can replay the owner's saved position without rebuilding the island. */
@@ -189,28 +549,32 @@ export function createChess(
   group.position.set(anchor[0], 0, anchor[1]);
   scene.add(group);
   const stone = new THREE.MeshStandardMaterial({ color: '#25252D', roughness: 0.55, metalness: 0.25 });
-  mesh(group, new THREE.BoxGeometry(28, 0.65, 28), stone, [0, -0.295, 0]);
+  mesh(group, new RoundedBoxGeometry(28, 0.65, 28, 2, 0.1), stone, [0, -0.295, 0]).name = 'chess-board-foundation';
   const tiles: THREE.BufferGeometry[][] = [[], []];
   for (let rank = 0; rank < 8; rank++)
     for (let file = 0; file < 8; file++) {
       tiles[(rank + file) % 2].push(
-        new THREE.BoxGeometry(3.18, 0.065, 3.18).translate((file - 3.5) * 3.2, 0.045, (3.5 - rank) * 3.2),
+        new RoundedBoxGeometry(3.18, 0.065, 3.18, 1, 0.018).translate((file - 3.5) * 3.2, 0.045, (3.5 - rank) * 3.2),
       );
     }
-  ['#0D0D15', '#727B8A'].forEach((color, index) =>
-    mesh(group, combine(tiles[index]), new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0.2 })),
-  );
+  ['#111B24', '#788693'].forEach((color, index) => {
+    mesh(
+      group,
+      combine(tiles[index]),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.36, metalness: 0.2 }),
+    ).name = `chess-board-${index ? 'light' : 'dark'}-squares`;
+  });
   const silver = new THREE.MeshStandardMaterial({
-    color: '#BEC9D8',
+    color: '#CCD4DF',
     roughness: 0.26,
     metalness: 0.55,
-    flatShading: true,
+    vertexColors: true,
   });
   const obsidian = new THREE.MeshStandardMaterial({
-    color: '#171721',
-    roughness: 0.24,
-    metalness: 0.58,
-    flatShading: true,
+    color: '#1C2631',
+    roughness: 0.29,
+    metalness: 0.62,
+    vertexColors: true,
   });
   const silverTrim = new THREE.MeshStandardMaterial({
     color: '#E4E9FF',
@@ -236,19 +600,58 @@ export function createChess(
     piece.userData.chessPiece = descriptor;
     piece.position.set(descriptor.x, 0.08, descriptor.z);
     piece.rotation.y = descriptor.side === 'silver' ? Math.PI : 0;
-    const geometry = geometries.get(descriptor.kind)!;
-    mesh(piece, geometry.body, descriptor.side === 'silver' ? silver : obsidian);
-    mesh(piece, geometry.trim, descriptor.side === 'silver' ? silverTrim : goldTrim);
     group.add(piece);
     pieces.push(piece);
+  }
+  // A 32-slot capacity per kind also covers a saved board with many promotions.
+  // Logical piece groups retain their names/positions; visible forms share draws.
+  const batches = new Map<string, { body: THREE.InstancedMesh; trim: THREE.InstancedMesh; count: number }>();
+  for (const side of ['silver', 'obsidian'] as const) {
+    for (const [kind, geometry] of geometries) {
+      const body = new THREE.InstancedMesh(geometry.body, side === 'silver' ? silver : obsidian, 32);
+      const trim = new THREE.InstancedMesh(geometry.trim, side === 'silver' ? silverTrim : goldTrim, 32);
+      for (const [surface, object] of [
+        ['body', body],
+        ['trim', trim],
+      ] as const) {
+        object.name = `chess-${side}-${kind}-${surface}`;
+        object.userData.chessBatch = { side, kind, surface };
+        object.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        object.count = 0;
+        object.visible = false;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        group.add(object);
+      }
+      batches.set(`${side}:${kind}`, { body, trim, count: 0 });
+    }
   }
   const brackets: THREE.BufferGeometry[] = [];
   for (const x of [-13.45, 13.45])
     for (const z of [-13.45, 13.45]) {
-      brackets.push(new THREE.BoxGeometry(0.32, 0.15, 0.85).translate(x, 0.08, z));
-      brackets.push(new THREE.BoxGeometry(0.85, 0.15, 0.32).translate(x, 0.08, z));
+      brackets.push(new RoundedBoxGeometry(0.32, 0.15, 0.85, 1, 0.025).translate(x, 0.08, z));
+      brackets.push(new RoundedBoxGeometry(0.85, 0.15, 0.32, 1, 0.025).translate(x, 0.08, z));
     }
-  mesh(group, combine(brackets), goldTrim);
+  for (const side of [-1, 1]) {
+    for (const edge of [12.89, 13.86]) {
+      brackets.push(new THREE.BoxGeometry(0.025, 0.021, edge * 2).translate(side * edge, 0.044, 0));
+      brackets.push(new THREE.BoxGeometry(edge * 2, 0.021, 0.025).translate(0, 0.044, side * edge));
+    }
+    for (let coordinate = 0; coordinate < 8; coordinate++) {
+      const offset = (coordinate - 3.5) * CHESS_DIMENSIONS.square;
+      brackets.push(
+        coordinateGeometry('ABCDEFGH'[coordinate])
+          .rotateY(side < 0 ? Math.PI : 0)
+          .translate(offset, 0, side * 13.36),
+      );
+      brackets.push(
+        coordinateGeometry(String(coordinate + 1))
+          .rotateY((side * Math.PI) / 2)
+          .translate(side * 13.36, 0, -offset),
+      );
+    }
+  }
+  mesh(group, combine(brackets), goldTrim).name = 'chess-board-inlays-and-coordinates';
   const entrance = new THREE.Group();
   entrance.name = 'Chessboard entrance';
   entrance.position.z = CHESS_DIMENSIONS.entranceZ;
@@ -267,6 +670,41 @@ export function createChess(
   const obstacles = chessCollisionObstacles(anchor);
   obstacles.forEach(({ x, z, radius }) => obstacle?.(x, z, radius));
 
+  function renderPosition(position: (typeof CHESS_PIECES)[number][]) {
+    batches.forEach((batch) => {
+      batch.count = 0;
+    });
+    pieces.forEach((piece, index) => {
+      const descriptor = position[index];
+      piece.visible = !!descriptor;
+      obstacles[index].enabled = !!descriptor;
+      if (!descriptor) return;
+      piece.name = `${descriptor.side} ${descriptor.kind}`;
+      piece.userData.chessPiece = descriptor;
+      piece.position.set(descriptor.x, 0.08, descriptor.z);
+      piece.rotation.y = descriptor.side === 'silver' ? Math.PI : 0;
+      piece.updateMatrix();
+      const batch = batches.get(`${descriptor.side}:${descriptor.kind}`)!;
+      piece.userData.chessInstance = batch.count;
+      batch.body.setMatrixAt(batch.count, piece.matrix);
+      batch.trim.setMatrixAt(batch.count, piece.matrix);
+      batch.count++;
+      Object.assign(obstacles[index], { x: anchor[0] + descriptor.x, z: anchor[1] + descriptor.z });
+    });
+    batches.forEach((batch) => {
+      for (const object of [batch.body, batch.trim]) {
+        object.count = batch.count;
+        object.visible = batch.count > 0;
+        object.instanceMatrix.needsUpdate = true;
+        if (batch.count) {
+          object.computeBoundingSphere();
+          object.computeBoundingBox();
+        }
+      }
+    });
+  }
+  renderPosition(CHESS_PIECES);
+
   return {
     group,
     entrance,
@@ -276,24 +714,7 @@ export function createChess(
       const descriptors = game ? savedPieces(game) : CHESS_PIECES;
       const accepted = game && descriptors ? game : null;
       const position = descriptors ?? CHESS_PIECES;
-      pieces.forEach((piece, index) => {
-        const descriptor = position[index];
-        piece.visible = !!descriptor;
-        obstacles[index].enabled = !!descriptor;
-        if (!descriptor) return;
-        piece.name = `${descriptor.side} ${descriptor.kind}`;
-        piece.userData.chessPiece = descriptor;
-        piece.position.set(descriptor.x, 0.08, descriptor.z);
-        piece.rotation.y = descriptor.side === 'silver' ? Math.PI : 0;
-        const geometry = geometries.get(descriptor.kind)!;
-        const body = piece.children[0] as THREE.Mesh;
-        const trim = piece.children[1] as THREE.Mesh;
-        body.geometry = geometry.body;
-        trim.geometry = geometry.trim;
-        body.material = descriptor.side === 'silver' ? silver : obsidian;
-        trim.material = descriptor.side === 'silver' ? silverTrim : goldTrim;
-        Object.assign(obstacles[index], { x: anchor[0] + descriptor.x, z: anchor[1] + descriptor.z });
-      });
+      renderPosition(position);
       match.visible = !!accepted;
       if (accepted && matchContext) {
         matchContext.clearRect(0, 0, 640, 180);
@@ -317,6 +738,10 @@ export function createChess(
       }
     },
     dispose() {
+      batches.forEach(({ body, trim }) => {
+        body.dispose();
+        trim.dispose();
+      });
       // Promotions can leave a shared shape unused by every mesh; release those shapes too.
       const attached = new Set<THREE.BufferGeometry>();
       group.traverse((object) => {

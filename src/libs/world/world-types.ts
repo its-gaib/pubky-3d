@@ -55,6 +55,12 @@ export interface WorldPerson {
   position: [number, number];
 }
 
+/** A canonical profile image approved by the UI's current identity and moderation checks. */
+export interface WorldAvatarIdentity {
+  id: string;
+  avatarUrl: string;
+}
+
 export interface WorldRelationship {
   from: string;
   to: string;
@@ -84,12 +90,24 @@ export type WorldInteraction =
   | { kind: 'post'; tagIndex: number; postIndex: number }
   | { kind: 'person'; id: string }
   | { kind: 'social-cluster'; sector: number; sectorKey?: string }
-  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'satoshi' | 'bank' | 'tether' | 'graph' | 'runner' };
+  | { kind: 'fun'; id: 'duck' | 'trampoline' | 'satoshi' | 'bank' | 'tether' | 'graph' | 'runner' | 'hot-sauce' };
 
 export interface PersonaState {
   position: [number, number, number];
   rotation: number;
   animation: 'idle' | 'walk' | 'jump' | 'dance';
+}
+
+export type WorldRideableId = 'skateboard' | 'jetpack' | 'kart' | 'bmx' | 'hoverboard' | 'dragon';
+
+export interface WorldRideStatus {
+  id: WorldRideableId;
+  name: string;
+  speed: number;
+  altitude: number;
+  grounded: boolean;
+  stunt: string | null;
+  landing?: boolean;
 }
 
 export interface WorldStatus {
@@ -99,6 +117,8 @@ export interface WorldStatus {
   collected: number;
   theaterIndex: number;
   theaterPaused: boolean;
+  ride?: WorldRideStatus | null;
+  tool?: { id: 'flamethrower'; firing: boolean } | null;
 }
 
 export interface WorldOptions {
@@ -121,6 +141,7 @@ export interface WorldController {
   travelTo: (zone: WorldZoneId, options?: { faceLandmark?: boolean }) => void;
   setSocialView: (view: WorldSocialView) => void;
   setSocialFocus: (personId: string | null) => void;
+  setAvatarIdentities: (viewer: WorldAvatarIdentity | null, people: WorldAvatarIdentity[]) => void;
   setChessGame: (game: ChesskySnapshot | null) => void;
   travelToPerson: (personId: string) => void;
   setOverview: (overview: boolean) => void;
@@ -132,6 +153,9 @@ export interface WorldController {
   stepTheater: (delta: number) => void;
   setPersonaColor: (color: string) => void;
   setMove: (x: number, z: number) => void;
+  setRideLift: (value: -1 | 0 | 1) => void;
+  setFiring: (firing: boolean) => void;
+  stunt: () => void;
   jump: () => void;
   dance: () => void;
   interact: () => void;

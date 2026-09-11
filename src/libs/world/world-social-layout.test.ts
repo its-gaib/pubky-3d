@@ -9,12 +9,14 @@ import {
   SOCIAL_PLAZA_RADIUS,
   SOCIAL_SECTOR_COUNT,
   SOCIAL_SECTOR_DIRECTORY_PAGE_SIZE,
+  socialAvatarPeople,
   socialPersonPreviewName,
   socialSectorCountLabel,
   socialSectorFollowingPage,
   socialSectorForView,
   socialSectorPreview,
   socialSectorProfileIds,
+  socialSectorRepresentatives,
   socialSectors,
   socialViewForPerson,
   socialViewPageCount,
@@ -42,6 +44,47 @@ const members = (people: WorldPerson[], key: string) =>
     ?.members.map((entry) => entry.id) ?? [];
 
 describe('profile-tag social neighborhoods', () => {
+  it('selects at most 32 stable actual overview members in central then satellite order', () => {
+    const people = Array.from({ length: 8 }, (_, sector) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        ...person(sector * 20 + index, sector < 7 ? [`group-${sector}`] : []),
+        degree: index < 14 ? (1 as const) : (2 as const),
+      })),
+    ).flat();
+    const representatives = socialAvatarPeople(people, { sector: null, page: 0 });
+    expect(representatives).toHaveLength(32);
+    expect(new Set(representatives.map((entry) => entry.id)).size).toBe(32);
+    expect(representatives.map((entry) => entry.id)).toEqual(
+      Array.from({ length: 8 }, (_, sector) => [0, 14, 15, 16].map((index) => person(sector * 20 + index).id)).flat(),
+    );
+    const enriched = people
+      .map((entry, index) => ({
+        ...entry,
+        name: `Renamed ${index}`,
+        profileLoaded: !entry.profileLoaded,
+        avatarUrl: index % 2 ? `https://nexus.pubky.app/static/avatar/${entry.id}` : undefined,
+      }))
+      .reverse();
+    expect(socialAvatarPeople(enriched, { sector: null, page: 0 }).map((entry) => entry.id)).toEqual(
+      representatives.map((entry) => entry.id),
+    );
+  });
+
+  it('uses a distinct secondary as central when no direct member exists and preserves individual pages', () => {
+    const secondary = Array.from({ length: 5 }, (_, index) => ({ ...person(index), degree: 2 as const }));
+    const representatives = socialSectorRepresentatives(socialSectors(secondary.reverse())[0]);
+    expect(representatives.central?.id).toBe(person(0).id);
+    expect(representatives.satellites.map((entry) => entry.id)).toEqual([1, 2, 3].map((index) => person(index).id));
+    expect(socialSectorRepresentatives(socialSectors([])[0])).toEqual({ central: null, satellites: [] });
+    expect(socialAvatarPeople(secondary, { sector: null, page: 0 })).toEqual(
+      socialViewPeople(secondary, { sector: null, page: 0 }),
+    );
+    const people = Array.from({ length: 220 }, (_, index) => person(index));
+    const view = { sector: 0, sectorKey: 'tag:synonym', page: 1 };
+    expect(socialAvatarPeople(people, view)).toEqual(socialViewPeople(people, view));
+    expect(socialAvatarPeople(people, view)).toHaveLength(SOCIAL_PAGE_SIZE);
+  });
+
   it('forms a real Synonym neighborhood without letting a broad Bitcoin tag swallow the more specific groups', () => {
     const team = Array.from({ length: 12 }, (_, index) => person(index, ['bitcoin', 'synonym']));
     const artists = Array.from({ length: 3 }, (_, index) => person(index + 20, ['bitcoin', 'art']));

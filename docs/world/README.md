@@ -67,6 +67,10 @@ their readers and nearby interactions reveal more as you approach.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark,
   facing inward so it reads correctly from the island. The bank jump arrives on
   that same side with the camera looking at the logo.
+- **Bitkit Hot Sauce:** a building-sized red chili lies on the ground in its own
+  northwest clearing, reached by a trail from Pubky University. Its low plaque opens the
+  requested Fiat Meltdown photo and a link to follow Bitkit Wallet for free-sauce
+  updates.
 - **Trending Theater:** an open-air stage showing up to eight public Hot posts in
   total-engagement order, with no date-window claim. Each slide lasts 20 seconds.
   Opening its reader pauses the program; controls pause, resume or skip. The
@@ -109,8 +113,8 @@ their readers and nearby interactions reveal more as you approach.
 - **Satoshi monument:** an original seated, hooded laptop figure made of separated
   vertical steel contours. Its silhouette changes as you walk around it. The
   plaque is also reachable from the Social Plaza reader.
-- **Brrr Bank:** one mounted **BRRR** facade sign vibrates at three times its previous frequency. Three hundred reusable
-  dollar bills each live about 70 seconds, drift farther across the grounds, and
+- **Brrr Bank:** one mounted **BRRR** facade sign vibrates at three times its previous frequency. One hundred fifty reusable
+  dollar bills each live about 7 seconds, drift farther across the grounds, and
   independently shrink and fade; some rest on the floor first. Reduced motion
   keeps the sign and scattered bills still. There is no bank audio. The reader's
   **Where can I use Hard Money instead?** button beams you in front of Bitkit, facing its
@@ -129,16 +133,38 @@ their readers and nearby interactions reveal more as you approach.
   between portals. This replaces the former university shortcut.
 - **Other encounters:** giant duck, trampoline, balloon, dancing and eight
   collectible keys. Keys and bills are local game props with no monetary value.
+- **Rides:** discover a skateboard, jetpack, kart, BMX, hoverboard and a sleeping
+  dragon. Press **E** nearby to mount. The dragon flies itself along changing
+  routes: **F** rolls and breathes fire, while **E** requests a safe landing and
+  automatically lets the rider off. The jetpack uses **Space** to ascend, **C**
+  to descend and the usual movement controls to steer. **F** performs a stunt;
+  land before stepping off the jetpack.
+  The jetpack has bright orange and gold flames with a white core, growing
+  stronger during ascent.
+- **Flamethrower:** discover the orange tool at `[-64, -8]`, northeast of the Open
+  Source Yard. **E** equips or drops it. Drag to aim and hold the mouse, **B**, or
+  the touch Fire button. Buildings, props, vegetation, people and parked rides
+  ignite and disappear for this browser visit. Objects stay full size while
+  burning, then burst into fire, sparks, smoke and tumbling fragments. People
+  run in different directions while still burning, fall off the coast and
+  disappear without exploding. Refresh restores them;
+  public profiles, posts and application data are never deleted. Fire from a
+  dragon stunt uses the same local burn behavior.
+- **Camera:** moving gradually turns the camera behind the direction of travel.
+  Manual dragging takes priority, with a short delay before following resumes.
+  The camera stays under manual control while aiming the flamethrower.
 
 Profile markers, theater spectators and the walking persona are separate concepts.
 The world does not show other connected players or claim live presence.
 
 ## Layout
 
-The walkable radius is **160 world units**, with land radius 168, coast radius 172
-and overview distance 435. This adds about 27% walkable area over the previous
-142-unit radius, leaving space around the enlarged cinema. The Social Plaza retains
-radius 32. Shared anchors align buildings,
+The walkable radius is **180 world units**, with land radius 188, coast radius 192
+and overview distance 485. This adds about 27% walkable area over the previous
+160-unit radius, giving the new landmarks and rides more room. The giant chili has
+its own northwest clearing, about 213 units from Bitkit and 196 from Midnight
+Cinema, with over eight units of walkable ground beyond its collision boundary.
+The Social Plaza retains radius 32. Shared anchors align buildings,
 paths, collisions, interactions, arrivals and the pocket map. The theaters are
 about 143 units apart and face different directions. Walking mode uses a lower
 camera angle to reveal the coastline and cosmic scenery.
@@ -151,6 +177,7 @@ camera angle to reveal the coastline and cosmic scenery.
 | University       | -26, -77    |
 | Open Source Yard | -82, 22     |
 | Bitkit Beacon    | -26, 94     |
+| Bitkit Hot Sauce | -108, -103  |
 | Trending Theater | -86, -52    |
 | Midnight Cinema  | -77, 91     |
 | Chess Citadel    | 91, -72     |

@@ -1,25 +1,28 @@
 import * as THREE from 'three';
-import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { IMAGE_MAX_DIMENSION, IMAGE_MAX_RAW_SIZE } from '@/config/images';
 import { ARENA_DIMENSIONS, createArena } from '@/libs/world/world-arena';
+import { createWorldAvatarImageLoader } from '@/libs/world/world-avatar-image';
 import { BANK_POSITION, createBank } from '@/libs/world/world-bank';
-import { clampWorldPitch, worldCameraVertical } from '@/libs/world/world-camera';
+import { createWorldHumanBurnTarget } from '@/libs/world/world-burn-escape';
+import { createWorldBurning, createWorldGroupBurnTarget } from '@/libs/world/world-burning';
+import { clampWorldPitch, createWorldCameraFollow, worldCameraVertical } from '@/libs/world/world-camera';
 import { WORLD_ZONES } from '@/libs/world/world-catalog';
 import { createChess } from '@/libs/world/world-chess';
-import { CINEMA_DIMENSIONS, createCinema } from '@/libs/world/world-cinema';
+import { createCinema } from '@/libs/world/world-cinema';
 import { createCinemaScreen } from '@/libs/world/world-cinema-screen';
 import { createConferences } from '@/libs/world/world-conferences';
+import { getWorldDragonMouth } from '@/libs/world/world-dragon';
+import { createCoastalNature, createIslandTerrain, createPathFurniture } from '@/libs/world/world-environment';
+import { createWorldFireEffects } from '@/libs/world/world-fire-effects';
 import {
-  box,
-  cylinder,
-  disposeObject,
-  label,
-  material,
-  mesh,
-  ring,
-  sphere,
-  WORLD_PALETTE,
-} from '@/libs/world/world-geometry';
+  createWorldFlamethrower,
+  FLAMETHROWER_PICKUP_DISTANCE,
+  type WorldToolAction,
+} from '@/libs/world/world-flamethrower';
+import { createTagTree } from '@/libs/world/world-forest';
+import { disposeObject, label, mesh, ring, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { createHotSauce, HOT_SAUCE_HEIGHT, HOT_SAUCE_RADIUS } from '@/libs/world/world-hot-sauce';
 import { createGalacticJellyfish } from '@/libs/world/world-jellyfish';
 import { createLandmarks } from '@/libs/world/world-landmarks';
 import {
@@ -33,96 +36,40 @@ import {
   worldLandmarkPose,
 } from '@/libs/world/world-layout';
 import { movementStep, resolvePosition, type WorldObstacle } from '@/libs/world/world-motion';
+import { createPersona } from '@/libs/world/world-persona';
 import { createWorldPlanets } from '@/libs/world/world-planets';
 import { createPortalTransit } from '@/libs/world/world-portals';
+import { createGraphSculpture, createWorldBalloon, createWorldKey } from '@/libs/world/world-props';
+import { createWorldShadows, worldPixelRatio } from '@/libs/world/world-render-quality';
 import { createRunner } from '@/libs/world/world-runner';
 import { createSatoshi } from '@/libs/world/world-satoshi';
+import { createWorldStars } from '@/libs/world/world-sky';
 import { createSocialPlaza } from '@/libs/world/world-social';
+import { worldGrainTexture, worldPlanarUv } from '@/libs/world/world-surfaces';
 import { createTether } from '@/libs/world/world-tether';
 import { createTheater } from '@/libs/world/world-theater';
+import { worldRideMountDistance } from '@/libs/world/world-transport-motion';
+import { createWorldTransports, type WorldTransportAction } from '@/libs/world/world-transports';
 import type {
   PersonaState,
   WorldController,
   WorldData,
   WorldInteraction,
   WorldOptions,
+  WorldRideableId,
 } from '@/libs/world/world-types';
 import { createZoneGround } from '@/libs/world/world-zone-ground';
 
 interface Interactive {
   object: THREE.Object3D;
-  action: WorldInteraction;
+  action: WorldInteraction | WorldTransportAction | WorldToolAction;
   title: string;
   dynamic: boolean;
 }
 
 const TREE_COLORS = ['#79A63B', '#276A55', '#976631', '#8B405D', '#5E497E', '#33887B'];
 
-function persona(color: string) {
-  const group = new THREE.Group();
-  const coat = material('#111114');
-  const accent = material(color);
-  const body = mesh(group, new THREE.CapsuleGeometry(0.55, 0.68, 3, 8), coat, [0, 1.22, 0]);
-  body.scale.z = 0.8;
-  const hood = mesh(group, new THREE.IcosahedronGeometry(0.6, 1), coat, [0, 2.1, -0.04]);
-  hood.scale.set(1, 1.1, 0.86);
-  sphere(group, 0.4, '#D4BCA4', [0, 2.1, 0.19]);
-  const opening = mesh(group, new THREE.TorusGeometry(0.47, 0.105, 6, 18), coat, [0, 2.12, 0.29]);
-  opening.scale.set(0.9, 1.1, 1);
-  box(group, [0.07, 0.085, 0.05], '#101014', [-0.14, 2.14, 0.56]);
-  box(group, [0.07, 0.085, 0.05], '#101014', [0.14, 2.14, 0.56]);
-  for (const x of [-0.14, 0.14]) {
-    cylinder(group, 0.019, 0.019, 0.28, '#DADAE0', [x, 1.65, 0.42], 5);
-    cylinder(group, 0.027, 0.027, 0.07, '#92929D', [x, 1.48, 0.42], 5);
-  }
-  box(group, [0.7, 0.29, 0.085], '#202026', [0, 0.87, 0.4]);
-  const pocketSeam = box(group, [0.48, 0.018, 0.02], '#4A4A54', [0, 0.99, 0.45]);
-  pocketSeam.rotation.z = -0.02;
-  const leftLeg = box(group, [0.3, 0.65, 0.36], '#303034', [-0.25, 0.43, 0]);
-  const rightLeg = box(group, [0.3, 0.65, 0.36], '#303034', [0.25, 0.43, 0]);
-  for (const leg of [leftLeg, rightLeg]) {
-    mesh(leg, new THREE.BoxGeometry(0.35, 0.15, 0.55), accent, [0, -0.29, 0.13]);
-    box(leg, [0.36, 0.065, 0.57], '#DADAE0', [0, -0.37, 0.13]);
-  }
-  const leftArm = mesh(group, new THREE.BoxGeometry(0.28, 0.72, 0.3), coat, [-0.64, 1.18, 0]);
-  const rightArm = mesh(group, new THREE.BoxGeometry(0.28, 0.72, 0.3), coat, [0.64, 1.18, 0]);
-  for (const arm of [leftArm, rightArm]) sphere(arm, 0.13, '#D4BCA4', [0, -0.43, 0]);
-
-  // Reuse the app's official, bundled SVG as shallow chest embroidery.
-  const abort = new AbortController();
-  void fetch('/pubky-logo.svg', { signal: abort.signal, credentials: 'omit' })
-    .then((response) => (response.ok ? response.text() : null))
-    .then((source) => {
-      if (!source || abort.signal.aborted) return;
-      const logo = new THREE.Group();
-      for (const path of new SVGLoader().parse(source).paths) {
-        const shapes = SVGLoader.createShapes(path);
-        const geometry = new THREE.ShapeGeometry(shapes, 8);
-        const embroidery = new THREE.MeshBasicMaterial({
-          color: path.color,
-          side: THREE.DoubleSide,
-          toneMapped: false,
-        });
-        mesh(logo, geometry, embroidery).castShadow = false;
-      }
-      logo.scale.set(0.0074, -0.0074, 0.0074);
-      logo.position.set(-0.403, 1.46, 0.445);
-      logo.name = 'official-pubky-hoodie-logo';
-      group.add(logo);
-      const backPrint = logo.clone(true);
-      backPrint.name = 'official-pubky-hoodie-back-logo';
-      backPrint.scale.set(0.009, -0.009, 0.009);
-      backPrint.rotation.y = Math.PI;
-      backPrint.position.set(0.4905, 1.6, -0.448);
-      group.add(backPrint);
-    })
-    .catch(() => {
-      /* The black hoodie remains usable if the bundled embroidery cannot load. */
-    });
-  return { group, accent, leftLeg, rightLeg, leftArm, rightArm, dispose: () => abort.abort() };
-}
-
-function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
+function makePath(scene: THREE.Scene, points: THREE.Vector3[], surface: THREE.Material, width = 3.2) {
   const curve = new THREE.CatmullRomCurve3(points);
   const positions: number[] = [];
   const indices: number[] = [];
@@ -140,86 +87,122 @@ function makePath(scene: THREE.Scene, points: THREE.Vector3[], width = 3.2) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  const path = mesh(scene, geometry, '#3B3B42');
+  worldPlanarUv(geometry, 8);
+  const path = mesh(scene, geometry, surface);
   path.material.side = THREE.DoubleSide;
   path.castShadow = false;
   return curve;
 }
 
-/** Browser-only scene. Avatar state deliberately has no network / account dependency. */
+/** Browser-only scene; the UI supplies approved avatar identities through its controller. */
 export function createWorld(container: HTMLElement, options: WorldOptions): WorldController {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#05050A');
   scene.fog = new THREE.Fog('#05050A', 155, 330);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(worldPixelRatio(window.innerWidth, window.innerHeight, window.devicePixelRatio));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1;
+  // A small, locally rendered light probe gives metal and glass readable reflections.
+  const lightProbe = new RoomEnvironment();
+  const probeGenerator = new THREE.PMREMGenerator(renderer);
+  const reflectionMap = probeGenerator.fromScene(lightProbe, 0.04, 0.1, 100);
+  scene.environment = reflectionMap.texture;
+  scene.environmentIntensity = 0.32;
+  lightProbe.dispose();
+  probeGenerator.dispose();
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute(
     'aria-label',
-    'Pubky world. Use arrow keys or W A S D to walk, Space to jump, E to interact.',
+    'Pubky world. Use arrow keys or W A S D to move, Space to jump or fly up, C to fly down, E to interact, F to dance or perform a riding stunt.',
   );
   renderer.domElement.style.touchAction = 'none';
   renderer.domElement.style.outline = 'none';
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(40, 1, WORLD_DIMENSIONS.cameraNear, WORLD_DIMENSIONS.cameraFar);
-  const ambient = new THREE.HemisphereLight('#DDE5FF', '#18201B', 1.7);
+  const ambient = new THREE.HemisphereLight('#E4EAFF', '#32312D', 1.65);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight('#E8EDFF', 2.25);
-  sun.position.set(-35, 65, 30);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, {
-    left: -WORLD_DIMENSIONS.shadowExtent,
-    right: WORLD_DIMENSIONS.shadowExtent,
-    top: WORLD_DIMENSIONS.shadowExtent,
-    bottom: -WORLD_DIMENSIONS.shadowExtent,
-    near: 1,
-    far: WORLD_DIMENSIONS.shadowFar,
-  });
-  sun.shadow.normalBias = 0.1;
-  scene.add(sun);
+  const sun = new THREE.DirectionalLight('#FFF0DC', 2.45);
+  const updateShadows = createWorldShadows(sun);
+  scene.add(sun, sun.target);
   const rim = new THREE.DirectionalLight('#738CDB', 0.95);
   rim.position.set(35, 28, -45);
   scene.add(rim);
+  const stars = createWorldStars(scene);
 
-  const water = mesh(scene, new THREE.PlaneGeometry(900, 900), '#0A1019', [0, -4.6, 0]);
-  water.rotation.x = -Math.PI / 2;
-  water.castShadow = false;
-  const coast = cylinder(
-    scene,
-    WORLD_DIMENSIONS.coastRadius,
-    WORLD_DIMENSIONS.coastRadius - 6,
-    5.2,
-    '#303037',
-    [0, -2.85, 0],
-    64,
-  );
-  coast.receiveShadow = true;
-  cylinder(scene, WORLD_DIMENSIONS.landRadius, WORLD_DIMENSIONS.landRadius + 2, 0.85, '#232327', [0, -0.425, 0], 64);
-  const surf: THREE.Mesh[] = [];
-  for (let i = 0; i < 3; i++) {
-    const wave = ring(scene, WORLD_DIMENSIONS.coastRadius + 2.5 + i * 8, 0.13, '#25343A', [0, -4.35, 0]);
-    wave.scale.z = 0.7;
-    surf.push(wave);
-  }
+  const terrain = createIslandTerrain(scene);
+  const { water } = terrain;
 
   const obstacles: WorldObstacle[] = [];
+  const obstacleOwners = new WeakMap<THREE.Object3D, WorldObstacle[]>();
   const interactives: Interactive[] = [];
   let isDynamic = false;
-  const register = (object: THREE.Object3D, action: WorldInteraction, title: string) => {
+  const register = (object: THREE.Object3D, action: Interactive['action'], title: string) => {
     interactives.push({ object, action, title, dynamic: isDynamic });
     object.userData.worldInteraction = interactives[interactives.length - 1];
   };
-  const obstacle = (x: number, z: number, radius: number) => obstacles.push({ x, z, radius });
+  const obstacle = (x: number, z: number, radius: number) => {
+    const item: WorldObstacle = { x, z, radius };
+    obstacles.push(item);
+    const owner = scene.children.at(-1);
+    if (owner) {
+      const owned = obstacleOwners.get(owner) ?? [];
+      owned.push(item);
+      obstacleOwners.set(owner, owned);
+    }
+    return item;
+  };
+  const fire = createWorldFireEffects(scene);
+  const burning = createWorldBurning({
+    onIgnite({ id, bounds }) {
+      fire.ignite(id, bounds);
+      nearby = null;
+      walkTarget = null;
+      pendingRide = null;
+      pendingTool = false;
+      lastStatus = -1;
+    },
+    onUpdate: ({ id, bounds }) => fire.follow(id, bounds),
+    onGone(id, event) {
+      if (event.completion === 'fall') fire.remove(id);
+      else fire.explode(id, event.bounds);
+    },
+  });
+  const burnUnavailable = (id: string) => burning.isBurning(id) || burning.isGone(id);
+  const objectAvailable = (object: THREE.Object3D) => {
+    for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) {
+      if (
+        !parent.visible ||
+        parent.userData.worldBurnPending ||
+        (parent.userData.worldBurnId && burnUnavailable(parent.userData.worldBurnId))
+      )
+        return false;
+    }
+    return true;
+  };
+  const withFlightHeight = <T>(height: number, build: () => T) => {
+    const start = obstacles.length;
+    const value = build();
+    for (let index = start; index < obstacles.length; index++) obstacles[index].height = height;
+    return value;
+  };
   const pathSamples: THREE.Vector3[] = [];
+  const paving = worldGrainTexture('paving');
+  const pathMaterial = new THREE.MeshStandardMaterial({
+    color: '#494C50',
+    roughness: 0.95,
+    metalness: 0.02,
+    map: paving,
+    bumpMap: paving,
+    bumpScale: 0.014,
+  });
   const groundPoint = ([x, z]: readonly [number, number]) => new THREE.Vector3(x, 0, z);
-  const addPath = (points: THREE.Vector3[]) => pathSamples.push(...makePath(scene, points).getSpacedPoints(35));
+  const addPath = (points: THREE.Vector3[]) =>
+    pathSamples.push(...makePath(scene, points, pathMaterial).getSpacedPoints(35));
   const plazaGround = groundPoint(WORLD_ANCHORS.plaza);
   const arenaEntrance = new THREE.Vector3(
     WORLD_ANCHORS.arena[0],
@@ -243,7 +226,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     } else if (zone.id !== 'plaza') {
       addPath([plazaGround, new THREE.Vector3(x * 0.6, 0, z * 0.35 + 4), groundPoint(zone.position)]);
     }
-    createZoneGround(scene, zone);
+    createZoneGround(scene, zone, paving);
   });
   addPath([groundPoint(WORLD_ANCHORS.bitkit), new THREE.Vector3(5, 0, 71), arenaEntrance]);
   addPath([groundPoint(WORLD_ANCHORS.university), new THREE.Vector3(7, 0, -74), groundPoint(WORLD_ANCHORS.forest)]);
@@ -259,6 +242,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     new THREE.Vector3(-26, 0, -100),
     groundPoint(WORLD_PORTALS[0].position),
   ]);
+  const hotSauceApproach = groundPoint(WORLD_ANCHORS.hotSauce);
+  hotSauceApproach.setLength(hotSauceApproach.length() - HOT_SAUCE_RADIUS - 1.5);
+  addPath([
+    groundPoint(WORLD_ANCHORS.university),
+    new THREE.Vector3(-57, 0, -89),
+    new THREE.Vector3(-85, 0, -97),
+    hotSauceApproach,
+  ]);
   addPath([groundPoint(WORLD_ANCHORS.github), new THREE.Vector3(-103, 0, 34), groundPoint(WORLD_PORTALS[1].position)]);
   addPath([arenaEntrance, new THREE.Vector3(90, 0, 72), groundPoint(WORLD_PORTALS[2].position)]);
   addPath([arenaEntrance, new THREE.Vector3(63, 0, 82), groundPoint(WORLD_ANCHORS.runner)]);
@@ -269,106 +260,91 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     new THREE.Vector3(BANK_POSITION[0], 0, BANK_POSITION[1] + 7),
   ]);
 
-  // Tiny trees around the coast leave the central paths clear.
-  for (let i = 0; i < 38; i++) {
-    const angle = i * 2.39996;
-    const radius = WORLD_RADIUS - 12 + Math.sin(i * 7.1) * 7;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    if (
-      WORLD_ZONES.some(
-        (zone) =>
-          Math.hypot(x - zone.position[0], z - zone.position[1]) <
-          (zone.id === 'cinema'
-            ? Math.hypot(CINEMA_DIMENSIONS.halfWidth, CINEMA_DIMENSIONS.back) + 3
-            : zone.id === 'arena'
-              ? 25
-              : zone.id === 'chess'
-                ? 24
-                : 15),
-      )
-    )
-      continue;
-    if (Math.hypot(x - BANK_POSITION[0], z - BANK_POSITION[1]) < 7) continue;
-    if (Math.hypot(x - WORLD_ANCHORS.tether[0], z - WORLD_ANCHORS.tether[1]) < 10) continue;
-    if (Math.hypot(x - WORLD_ANCHORS.runner[0], z - WORLD_ANCHORS.runner[1]) < 12) continue;
-    if (WORLD_PORTALS.some((portal) => Math.hypot(x - portal.position[0], z - portal.position[1]) < 9)) continue;
-    if (pathSamples.some((point) => Math.hypot(x - point.x, z - point.z) < 3.2)) continue;
-    const height = 2.3 + (i % 4) * 0.55;
-    cylinder(scene, 0.2, 0.32, height, '#4F4844', [x, height / 2, z], 5);
-    cylinder(scene, 0, height * 0.65, height * 1.5, i % 3 ? '#254B40' : '#405C34', [x, height * 1.4, z], 7);
-    obstacle(x, z, 0.5);
-  }
+  const coastalNature = withFlightHeight(9.1, () => createCoastalNature(scene, pathSamples, obstacle));
+  const pathFurniture = withFlightHeight(3.2, () => createPathFurniture(scene, pathSamples, obstacle));
 
-  // Instanced wildflowers avoid hundreds of individual draw calls.
-  const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), material('#FFFFFF', true), 160);
-  const dummy = new THREE.Object3D();
-  for (let i = 0; i < 160; i++) {
-    const angle = i * 2.39996;
-    const radius = 40 + (Math.sin(i * 16.4) * 0.5 + 0.5) * (WORLD_RADIUS - 45);
-    dummy.position.set(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
-    dummy.scale.set(1, 1.5 + (i % 3), 1);
-    dummy.updateMatrix();
-    flowers.setMatrixAt(i, dummy.matrix);
-    flowers.setColorAt(i, new THREE.Color(i % 3 ? '#C8FF03' : '#7D9182'));
+  const landmarks = withFlightHeight(13, () => createLandmarks(scene, register, obstacle));
+  for (const item of obstacles) {
+    if (Math.hypot(item.x - WORLD_ANCHORS.github[0], item.z - WORLD_ANCHORS.github[1]) < 15) item.height = 5;
   }
-  scene.add(flowers);
-
-  const landmarks = createLandmarks(scene, register, obstacle);
-  const arena = createArena(scene, register, obstacle);
-  const bank = createBank(scene, register, obstacle);
+  const arena = withFlightHeight(14, () => createArena(scene, register, obstacle));
+  const bank = withFlightHeight(10, () => createBank(scene, register, obstacle));
+  withFlightHeight(HOT_SAUCE_HEIGHT, () => createHotSauce(scene, register, obstacle));
   const jellyfish = createGalacticJellyfish(scene);
   const planets = createWorldPlanets(scene);
-  const cinema = createCinema(scene, register, obstacle);
+  const cinema = withFlightHeight(40, () => createCinema(scene, register, obstacle));
   const cinemaScreen = createCinemaScreen(container, scene, cinema.screenFrame);
-  const conferences = createConferences(scene, WORLD_ANCHORS.conferences, register, obstacle);
+  const conferences = withFlightHeight(15, () =>
+    createConferences(scene, WORLD_ANCHORS.conferences, register, obstacle),
+  );
+  const conferenceObstacles = obstacleOwners.get(conferences.group) ?? [];
+  // Thin elevated panels need their own flight footprint; ground routes stay open.
+  for (let index = -2; index <= 2; index++) {
+    const panel: WorldObstacle = {
+      x: WORLD_ANCHORS.conferences[0] + index * 4.4,
+      z: WORLD_ANCHORS.conferences[1] - 4.455,
+      radius: 2.22,
+      minHeight: 10.1,
+      height: 14.2,
+    };
+    obstacles.push(panel);
+    conferenceObstacles.push(panel);
+  }
+  obstacleOwners.set(conferences.group, conferenceObstacles);
   register(conferences.group, { kind: 'zone', id: 'conferences' }, 'Discover the next Pubky conferences');
   const chess = createChess(scene, WORLD_ANCHORS.chess);
   obstacles.push(...chess.obstacles);
+  obstacleOwners.set(chess.group, chess.obstacles);
+  for (const item of chess.obstacles) item.height = 7;
   register(chess.group, { kind: 'zone', id: 'chess' }, 'Explore the Chess Citadel');
   register(chess.entrance, { kind: 'zone', id: 'chess' }, 'Play chess on Pubky');
   const runner = createRunner(scene, WORLD_ANCHORS.runner);
   register(runner.persona, { kind: 'fun', id: 'runner' }, 'Catch up with @halfin · mention pills');
-  const portals = createPortalTransit();
-  const tether = createTether(scene, register, obstacle);
-  createSatoshi(scene, register, obstacle);
-  const theater = createTheater(scene, register, obstacle, options.data);
-  const player = persona('#C8FF03');
+  const portals = createPortalTransit(Math.random, (index) => !burnUnavailable(`portal:${index}`));
+  const tether = withFlightHeight(12, () => createTether(scene, register, obstacle));
+  withFlightHeight(12, () => createSatoshi(scene, register, obstacle));
+  const theaterStart = obstacles.length;
+  const theater = withFlightHeight(13, () => createTheater(scene, register, obstacle, options.data));
+  for (const item of obstacles.slice(theaterStart)) if (item.radius > 1) item.height = 3;
+  for (let index = -2; index <= 2; index++) {
+    const panel: WorldObstacle = {
+      x: WORLD_ANCHORS.theater[0] + index * 3.348,
+      z: WORLD_ANCHORS.theater[1] - 3.9695,
+      radius: 1.73,
+      minHeight: 2.405,
+      height: 12.195,
+    };
+    obstacles.push(panel);
+    const owner = scene.children.at(-1)!;
+    const owned = obstacleOwners.get(owner) ?? [];
+    owned.push(panel);
+    obstacleOwners.set(owner, owned);
+  }
+  const avatarImages = createWorldAvatarImageLoader();
+  const player = createPersona('#C8FF03', avatarImages);
   player.group.position.set(0, 0.15, 24);
   scene.add(player.group);
   const playerHalo = ring(scene, 1, 0.08, '#C8FF03', [0, 0.2, 24]);
   label(player.group, 'you', [0, 3.3, 0], 2.4, '#C8FF03', '#1D1D20');
 
-  // A floating sculpture expresses the social graph before opening individual people.
-  const sculpture = new THREE.Group();
-  sculpture.position.set(WORLD_ANCHORS.plaza[0], 0, WORLD_ANCHORS.plaza[1]);
-  scene.add(sculpture);
-  cylinder(sculpture, 2.7, 3.3, 0.6, '#454549', [0, 0.35, 0]);
-  const orbitA = ring(sculpture, 2.1, 0.12, '#C8FF03', [0, 4.6, 0]);
-  orbitA.rotation.x = 0.8;
-  const orbitB = ring(sculpture, 2.5, 0.09, '#85859A', [0, 4.6, 0]);
-  orbitB.rotation.x = -0.8;
-  sphere(sculpture, 0.85, '#EEEEF6', [0, 4.6, 0]);
-  for (let index = 0; index < 6; index++) {
-    const angle = (index / 6) * Math.PI * 2;
-    const node = new THREE.Vector3(Math.cos(angle) * 2.7, 4.6 + Math.sin(angle * 2) * 1.2, Math.sin(angle) * 2.7);
-    sphere(sculpture, 0.28, index % 2 ? '#B59BFF' : '#C8FF03', [node.x, node.y, node.z]);
-    const center = new THREE.Vector3(0, 4.6, 0);
-    const direction = node.clone().sub(center);
-    const connection = cylinder(sculpture, 0.035, 0.035, direction.length(), '#8E9CA6');
-    connection.position.copy(center).add(node).multiplyScalar(0.5);
-    connection.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  }
+  const { group: sculpture, orbitA, orbitB } = createGraphSculpture(scene, WORLD_ANCHORS.plaza);
   label(sculpture, 'THE PUBKY GRAPH', [0, 8.5, 0], 10);
   register(sculpture, { kind: 'fun', id: 'graph' }, 'Open the Pubky Graph Explorer');
   obstacle(sculpture.position.x, sculpture.position.z, 2.5);
+  obstacles[obstacles.length - 1].height = 9;
+
+  const transports = createWorldTransports(scene, obstacles, register, player);
+  const flamethrower = createWorldFlamethrower(scene, player, register, obstacles);
 
   let dataGroup = new THREE.Group();
   scene.add(dataGroup);
   let floatingLeaves: { object: THREE.Object3D; baseY: number; phase: number }[] = [];
   const staticObstacleCount = obstacles.length;
+  let forestBurnBindings: (() => void)[] = [];
 
   const populateForest = (data: WorldData) => {
+    forestBurnBindings.forEach((release) => release());
+    forestBurnBindings = [];
     for (let i = interactives.length - 1; i >= 0; i--) if (interactives[i].dynamic) interactives.splice(i, 1);
     disposeObject(dataGroup);
     dataGroup = new THREE.Group();
@@ -382,38 +358,29 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       tree.position.set(x, 0, z);
       dataGroup.add(tree);
       const color = TREE_COLORS[tagIndex];
-      cylinder(tree, 0.45, 0.8, 5, '#514842', [0, 2.5, 0], 6);
-      cylinder(tree, 3.5, 4, 0.12, '#303B2B', [0, 0.15, 0]);
-      const canopy = sphere(tree, 3.1, color, [0, 6.1, 0]);
-      canopy.scale.set(1.1, 0.8, 1);
-      sphere(tree, 2, color, [-2.1, 5.7, 0.6]);
-      sphere(tree, 1.9, color, [1.8, 5.2, -1]);
-      for (let i = 0; i < 3; i++) {
-        const branch = cylinder(tree, 0.15, 0.25, 3, '#514842', [Math.cos(i * 2) * 1.1, 3.8, Math.sin(i * 2) * 1.1], 5);
-        branch.rotation.z = i % 2 ? 0.7 : -0.7;
-      }
+      const leaves = createTagTree(tree, tag, color);
       label(tree, `#${tag.label}`, [0, 10, 0], 7, '#C8FF03', '#1D1D20');
       register(tree, { kind: 'tag', index: tagIndex }, `Read #${tag.label.slice(0, 24)}`);
-      obstacle(x, z, 1.1);
-      tag.posts.slice(0, 5).forEach((post, postIndex) => {
-        const angle = (postIndex * Math.PI * 2) / Math.min(tag.posts.length, 5) + 0.4;
-        const leaf = new THREE.Group();
-        leaf.position.set(Math.cos(angle) * 3.9, 3.6 + (postIndex % 2) * 1.5, Math.sin(angle) * 3.9);
-        leaf.rotation.y = angle;
-        leaf.rotation.z = (postIndex % 2 ? -1 : 1) * 0.12;
-        tree.add(leaf);
-        mesh(leaf, new THREE.BoxGeometry(1.2, 1.6, 0.12), material('#D9E2CE', true));
-        box(leaf, [0.3, 0.12, 0.15], color, [-0.25, 0.46, 0.06]);
-        for (let line = 0; line < 3; line++)
-          box(leaf, [line === 2 ? 0.48 : 0.8, 0.06, 0.14], '#4B5646', [-0.02, 0.08 - line * 0.23, 0.06]);
+      const trunkObstacle = obstacle(x, z, 1.1);
+      trunkObstacle.height = 11;
+      const treeId = `tree:${JSON.stringify(tag.label)}`;
+      forestBurnBindings.push(burning.bind(createWorldGroupBurnTarget(treeId, [tree], [trunkObstacle])));
+      leaves.forEach(({ object: leaf, post, postIndex }) => {
         register(leaf, { kind: 'post', tagIndex, postIndex }, `Read a post by ${post.author.slice(0, 22)}`);
         floatingLeaves.push({ object: leaf, baseY: leaf.position.y, phase: tagIndex + postIndex });
+        forestBurnBindings.push(
+          burning.bind(
+            createWorldGroupBurnTarget(`forest-post:${JSON.stringify([tag.label, post.id])}`, [leaf], [], {
+              parentId: treeId,
+            }),
+          ),
+        );
       });
     });
     isDynamic = false;
   };
   populateForest(options.data);
-  const social = createSocialPlaza(scene, options.data);
+  const social = createSocialPlaza(scene, options.data, avatarImages, burning);
   let forestTags = options.data.tags;
   let theaterPosts = options.data.trendingPosts;
   let dataSource = options.data.source;
@@ -421,26 +388,88 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   // Local collectibles are clearly game props, with no token or monetary semantics.
   const collectibles: THREE.Group[] = [];
   for (let i = 0; i < 8; i++) {
-    const collectible = new THREE.Group();
+    const collectible = createWorldKey();
     const angle = (i / 8) * Math.PI * 2;
     collectible.position.set(Math.sin(angle) * 27, 1.6, Math.cos(angle) * 27 + 5);
-    ring(collectible, 0.45, 0.12, '#C8FF03', [0, 0.4, 0]).rotation.x = 0;
-    box(collectible, [0.16, 0.75, 0.14], '#C8FF03', [0, -0.25, 0]);
-    box(collectible, [0.36, 0.14, 0.14], '#C8FF03', [0.1, -0.55, 0]);
     scene.add(collectible);
     collectibles.push(collectible);
   }
 
-  const balloon = new THREE.Group();
-  balloon.position.set(WORLD_ANCHORS.balloon[0], 18, WORLD_ANCHORS.balloon[1]);
-  const envelope = sphere(balloon, 3.1, '#41414A', [0, 3, 0]);
-  envelope.scale.y = 1.25;
-  box(balloon, [1.5, 1, 1.5], '#25252C', [0, -2, 0]);
-  for (const side of [-0.6, 0.6]) cylinder(balloon, 0.035, 0.035, 2.7, '#C8FF03', [side, -0.3, side], 4);
-  scene.add(balloon);
+  const balloon = createWorldBalloon(scene, WORLD_ANCHORS.balloon);
+
+  const theaterHumans = theater.spectators.map(({ group, setEscapePose }, index) =>
+    createWorldHumanBurnTarget(`human:theater:${index}`, group, scene, setEscapePose),
+  );
+  const arenaHumans = arena.gladiators.map(({ group, setEscapePose }, index) =>
+    createWorldHumanBurnTarget(`human:arena:${index}`, group, scene, setEscapePose),
+  );
+  const sceneryHumans = [runner.burnTarget, ...theaterHumans, ...arenaHumans];
+  const pendingHumanBurns = new Set<(typeof sceneryHumans)[number]>();
+  for (const target of sceneryHumans) burning.bind(target);
+  const igniteSceneryHuman = (target: (typeof sceneryHumans)[number]) => {
+    if (burning.isGone(target.id) || burning.isBurning(target.id)) return;
+    // Detach even when all flame slots are occupied, so the building cannot
+    // take a person into its explosion. Only this fixed scenery cast can wait.
+    target.onIgnite?.();
+    if (!burning.ignite(target.id)) pendingHumanBurns.add(target);
+  };
+
+  // Each landmark owns its visual subtree and the exact collision objects built with it.
+  const staticRoots = new Map<THREE.Object3D, string>();
+  for (const item of interactives) {
+    if (item.dynamic || item.action.kind === 'transport' || item.action.kind === 'tool') continue;
+    let root = item.object;
+    while (root.parent && root.parent !== scene) root = root.parent;
+    const action = item.action;
+    const id =
+      action.kind === 'portal'
+        ? `portal:${action.index}`
+        : action.kind === 'zone' || action.kind === 'fun'
+          ? `${action.kind}:${action.id}`
+          : null;
+    if (id) staticRoots.set(root, id);
+  }
+  for (const [root, id] of staticRoots) {
+    const stopCinema = id === 'zone:cinema' ? () => cinemaScreen.dispose() : undefined;
+    burning.bind(
+      createWorldGroupBurnTarget(id, [root], obstacleOwners.get(root), {
+        onIgnite() {
+          stopCinema?.();
+          if (id === 'fun:runner') igniteSceneryHuman(runner.burnTarget);
+          if (id === 'zone:theater') theaterHumans.forEach(igniteSceneryHuman);
+          if (id === 'zone:arena') arenaHumans.forEach(igniteSceneryHuman);
+        },
+        onGone: stopCinema,
+      }),
+    );
+  }
+  for (const target of [...coastalNature.burnTargets, ...pathFurniture.burnTargets]) burning.bind(target);
+  collectibles.forEach((root, index) => burning.bind(createWorldGroupBurnTarget(`key:${index}`, [root])));
+  burning.bind(createWorldGroupBurnTarget('prop:balloon', [balloon]));
+  for (const target of jellyfish.burnTargets) burning.bind(target);
+  planets.group.children.forEach((root, index) => burning.bind(createWorldGroupBurnTarget(`planet:${index}`, [root])));
+  for (const item of transports.burnEntries) {
+    const unavailable = () => transports.setAvailable(item.id, false);
+    burning.bind(
+      createWorldGroupBurnTarget(`ride:${item.id}`, [item.model], [item.obstacle], {
+        canIgnite: () => transports.active?.id !== item.id,
+        onIgnite: unavailable,
+        onGone: unavailable,
+      }),
+    );
+  }
+  burning.bind(
+    createWorldGroupBurnTarget('tool:flamethrower', [flamethrower.model], [flamethrower.obstacle], {
+      canIgnite: () => !flamethrower.equipped,
+      onIgnite: () => flamethrower.setAvailable(false),
+      onGone: () => flamethrower.setAvailable(false),
+    }),
+  );
 
   const keys = new Set<string>();
-  const touch = { x: 0, z: 0 };
+  const touch = { x: 0, z: 0, lift: 0 };
+  let pointerFiring = false;
+  let buttonFiring = false;
   let disposed = false;
   let paused = false;
   let overview = true;
@@ -458,22 +487,36 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let collected = 0;
   let nearby: Interactive | null = null;
   let walkTarget: THREE.Vector3 | null = null;
+  let pendingRide: WorldRideableId | null = null;
+  let pendingTool = false;
   let animation: PersonaState['animation'] = 'idle';
   let capturingPhoto = false;
   let landmarkPose: ReturnType<typeof worldLandmarkPose> | null = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   const cameraGoal = new THREE.Vector3();
+  const cameraFollow = createWorldCameraFollow();
   const desiredTarget = new THREE.Vector3();
   const tempPosition = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const fireOrigin = new THREE.Vector3();
+  const fireDirection = new THREE.Vector3();
+  const weaponExclusions = new Set(['tool:flamethrower']);
+  const dragonExclusions = new Set(['ride:dragon']);
 
   const clearInput = () => {
+    cameraFollow.reset();
     keys.clear();
     touch.x = 0;
     touch.z = 0;
+    touch.lift = 0;
     walkTarget = null;
+    pendingRide = null;
+    pendingTool = false;
+    pointerFiring = buttonFiring = false;
+    flamethrower.clearInput();
+    transports.clearInput();
   };
   const enterExplore = () => {
     if (overview) {
@@ -484,19 +527,91 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     landmarkPose = null;
   };
   const jump = () => {
-    if (!paused && jumpHeight === 0) jumpVelocity = 10;
+    if (paused) return;
+    if (transports.active) transports.jump();
+    else if (jumpHeight === 0) jumpVelocity = 10;
   };
   const dance = () => {
-    if (!paused) danceUntil = time + 4;
+    if (!paused && !transports.active && !flamethrower.equipped) danceUntil = time + 4;
+  };
+  const stunt = () => {
+    if (!paused && transports.stunt()) lastStatus = -1;
+  };
+  const mountRide = (id: WorldRideableId) => {
+    if (jumpHeight > 0.1 || jumpVelocity > 0) return false;
+    if (!transports.isAvailable(id)) return false;
+    if (flamethrower.equipped && !flamethrower.drop()) return false;
+    if (!transports.mount(id)) return false;
+    clearInput();
+    enterExplore();
+    jumpHeight = jumpVelocity = 0;
+    danceUntil = 0;
+    lastStatus = -1;
+    return true;
+  };
+  const dispatch = (action: Interactive['action']) => {
+    const represented = interactives.filter((item) => item.action === action);
+    if (represented.length && !represented.some((item) => objectAvailable(item.object))) return;
+    if (action.kind === 'tool') {
+      if (transports.active || jumpHeight > 0.1) return;
+      if (flamethrower.equipped) flamethrower.drop();
+      else if (!flamethrower.equip()) {
+        if (objectAvailable(flamethrower.model)) {
+          walkTarget = flamethrower.model.getWorldPosition(new THREE.Vector3()).setY(0);
+          pendingTool = true;
+          enterExplore();
+        }
+        return;
+      }
+      clearInput();
+      danceUntil = 0;
+      enterExplore();
+      lastStatus = -1;
+      return;
+    }
+    if (action.kind === 'transport') {
+      const previous = transports.active?.id;
+      if (previous) {
+        if (!transports.dismount()) return;
+        clearInput();
+        lastStatus = -1;
+        if (previous === action.id) return;
+      }
+      if (!mountRide(action.id)) {
+        const item = interactives.find((item) => item.action.kind === 'transport' && item.action.id === action.id);
+        if (item) {
+          walkTarget = item.object.getWorldPosition(new THREE.Vector3()).setY(0);
+          pendingRide = action.id;
+          enterExplore();
+        }
+      }
+      return;
+    }
+    if (action.kind === 'fun' && action.id === 'trampoline') {
+      if (transports.active) transports.jump();
+      else jumpVelocity = 20;
+    }
+    options.onInteract(action);
   };
   const interact = () => {
-    if (paused || !nearby) return;
-    if (nearby.action.kind === 'fun' && nearby.action.id === 'trampoline') jumpVelocity = 20;
-    options.onInteract(nearby.action);
+    if (paused) return;
+    if (transports.active) {
+      if (transports.dismount()) clearInput();
+      lastStatus = -1;
+      return;
+    }
+    if (flamethrower.equipped) {
+      flamethrower.drop();
+      clearInput();
+      lastStatus = -1;
+      return;
+    }
+    if (nearby) dispatch(nearby.action);
   };
   const travelTo: WorldController['travelTo'] = (id, travelOptions) => {
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
+    transports.reset();
     clearInput();
     portals.reset();
     const arrival = worldArrival(id);
@@ -542,6 +657,8 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       'KeyE',
       'KeyF',
       'KeyR',
+      'KeyC',
+      'KeyB',
     ];
     if (!handled.includes(event.code)) return;
     event.preventDefault();
@@ -549,7 +666,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (!event.repeat) {
       if (event.code === 'Space') jump();
       if (event.code === 'KeyE') interact();
-      if (event.code === 'KeyF') dance();
+      if (event.code === 'KeyF') {
+        if (transports.active) stunt();
+        else dance();
+      }
       if (event.code === 'KeyR') travelTo('plaza');
     }
   };
@@ -570,10 +690,11 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const pick = () => {
     const socialHit = social.pick(raycaster);
     const hits = raycaster.intersectObjects(
-      interactives.map((item) => item.object),
+      interactives.filter((item) => objectAvailable(item.object)).map((item) => item.object),
       true,
     );
     for (const hit of hits) {
+      if (!objectAvailable(hit.object)) continue;
       let object: THREE.Object3D | null = hit.object;
       while (object) {
         if (object.userData.worldInteraction)
@@ -586,10 +707,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     return socialHit;
   };
   const pointerDown = (event: PointerEvent) => {
-    if (paused || event.button !== 0) return;
+    if (paused || (event.button !== 0 && !(flamethrower.equipped && event.button === 2))) return;
     renderer.domElement.focus({ preventScroll: true });
     drag = { x: event.clientX, y: event.clientY, distance: 0, id: event.pointerId };
     renderer.domElement.setPointerCapture(event.pointerId);
+    if (flamethrower.equipped && event.button === 0) {
+      pointerFiring = true;
+      enterExplore();
+    }
   };
   const pointerMove = (event: PointerEvent) => {
     if (paused) return;
@@ -597,35 +722,45 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const dx = event.clientX - drag.x;
       const dy = event.clientY - drag.y;
       drag.distance += Math.abs(dx) + Math.abs(dy);
-      yaw -= dx * 0.004;
+      const turn = -dx * 0.004;
+      yaw += turn;
+      cameraFollow.orbit(turn);
       pitch = clampWorldPitch(pitch + dy * 0.003, overview);
       drag.x = event.clientX;
       drag.y = event.clientY;
     } else if (event.pointerType === 'mouse') {
       pointRay(event);
-      renderer.domElement.style.cursor = pick() ? 'pointer' : 'grab';
+      renderer.domElement.style.cursor = flamethrower.equipped ? 'crosshair' : pick() ? 'pointer' : 'grab';
     }
   };
   const pointerUp = (event: PointerEvent) => {
     if (!drag || drag.id !== event.pointerId) return;
-    const clicked = drag.distance < 7 && !paused;
+    const clicked = drag.distance < 7 && !paused && !flamethrower.equipped;
+    if (drag.distance >= 7) cameraFollow.orbit();
     drag = null;
+    pointerFiring = false;
     if (renderer.domElement.hasPointerCapture(event.pointerId))
       renderer.domElement.releasePointerCapture(event.pointerId);
     if (!clicked) return;
     pointRay(event);
     const selected = pick();
-    if (selected) options.onInteract(selected.action);
+    if (selected) dispatch(selected.action);
     else {
       const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
       if (point && Math.hypot(point.x, point.z) < WORLD_RADIUS) {
+        pendingRide = null;
         walkTarget = point;
         enterExplore();
       }
     }
   };
   const pointerCancel = () => {
+    if (drag?.distance) cameraFollow.orbit();
     drag = null;
+    pointerFiring = false;
+  };
+  const contextMenu = (event: MouseEvent) => {
+    if (flamethrower.equipped) event.preventDefault();
   };
   const wheel = (event: WheelEvent) => {
     if (paused) return;
@@ -636,10 +771,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   renderer.domElement.addEventListener('pointermove', pointerMove);
   renderer.domElement.addEventListener('pointerup', pointerUp);
   renderer.domElement.addEventListener('pointercancel', pointerCancel);
+  renderer.domElement.addEventListener('lostpointercapture', pointerCancel);
+  renderer.domElement.addEventListener('contextmenu', contextMenu);
   renderer.domElement.addEventListener('wheel', wheel, { passive: false });
 
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
+    renderer.setPixelRatio(worldPixelRatio(width, height, window.devicePixelRatio));
     renderer.setSize(Math.max(1, width), Math.max(1, height));
     cinemaScreen.resize(Math.max(1, width), Math.max(1, height));
     camera.aspect = Math.max(1, width) / Math.max(1, height);
@@ -657,8 +795,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     lastTime = timestamp;
     if (document.hidden) return;
     // The theater can resume from its reading panel while avatar input stays paused.
-    if (theater.tick(Math.min(elapsed, 1))) lastStatus = -1;
+    if (!burnUnavailable('zone:theater') && theater.tick(Math.min(elapsed, 1))) lastStatus = -1;
     if (!paused) time += delta;
+    const previousPlayerX = player.group.position.x;
+    const previousPlayerZ = player.group.position.z;
     let moving = false;
     if (!paused) {
       const inputX =
@@ -667,20 +807,48 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         touch.x;
       const inputZ =
         Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.z;
-      let step = movementStep(inputX, inputZ, yaw, delta, keys.has('ShiftLeft') || keys.has('ShiftRight'));
+      let rideX = inputX;
+      let rideZ = inputZ;
+      const movementYaw = cameraFollow.movementYaw(yaw, inputX, inputZ);
+      let step = movementStep(inputX, inputZ, movementYaw, delta, keys.has('ShiftLeft') || keys.has('ShiftRight'));
       if (inputX || inputZ) {
         enterExplore();
         walkTarget = null;
+        pendingRide = null;
+        pendingTool = false;
+      }
+      if (pendingRide && transports.isAvailable(pendingRide)) mountRide(pendingRide);
+      if (pendingTool && jumpHeight < 0.1 && !transports.active && flamethrower.equip()) {
+        clearInput();
+        enterExplore();
+        lastStatus = -1;
       }
       if (walkTarget) {
         const dx = walkTarget.x - player.group.position.x;
         const dz = walkTarget.z - player.group.position.z;
         const length = Math.hypot(dx, dz);
         if (length < 0.6) walkTarget = null;
-        else step = { x: (dx / length) * delta * 8, z: (dz / length) * delta * 8 };
+        else {
+          step = { x: (dx / length) * delta * 8, z: (dz / length) * delta * 8 };
+          rideX = (dx * Math.cos(movementYaw) - dz * Math.sin(movementYaw)) / length;
+          rideZ = (dz * Math.cos(movementYaw) + dx * Math.sin(movementYaw)) / length;
+        }
       }
       moving = Math.hypot(step.x, step.z) > 0.001;
-      if (moving) {
+      if (transports.active) {
+        const lift = Number(keys.has('Space')) - Number(keys.has('KeyC')) + touch.lift;
+        if (lift) enterExplore();
+        transports.step(delta, {
+          x: rideX,
+          z: rideZ,
+          yaw: movementYaw,
+          lift,
+          brake: keys.has('ShiftLeft') || keys.has('ShiftRight'),
+        });
+        const activeRide = transports.active;
+        if (!activeRide) clearInput();
+        moving = !!activeRide && Math.hypot(activeRide.velocityX, activeRide.velocityZ) > 0.05;
+      } else if (moving) {
         const position = resolvePosition(player.group.position.x + step.x, player.group.position.z + step.z, obstacles);
         player.group.position.x = position.x;
         player.group.position.z = position.z;
@@ -689,11 +857,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           Math.atan2(Math.sin(targetAngle - player.group.rotation.y), Math.cos(targetAngle - player.group.rotation.y)) *
           Math.min(1, delta * 14);
       }
-      const transfer = portals.step(player.group.position, time, moving && jumpHeight === 0);
+      const grounded = transports.active
+        ? transports.active.altitude < 0.01 && transports.active.velocityY === 0
+        : jumpHeight === 0;
+      const transfer = portals.step(player.group.position, time, moving && grounded);
       if (transfer) {
         clearInput();
         player.group.position.set(transfer.x, 0.15, transfer.z);
         player.group.rotation.y = transfer.facing;
+        transports.transfer(transfer.x, transfer.z, transfer.facing);
         yaw = transfer.cameraYaw;
         pitch = 0.26;
         zoom = 1;
@@ -704,7 +876,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         snapCamera = true;
         lastStatus = -1;
       }
-      if (jumpHeight > 0 || jumpVelocity > 0) {
+      if (!transports.active && (jumpHeight > 0 || jumpVelocity > 0)) {
         jumpVelocity -= 24 * delta;
         jumpHeight = Math.max(0, jumpHeight + jumpVelocity * delta);
         if (jumpHeight === 0) jumpVelocity = 0;
@@ -714,10 +886,15 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           player.group.position.x - WORLD_ANCHORS.trampoline[0],
           player.group.position.z - WORLD_ANCHORS.trampoline[1],
         ) < 2.3;
-      if (onTrampoline && jumpHeight === 0 && moving) jumpVelocity = 18;
-      collectibles.forEach((item) => {
+      if (onTrampoline && moving && !burnUnavailable('fun:trampoline')) {
+        if (transports.active) transports.jump();
+        else if (jumpHeight === 0) jumpVelocity = 18;
+      }
+      collectibles.forEach((item, index) => {
         if (
+          !burnUnavailable(`key:${index}`) &&
           item.visible &&
+          Math.abs(item.position.y - (player.group.position.y + 1)) < 2 &&
           Math.hypot(item.position.x - player.group.position.x, item.position.z - player.group.position.z) < 1.8
         ) {
           item.visible = false;
@@ -725,24 +902,36 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         }
       });
     }
-    animation = jumpHeight > 0 ? 'jump' : moving ? 'walk' : danceUntil > time ? 'dance' : 'idle';
+    const ride = transports.active;
+    animation = ride
+      ? ride.altitude > 0.12
+        ? 'jump'
+        : moving
+          ? 'walk'
+          : 'idle'
+      : jumpHeight > 0
+        ? 'jump'
+        : moving
+          ? 'walk'
+          : danceUntil > time
+            ? 'dance'
+            : 'idle';
     const dancing = animation === 'dance';
-    const stride = !reducedMotion && moving ? Math.sin(time * 13) * 0.65 : 0;
-    player.leftLeg.rotation.x = stride;
-    player.rightLeg.rotation.x = -stride;
-    player.leftArm.rotation.x = -stride;
-    player.rightArm.rotation.x = stride;
-    player.leftArm.rotation.z = dancing ? -1.7 : 0.1;
-    player.rightArm.rotation.z = dancing ? 1.7 : -0.1;
-    player.group.position.y = 0.15 + jumpHeight + (!reducedMotion && dancing ? Math.abs(Math.sin(time * 8)) * 0.4 : 0);
+    transports.animate(paused ? 0 : delta, time, reducedMotion);
+    if (flamethrower.equipped && !ride && !paused) player.group.rotation.y = yaw + Math.PI;
+    player.setToolPose(flamethrower.equipped && !ride ? pitch - 0.26 : null);
+    player.animate(time, animation, reducedMotion);
+    if (!ride)
+      player.group.position.y =
+        0.15 + jumpHeight + (!reducedMotion && dancing ? Math.abs(Math.sin(time * 8)) * 0.4 : 0);
     if (dancing && !reducedMotion) player.group.rotation.y += delta * 3;
     playerHalo.position.set(player.group.position.x, 0.23, player.group.position.z);
-    social.tick(delta, player.group.position, reducedMotion, overview);
+    social.tick(paused ? 0 : delta, player.group.position, reducedMotion, overview);
     if (!paused) {
-      bank.animate(time, reducedMotion);
+      if (!burnUnavailable('fun:bank')) bank.animate(time, reducedMotion);
       jellyfish.animate(time, delta, reducedMotion);
       planets.animate(time, delta, reducedMotion);
-      runner.animate(time, delta, reducedMotion);
+      if (!burnUnavailable('fun:runner')) runner.animate(time, delta, reducedMotion);
       conferences.animate(time, delta, reducedMotion);
     }
 
@@ -759,19 +948,37 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       balloon.position.y = 18 + Math.sin(time * 0.6) * 0.8;
       landmarks.animate(time, delta);
       arena.animate(time);
-      surf.forEach((wave, index) => {
-        const scale = 1 + Math.sin(time * 0.5 + index) * 0.009;
-        wave.scale.set(scale, scale, 0.7);
-      });
+      terrain.animate(time);
     }
 
+    yaw = cameraFollow.step({
+      yaw,
+      deltaX: player.group.position.x - previousPlayerX,
+      deltaZ: player.group.position.z - previousPlayerZ,
+      seconds: delta,
+      enabled:
+        !paused && !overview && !landmarkPose && !drag && !flamethrower.equipped && !reducedMotion && !snapCamera,
+    });
     if (landmarkPose && !overview) desiredTarget.set(...landmarkPose.target);
-    else desiredTarget.copy(overview ? new THREE.Vector3(0, 0, 0) : player.group.position).setY(overview ? 0 : 1.3);
+    else
+      desiredTarget
+        .copy(overview ? new THREE.Vector3(0, 0, 0) : player.group.position)
+        .setY(
+          overview
+            ? 0
+            : ride
+              ? player.group.position.y + 1.15
+              : flamethrower.equipped
+                ? player.group.position.y + 1.55
+                : 1.3,
+        );
     const smoothing = reducedMotion ? 1 : 1 - Math.exp(-delta * 4);
     cameraTarget.lerp(desiredTarget, smoothing);
     const portraitScale = camera.aspect < 1 ? 1 / camera.aspect : 1;
     const distance =
-      (overview ? WORLD_DIMENSIONS.overviewDistance * portraitScale : (landmarkPose?.distance ?? 42)) * zoom;
+      (overview
+        ? WORLD_DIMENSIONS.overviewDistance * portraitScale
+        : (landmarkPose?.distance ?? (flamethrower.equipped ? 20 : 42))) * zoom;
     const far = worldCameraFar(distance);
     if (camera.far !== far) {
       camera.far = far;
@@ -796,22 +1003,74 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     snapCamera = false;
     camera.lookAt(cameraTarget.x, cameraTarget.y + vertical.lookLift, cameraTarget.z);
 
+    flamethrower.setFiring(!paused && !overview && !ride && (pointerFiring || buttonFiring || keys.has('KeyB')));
+    if (!paused) {
+      if (flamethrower.isFiring && flamethrower.getNozzle(fireOrigin, fireDirection)) {
+        fire.emitStream(fireOrigin, fireDirection, 1, 'weapon');
+        burning.expose({
+          origin: fireOrigin,
+          direction: fireDirection,
+          range: 22,
+          halfAngle: 0.14,
+          seconds: delta,
+          excludeIds: weaponExclusions,
+        });
+      }
+      if (
+        ride?.id === 'dragon' &&
+        ride.stuntProgress !== null &&
+        ride.stuntProgress >= 0.08 &&
+        ride.stuntProgress <= 0.85
+      ) {
+        const model = transports.getModel('dragon');
+        const mouth = model && getWorldDragonMouth(model);
+        if (mouth) {
+          mouth.updateWorldMatrix(true, false);
+          mouth.getWorldPosition(fireOrigin);
+          fireDirection.set(0, 0, 1).transformDirection(mouth.matrixWorld);
+          fire.emitStream(fireOrigin, fireDirection, 1.25, 'dragon');
+          burning.expose({
+            origin: fireOrigin,
+            direction: fireDirection,
+            range: 32,
+            halfAngle: 0.19,
+            seconds: delta,
+            excludeIds: dragonExclusions,
+          });
+        }
+      }
+    }
+    if (!paused)
+      for (const target of pendingHumanBurns)
+        if (burning.isGone(target.id) || burning.ignite(target.id)) pendingHumanBurns.delete(target);
+    burning.tick(paused ? 0 : delta, reducedMotion);
+    fire.tick(paused ? 0 : delta, time, camera, reducedMotion);
+
     if (time - lastStatus > 0.2 || lastStatus === -1) {
       lastStatus = time;
       let nearestDistance = 7;
       nearby = null;
       for (const item of interactives) {
+        if (!objectAvailable(item.object)) continue;
+        if (ride && (item.action.kind === 'transport' || ride.altitude > 0.7)) continue;
         item.object.getWorldPosition(tempPosition);
         const distanceTo = Math.hypot(
           tempPosition.x - player.group.position.x,
           tempPosition.z - player.group.position.z,
         );
-        if (distanceTo < nearestDistance) {
+        if (
+          distanceTo < nearestDistance &&
+          (item.action.kind !== 'tool' || distanceTo <= FLAMETHROWER_PICKUP_DISTANCE) &&
+          (item.action.kind !== 'transport' || distanceTo <= worldRideMountDistance(item.action.id))
+        ) {
           nearby = item;
           nearestDistance = distanceTo;
         }
       }
-      const personNearby = social.nearest(player.group.position.x, player.group.position.z, nearestDistance);
+      const personNearby =
+        !ride || ride.altitude < 0.7
+          ? social.nearest(player.group.position.x, player.group.position.z, nearestDistance)
+          : null;
       if (personNearby) nearby = personNearby;
       const zone = WORLD_ZONES.reduce((nearest, candidate) =>
         Math.hypot(candidate.position[0] - player.group.position.x, candidate.position[1] - player.group.position.z) <
@@ -819,14 +1078,29 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           ? candidate
           : nearest,
       );
+      renderer.domElement.setAttribute(
+        'aria-label',
+        ride?.id === 'dragon'
+          ? 'Pubky world. The dragon flies itself. F to roll and breathe fire, E to land and get off. Drag to orbit.'
+          : flamethrower.equipped
+            ? 'Pubky world. W A S D or arrows to move. Drag to aim, hold mouse or B to fire, E to drop the flamethrower.'
+            : 'Pubky world. W A S D or arrows to move, Space to jump or fly up, C to fly down, E to interact, F to dance or perform a riding stunt.',
+      );
       options.onStatus({
         zone: zone.id,
         position: [player.group.position.x, player.group.position.z],
-        nearby: nearby?.title ?? null,
+        nearby: ride
+          ? ride.altitude > 0.12
+            ? 'Land to step off'
+            : `Get off ${transports.getStatus()?.name}`
+          : (nearby?.title ?? null),
+        ride: transports.getStatus(),
+        tool: flamethrower.equipped ? { id: 'flamethrower', firing: flamethrower.isFiring } : null,
         collected,
         ...theater.getStatus(),
       });
     }
+    updateShadows(cameraTarget, overview);
     renderer.render(scene, camera);
     cinemaScreen.render(camera, time);
   };
@@ -846,6 +1120,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     travelToPerson(id) {
       const person = social.findPerson(id);
       if (!person) return;
+      transports.reset();
       clearInput();
       portals.reset();
       const [x, z] = person.position;
@@ -858,8 +1133,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       lastStatus = -1;
     },
     setOverview(value) {
+      if (value) clearInput();
       if (overview !== value) {
         walkTarget = null;
+        pendingRide = null;
         pitch = value ? 0.72 : 0.26;
       }
       if (value) landmarkPose = null;
@@ -867,7 +1144,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       zoom = 1;
     },
     setChessGame(game) {
-      chess.setGame(game);
+      if (!burnUnavailable('zone:chess')) chess.setGame(game);
     },
     setPaused(value) {
       paused = value;
@@ -878,10 +1155,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const color = value ? '#03050C' : WORLD_PALETTE.background;
       scene.background = new THREE.Color(color);
       scene.fog = new THREE.Fog(color, 155, 330);
-      ambient.intensity = value ? 1.25 : 1.7;
-      sun.intensity = value ? 1.5 : 2.25;
+      ambient.intensity = value ? 1.2 : 1.65;
+      sun.intensity = value ? 1.3 : 2.45;
+      sun.color.set(value ? '#B7C7F1' : '#FFF0DC');
       rim.intensity = value ? 1.4 : 0.95;
-      (water.material as THREE.MeshStandardMaterial).color.set(value ? '#050A15' : '#0A1019');
+      scene.environmentIntensity = value ? 0.24 : 0.32;
+      pathFurniture.setNight(value);
+      stars.setNight(value);
+      (water.material as THREE.MeshStandardMaterial).color.set(value ? '#080F1D' : '#112027');
     },
     setReducedMotion(value) {
       reducedMotion = value;
@@ -891,6 +1172,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       }
     },
     setTheaterPaused(value) {
+      if (burnUnavailable('zone:theater')) return;
       theater.setPaused(value);
       lastStatus = -1;
     },
@@ -898,8 +1180,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       theater.setLoading(value);
     },
     stepTheater(delta) {
+      if (burnUnavailable('zone:theater')) return;
       theater.step(delta);
       lastStatus = -1;
+    },
+    setAvatarIdentities(viewer, people) {
+      if (disposed) return;
+      player.setAvatarIdentity(viewer);
+      social.setAvatarIdentities(people);
     },
     setPersonaColor(color) {
       if (/^#[0-9a-f]{6}$/i.test(color)) player.accent.color.set(color);
@@ -910,11 +1198,20 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         touch.z = THREE.MathUtils.clamp(z, -1, 1);
       }
     },
+    setRideLift(value) {
+      touch.lift = !paused && (value === -1 || value === 1) ? value : 0;
+    },
+    setFiring(value) {
+      buttonFiring = value === true && !paused && flamethrower.equipped && !transports.active;
+      if (buttonFiring) enterExplore();
+    },
+    stunt,
     jump,
     dance,
     interact,
     async capturePhoto() {
       if (disposed || capturingPhoto) return null;
+      clearInput();
       capturingPhoto = true;
       const frame = document.createElement('canvas');
       try {
@@ -967,18 +1264,31 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       renderer.domElement.removeEventListener('pointermove', pointerMove);
       renderer.domElement.removeEventListener('pointerup', pointerUp);
       renderer.domElement.removeEventListener('pointercancel', pointerCancel);
+      renderer.domElement.removeEventListener('lostpointercapture', pointerCancel);
+      renderer.domElement.removeEventListener('contextmenu', contextMenu);
       renderer.domElement.removeEventListener('wheel', wheel);
       landmarks.dispose();
+      burning.dispose();
+      pendingHumanBurns.clear();
+      fire.dispose();
+      flamethrower.dispose();
+      transports.dispose();
       player.dispose();
       tether.dispose();
       social.dispose();
+      avatarImages.dispose();
       jellyfish.dispose();
       planets.dispose();
       bank.dispose();
       conferences.dispose();
       chess.dispose();
       cinemaScreen.dispose();
+      terrain.dispose();
+      coastalNature.dispose();
+      pathFurniture.dispose();
       disposeObject(scene);
+      reflectionMap.dispose();
+      sun.shadow.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

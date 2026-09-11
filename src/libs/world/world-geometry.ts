@@ -66,25 +66,26 @@ export function label(
   background: string = WORLD_PALETTE.surface,
 ) {
   const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 128;
+  canvas.width = 1024;
+  canvas.height = 208;
   const context = canvas.getContext('2d');
   if (context) {
     context.fillStyle = background;
     context.beginPath();
-    context.roundRect(4, 4, 632, 120, 35);
+    context.roundRect(6, 6, 1012, 196, 32);
     context.fill();
     context.strokeStyle = WORLD_PALETTE.neutral;
-    context.lineWidth = 3;
+    context.lineWidth = 2;
     context.stroke();
     context.fillStyle = foreground;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.font = '600 42px sans-serif';
-    context.fillText(text.slice(0, 32), 320, 67, 570);
+    context.font = '600 64px sans-serif';
+    context.fillText(text.slice(0, 32), 512, 108, 928);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: texture, depthTest: false, fog: false, toneMapped: false }),
   );
@@ -96,7 +97,8 @@ export function label(
 }
 
 export function ring(parent: THREE.Object3D, radius: number, tube: number, color: string, position: Point3) {
-  const object = mesh(parent, new THREE.TorusGeometry(radius, tube, 6, 48), color, position);
+  const surface = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.12 });
+  const object = mesh(parent, new THREE.TorusGeometry(radius, tube, 10, 96), surface, position);
   object.rotation.x = Math.PI / 2;
   return object;
 }
@@ -107,12 +109,22 @@ export function disposeObject(root: THREE.Object3D) {
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
-    if (object instanceof THREE.Mesh) geometries.add(object.geometry);
-    if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
+    if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points)
+      geometries.add(object.geometry);
+    if (
+      object instanceof THREE.Mesh ||
+      object instanceof THREE.Line ||
+      object instanceof THREE.Points ||
+      object instanceof THREE.Sprite
+    ) {
       const values: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
       values.forEach((value) => {
         materials.add(value);
-        if ('map' in value && value.map instanceof THREE.Texture) textures.add(value.map);
+        // PBR detail uses shared bump/roughness maps as well as color textures.
+        // Collect each attached texture once, even when several surfaces reuse it.
+        for (const property of Object.values(value)) {
+          if (property instanceof THREE.Texture) textures.add(property);
+        }
       });
     }
   });

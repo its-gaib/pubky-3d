@@ -3,11 +3,14 @@ import withSerwistInit from '@serwist/next';
 import { withSentryConfig } from '@sentry/nextjs';
 import packageJson from './package.json';
 
+const lowMemoryDevelopment =
+  process.env.NODE_ENV === 'development' && process.env.PUBKY_WORLD_LOW_MEMORY_DEV === 'true';
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION ?? packageJson.version,
   },
-  reactCompiler: true,
+  reactCompiler: !lowMemoryDevelopment,
   // Source maps are generated for every build (browser + server), but the Sentry plugin upload
   // is disabled below. Docker builds inject Debug IDs and optionally upload maps when Sentry
   // build credentials are provided; public builds without those credentials skip upload.
@@ -19,6 +22,14 @@ const nextConfig: NextConfig = {
     cpus: 2,
     webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
+    ...(lowMemoryDevelopment
+      ? {
+          turbopackMemoryLimit: 384 * 1024 * 1024,
+          turbopackSourceMaps: false,
+          turbopackInputSourceMaps: false,
+          serverComponentsHmrCache: false,
+        }
+      : {}),
   },
   // Only use standalone output when building for Docker (set NEXT_STANDALONE=true)
   ...(process.env.NEXT_STANDALONE === 'true' && { output: 'standalone' }),
@@ -36,6 +47,15 @@ const nextConfig: NextConfig = {
     ];
   },
   webpack: (config, { isServer }) => {
+    if (lowMemoryDevelopment) {
+      // Next adds this development plugin before invoking the custom webpack hook.
+      // Removing only this plugin avoids generating inline maps on small local hosts.
+      config.plugins = config.plugins.filter(
+        (plugin: { constructor?: { name?: string } } | null | undefined) =>
+          plugin?.constructor?.name !== 'EvalSourceMapDevToolPlugin',
+      );
+    }
+
     if (isServer) {
       config.externals.push('@synonymdev/pubky');
     }

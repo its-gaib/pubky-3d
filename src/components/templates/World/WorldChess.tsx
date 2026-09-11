@@ -26,7 +26,7 @@ export function WorldChess({
           games…
         </p>
       ) : game ? (
-        <>
+        <div className={styles.chessMatch}>
           <strong>{incomplete ? 'Most recently updated game found' : 'Your latest saved Chessky game'}</strong>
           <p>
             <strong>{game.white.name}</strong> (White) versus <strong>{game.black.name}</strong> (Black)
@@ -35,7 +35,7 @@ export function WorldChess({
             Saved {new Date(game.updatedAt).toLocaleString()} · {game.result === '*' ? 'Game in progress' : game.result}
             . This is the position saved on your homeserver.
           </p>
-        </>
+        </div>
       ) : (
         <p>
           Wander between the obsidian and silver armies.{' '}
@@ -49,19 +49,26 @@ export function WorldChess({
           {error || 'Some saved games could not be checked. A newer position may still be out there.'}
         </p>
       )}
-      {signedIn ? (
-        <Button overrideDefaults className={styles.textLink} onClick={refresh} disabled={loading}>
-          <RefreshCw size={15} aria-hidden="true" /> Refresh saved board
-        </Button>
-      ) : (
-        <Button overrideDefaults className={styles.textLink} onClick={onSignIn}>
-          Sign in to find your game
-        </Button>
-      )}
-      <a href={WORLD_EXPERIMENTS.chess.url} target="_blank" rel="noopener noreferrer" className={styles.primaryButton}>
-        {WORLD_EXPERIMENTS.chess.action}
-        <ArrowUpRight size={15} aria-hidden="true" />
-      </a>
+      <div className={styles.panelActions}>
+        {signedIn ? (
+          <Button overrideDefaults className={styles.textLink} onClick={refresh} disabled={loading}>
+            <RefreshCw size={15} aria-hidden="true" /> Refresh saved board
+          </Button>
+        ) : (
+          <Button overrideDefaults className={styles.textLink} onClick={onSignIn}>
+            Sign in to find your game
+          </Button>
+        )}
+        <a
+          href={WORLD_EXPERIMENTS.chess.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.primaryButton}
+        >
+          {WORLD_EXPERIMENTS.chess.action}
+          <ArrowUpRight size={15} aria-hidden="true" />
+        </a>
+      </div>
     </div>
   );
 }

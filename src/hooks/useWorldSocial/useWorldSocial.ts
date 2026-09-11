@@ -34,6 +34,7 @@ export function useWorldSocial({
   const scope = `${active}:${rawViewerId ?? 'guest'}:${viewerId ?? 'guest'}:${hydrated}:${restoring}:${loggingOut}`;
   const [view, setView] = useState(EMPTY_WORLD_SOCIAL_VIEW);
   const [manager] = useState(() => new WorldSocialManager(setView));
+  const [ensureProfiles] = useState(() => (ids: string[]) => manager.ensureProfiles(ids));
 
   useLayoutEffect(() => {
     manager.configure(scope, active, rawViewerId, viewerId);
@@ -73,6 +74,7 @@ export function useWorldSocial({
     loadMore: manager.loadMore,
     retry: manager.retry,
     refresh: manager.refresh,
+    ensureProfiles,
     profile: person.profile,
     follow: person.follow,
   };

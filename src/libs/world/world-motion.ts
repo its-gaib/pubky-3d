@@ -5,6 +5,10 @@ export interface WorldObstacle {
   z: number;
   radius: number;
   enabled?: boolean;
+  /** Ground-to-top clearance used only by airborne rideables. */
+  height?: number;
+  /** Elevated panels have clear walking space below; only flight uses this lower bound. */
+  minHeight?: number;
 }
 
 export { WORLD_RADIUS } from '@/libs/world/world-layout';
@@ -23,7 +27,7 @@ export function movementStep(x: number, z: number, yaw: number, seconds: number,
 /** Slide around small solid props while keeping visitors on the island. */
 export function resolvePosition(x: number, z: number, obstacles: WorldObstacle[]) {
   for (const obstacle of obstacles) {
-    if (obstacle.enabled === false) continue;
+    if (obstacle.enabled === false || (obstacle.minHeight ?? 0) > 0) continue;
     const dx = x - obstacle.x;
     const dz = z - obstacle.z;
     const distance = Math.hypot(dx, dz);

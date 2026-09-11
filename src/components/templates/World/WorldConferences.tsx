@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarDays } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Plane } from 'lucide-react';
 import { WORLD_CONFERENCES } from '@/libs/world/world-conference-catalog';
 import styles from './World.module.css';
 
@@ -11,21 +11,24 @@ export function WorldConferences({ index }: { index?: number }) {
         <CalendarDays size={16} />
         Next stop: Pubky
       </div>
-      <p>Good conversations deserve a change of scenery. Find the Pubky crew beyond the island.</p>
+      <p className={styles.readerLead}>
+        Good conversations deserve a change of scenery. Find the Pubky crew beyond the island.
+      </p>
       <div className={styles.articleList}>
         {events.map((event) => (
-          <article key={event.id} className={styles.lessonCard}>
-            <span className={styles.lessonNumber} style={{ color: event.color }} aria-hidden="true">
-              ✦
+          <article key={event.id} className={styles.conferenceCard} style={{ borderTopColor: event.color }}>
+            <span className={styles.conferenceIcon} style={{ color: event.color }} aria-hidden="true">
+              <Plane size={23} />
             </span>
             <div>
-              <p className={styles.eyebrow}>
+              <p className={styles.conferenceLocation}>
                 {event.city} · {event.country}
               </p>
               <h3>{event.name}</h3>
-              <p>
-                <strong>{event.dateLabel}</strong>
-              </p>
+              <div className={styles.conferenceDate}>
+                <CalendarDays size={14} aria-hidden="true" />
+                {event.dateLabel}
+              </div>
               <p>{event.description}</p>
               <a href={event.url} target="_blank" rel="noopener noreferrer" className={styles.textLink}>
                 Explore the event

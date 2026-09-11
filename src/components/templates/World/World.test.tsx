@@ -1,11 +1,17 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseWorldSocialOptions } from '@/hooks/useWorldSocial/useWorldSocial.types';
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
 import { consumeWorldEntry, requestWorldEntry } from '@/libs/world/world-entry';
-import type { WorldController, WorldData, WorldInteraction, WorldOptions } from '@/libs/world/world-types';
+import type {
+  WorldController,
+  WorldData,
+  WorldInteraction,
+  WorldOptions,
+  WorldRideStatus,
+} from '@/libs/world/world-types';
 import { World } from './World';
 import type { WorldSocialState } from './WorldSocialPanel';
 
@@ -24,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     travelTo: vi.fn(),
     setSocialView: vi.fn(),
     setSocialFocus: vi.fn(),
+    setAvatarIdentities: vi.fn(),
     setChessGame: vi.fn(),
     travelToPerson: vi.fn(),
     setOverview: vi.fn(),
@@ -35,6 +42,9 @@ const mocks = vi.hoisted(() => ({
     stepTheater: vi.fn(),
     setPersonaColor: vi.fn(),
     setMove: vi.fn(),
+    setRideLift: vi.fn(),
+    setFiring: vi.fn(),
+    stunt: vi.fn(),
     jump: vi.fn(),
     dance: vi.fn(),
     interact: vi.fn(),
@@ -48,6 +58,7 @@ vi.mock('@/libs/world/world-scene', () => ({ createWorld: mocks.createWorld }));
 vi.mock('@/hooks/useWorldData/useWorldData', () => ({ useWorldData: mocks.useWorldData }));
 vi.mock('@/hooks/useWorldChess/useWorldChess', () => ({ useWorldChess: mocks.useWorldChess }));
 vi.mock('@/hooks/useWorldSocial/useWorldSocial', () => ({ useWorldSocial: mocks.useWorldSocial }));
+vi.mock('@/libs/world/world-network', () => ({ isWorldProductionConfigured: () => true }));
 vi.mock('@/hooks/useAuthStatus/useAuthStatus', () => ({ useAuthStatus: () => mocks.auth }));
 vi.mock('@/hooks/useWorldAccount/useWorldAccount', async () => {
   const { useState } = await import('react');
@@ -130,6 +141,7 @@ function socialState(overrides: Partial<WorldSocialState> = {}): WorldSocialStat
     loadMore: vi.fn(),
     retry: vi.fn(),
     refresh: vi.fn(),
+    ensureProfiles: vi.fn().mockResolvedValue(undefined),
     profile: { person: null, latestPost: null, status: 'empty', error: null },
     follow: {
       pending: false,
@@ -159,6 +171,36 @@ async function interact(interaction: WorldInteraction) {
   await act(async () => mocks.createWorld.mock.calls[0][1].onInteract(interaction));
 }
 
+const JETPACK_RIDE: WorldRideStatus = {
+  id: 'jetpack',
+  name: 'Jetpack',
+  speed: 12,
+  altitude: 6,
+  grounded: false,
+  stunt: null,
+};
+
+async function updateRide(ride: WorldRideStatus | null, nearby: string | null = null) {
+  await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+  await act(async () =>
+    mocks.createWorld.mock.calls[0][1].onStatus({
+      zone: 'plaza',
+      position: [0, 8],
+      nearby,
+      collected: 0,
+      theaterIndex: 0,
+      theaterPaused: false,
+      ride,
+    }),
+  );
+}
+
+function ridePointer(target: HTMLElement, type: string, pointerId = 1) {
+  const event = new MouseEvent(type, { bubbles: true, button: 0 });
+  Object.defineProperty(event, 'pointerId', { value: pointerId });
+  fireEvent(target, event);
+}
+
 beforeEach(() => {
   mocks.auth.isFullyAuthenticated = false;
   mocks.auth.isLoading = false;
@@ -181,6 +223,256 @@ afterEach(() => {
 });
 
 describe('World', () => {
+  it('shows controls after mounting a discovered ride and preserves touch movement and jumping', async () => {
+    render(<World />);
+    await updateRide(null, 'Skateboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    expect(screen.queryByRole('button', { name: 'Perform a stunt' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Skateboard/ }));
+    expect(mocks.controller.interact).toHaveBeenCalledOnce();
+
+    const skateboard: WorldRideStatus = {
+      ...JETPACK_RIDE,
+      id: 'skateboard',
+      name: 'Skateboard',
+      speed: 24.4,
+      altitude: 0,
+      grounded: true,
+    };
+    await updateRide(skateboard, 'Talk to Avery');
+    const controls = screen.getByRole('region', { name: 'Skateboard riding controls' });
+    expect(within(controls).getByLabelText('Speed 24')).toBeInTheDocument();
+    expect(screen.queryByText('Talk to Avery')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hold to ascend' })).not.toBeInTheDocument();
+    fireEvent.click(within(controls).getByRole('button', { name: 'Perform a stunt' }));
+    expect(mocks.controller.stunt).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Jump' }));
+    expect(mocks.controller.jump).toHaveBeenCalledOnce();
+
+    const forward = screen.getByRole('button', { name: 'Walk forward' });
+    forward.setPointerCapture = vi.fn();
+    ridePointer(forward, 'pointerdown');
+    expect(mocks.controller.setMove).toHaveBeenLastCalledWith(0, -1);
+    ridePointer(forward, 'pointercancel');
+    expect(mocks.controller.setMove).toHaveBeenLastCalledWith(0, 0);
+    await updateRide({ ...skateboard, altitude: 0.5, grounded: false });
+    expect(within(controls).getByRole('button', { name: 'Get off Skateboard' })).toBeDisabled();
+    expect(within(controls).getByText('Land to step off')).toBeInTheDocument();
+    await updateRide({ ...skateboard, stunt: 'Kickflip' });
+    expect(within(controls).getByRole('button', { name: 'Get off Skateboard' })).toBeDisabled();
+    expect(within(controls).getByText('Finish the stunt to step off')).toBeInTheDocument();
+    await updateRide(skateboard);
+    fireEvent.click(within(controls).getByRole('button', { name: 'Get off Skateboard' }));
+    expect(mocks.controller.interact).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
+    await updateRide(null, 'Skateboard');
+    expect(screen.queryByRole('region', { name: 'Skateboard riding controls' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Skateboard/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jump' })).toBeInTheDocument();
+  });
+
+  it('supports held jetpack controls and releases the correct pointer on lift cancellation', async () => {
+    const ride = JETPACK_RIDE;
+    render(<World />);
+    await updateRide(ride);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const ascend = screen.getByRole('button', { name: 'Hold to ascend' });
+    const descend = screen.getByRole('button', { name: 'Hold to descend' });
+    expect(screen.queryByRole('button', { name: 'Jump' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `Get off ${ride.name}` })).toBeDisabled();
+    expect(screen.getByText('Land to step off')).toBeInTheDocument();
+    mocks.controller.setRideLift.mockClear();
+
+    ridePointer(ascend, 'pointerdown', 1);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    ridePointer(ascend, 'pointerup', 99);
+    expect(mocks.controller.setRideLift).toHaveBeenCalledTimes(1);
+    ridePointer(descend, 'pointerdown', 2);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    ridePointer(descend, 'pointercancel', 2);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    ridePointer(ascend, 'lostpointercapture', 1);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    ridePointer(descend, 'pointerdown', 3);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(-1);
+    ridePointer(descend, 'pointerup', 3);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+
+    await updateRide({ ...ride, altitude: 0.5, grounded: false });
+    expect(screen.getByRole('button', { name: `Get off ${ride.name}` })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: `Get off ${ride.name}` }));
+    expect(mocks.controller.interact).not.toHaveBeenCalled();
+    await updateRide({ ...ride, altitude: 0.12, grounded: true });
+    expect(screen.getByRole('button', { name: `Get off ${ride.name}` })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: `Get off ${ride.name}` }));
+    expect(mocks.controller.interact).toHaveBeenCalledOnce();
+  });
+
+  it('treats the dragon as a passenger ride and keeps landing available while airborne', async () => {
+    render(<World />);
+    const dragon: WorldRideStatus = { ...JETPACK_RIDE, id: 'dragon', name: 'Dragon', altitude: 24 };
+    await updateRide(dragon);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const controls = screen.getByRole('region', { name: 'Dragon riding controls' });
+    expect(screen.queryByRole('button', { name: 'Hold to ascend' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hold to descend' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Jump' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Walk forward' })).not.toBeInTheDocument();
+    fireEvent.click(within(controls).getByRole('button', { name: 'Perform a stunt' }));
+    expect(mocks.controller.stunt).toHaveBeenCalledOnce();
+    const land = within(controls).getByRole('button', { name: 'Land and get off dragon' });
+    expect(land).toBeEnabled();
+    fireEvent.click(land);
+    expect(mocks.controller.interact).toHaveBeenCalledOnce();
+    await updateRide({ ...dragon, landing: true });
+    expect(land).toBeDisabled();
+    expect(within(controls).getByRole('button', { name: 'Perform a stunt' })).toBeDisabled();
+    expect(within(controls).getByText('Finding clear ground and landing…')).toBeInTheDocument();
+    await updateRide(null);
+    expect(screen.queryByRole('region', { name: 'Dragon riding controls' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Walk forward' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jump' })).toBeInTheDocument();
+  });
+
+  it('shows the equipped flamethrower controls and stops held fire when a panel opens', async () => {
+    render(<World />);
+    await updateRide(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus({
+        zone: 'plaza',
+        position: [0, 8],
+        nearby: null,
+        collected: 0,
+        theaterIndex: 0,
+        theaterPaused: false,
+        tool: { id: 'flamethrower', firing: false },
+      }),
+    );
+    const fire = screen.getByRole('button', { name: 'Hold to fire flamethrower' });
+    ridePointer(fire, 'pointerdown', 4);
+    expect(mocks.controller.setFiring).toHaveBeenLastCalledWith(true);
+    await interact({ kind: 'zone', id: 'university' });
+    expect(screen.queryByRole('region', { name: 'Flamethrower controls' })).not.toBeInTheDocument();
+    expect(mocks.controller.setFiring).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps jetpack lift held through status updates and stops it on blur, visibility and ride changes', async () => {
+    const { unmount } = render(<World />);
+    await updateRide(JETPACK_RIDE);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const ascend = screen.getByRole('button', { name: 'Hold to ascend' });
+    ridePointer(ascend, 'pointerdown');
+    mocks.controller.setRideLift.mockClear();
+    await updateRide({ ...JETPACK_RIDE, speed: 18, altitude: 8 });
+    expect(mocks.controller.setRideLift).not.toHaveBeenCalled();
+    fireEvent(window, new Event('blur'));
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    ridePointer(ascend, 'pointerdown', 2);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    fireEvent(document, new Event('visibilitychange'));
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    ridePointer(ascend, 'pointerdown', 3);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    await updateRide({ ...JETPACK_RIDE, id: 'bmx', name: 'BMX', altitude: 0, grounded: true });
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    expect(screen.getByRole('button', { name: 'Jump' })).toBeInTheDocument();
+    await updateRide(JETPACK_RIDE);
+    ridePointer(screen.getByRole('button', { name: 'Hold to ascend' }), 'pointerdown', 4);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    unmount();
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+  });
+
+  it('supports keyboard activation of held lift buttons and releases on focus loss', async () => {
+    render(<World />);
+    await updateRide(JETPACK_RIDE);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const ascend = screen.getByRole('button', { name: 'Hold to ascend' });
+    const descend = screen.getByRole('button', { name: 'Hold to descend' });
+    fireEvent.keyDown(ascend, { key: ' ' });
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    mocks.controller.setRideLift.mockClear();
+    fireEvent.keyDown(ascend, { key: ' ', repeat: true });
+    expect(mocks.controller.setRideLift).not.toHaveBeenCalled();
+    fireEvent.keyUp(ascend, { key: ' ' });
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    fireEvent.keyDown(descend, { key: 'Enter' });
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(-1);
+    fireEvent.blur(descend);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+  });
+
+  it('releases jetpack lift before opening a world panel and resumes with no held lift', async () => {
+    const user = userEvent.setup();
+    render(<World />);
+    await updateRide(JETPACK_RIDE);
+    await user.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    ridePointer(screen.getByRole('button', { name: 'Hold to ascend' }), 'pointerdown');
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    await user.click(screen.getByRole('button', { name: 'World settings' }));
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('button', { name: 'Hold to ascend' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close and return to world' }));
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Hold to ascend' })).toBeInTheDocument();
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+  });
+
+  it('releases jetpack lift while a photo is captured and preserves the mounted controls afterward', async () => {
+    let finishCapture!: (value: Blob | null) => void;
+    mocks.controller.capturePhoto.mockReturnValueOnce(
+      new Promise<Blob | null>((resolve) => {
+        finishCapture = resolve;
+      }),
+    );
+    render(<World />);
+    await updateRide(JETPACK_RIDE);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    ridePointer(screen.getByRole('button', { name: 'Hold to ascend' }), 'pointerdown');
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Take a photo' }));
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+    expect(screen.queryByRole('button', { name: 'Hold to ascend' })).not.toBeInTheDocument();
+    await act(async () => finishCapture(null));
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Hold to ascend' })).toBeInTheDocument();
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+  });
+
+  it('passes approved current profile images to the scene and removes the player identity on logout', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.account = {
+      id: VIEWER_ID,
+      name: 'Avery',
+      avatarUrl: `https://nexus.pubky.app/static/avatar/${VIEWER_ID}`,
+    };
+    const state = socialState({ viewerId: VIEWER_ID, status: 'ready' });
+    mocks.useWorldSocial.mockReturnValue(state);
+    const { rerender } = render(<World />);
+    await waitFor(() =>
+      expect(mocks.controller.setAvatarIdentities).toHaveBeenLastCalledWith(
+        { id: VIEWER_ID, avatarUrl: mocks.account!.avatarUrl },
+        [{ id: PERSON_ID, avatarUrl: AVATAR_URL }],
+      ),
+    );
+    mocks.auth.isFullyAuthenticated = false;
+    mocks.account = null;
+    // The old social state can survive one render while the hook clears its owner.
+    rerender(<World />);
+    expect(mocks.controller.setAvatarIdentities).toHaveBeenLastCalledWith(null, []);
+    mocks.useWorldSocial.mockReturnValue(socialState());
+    rerender(<World />);
+    await waitFor(() =>
+      expect(mocks.controller.setAvatarIdentities).toHaveBeenLastCalledWith(null, [
+        { id: PERSON_ID, avatarUrl: AVATAR_URL },
+      ]),
+    );
+  });
+
   it('pauses the world while the own-profile menu is open and resumes after dismissal', async () => {
     mocks.auth.isFullyAuthenticated = true;
     mocks.account = { id: VIEWER_ID, name: 'Avery' };
@@ -655,6 +947,20 @@ describe('World', () => {
       'href',
       'https://tether.io/news/plan-b-initiative-unveils-satoshi-nakamoto-statue-at-3rd-annual-plan-forum-in-lugano/',
     );
+  });
+
+  it('shows the exact hot-sauce image locally and links to Bitkit updates without authentication', async () => {
+    render(<World />);
+    await interact({ kind: 'fun', id: 'hot-sauce' });
+    expect(screen.getByRole('heading', { name: 'BITKIT HOT SAUCE' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Bitkit Fiat Meltdown hot sauce bottle/ })).toHaveAttribute(
+      'src',
+      '/world/bitkit-hot-sauce-fiat-meltdown.jpg',
+    );
+    const link = screen.getByRole('link', { name: 'Follow @bitkitwallet' });
+    expect(link).toHaveAttribute('href', 'https://x.com/bitkitwallet');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(mocks.requireAuth).not.toHaveBeenCalled();
   });
 
   it.each([
