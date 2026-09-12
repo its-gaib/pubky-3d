@@ -19,6 +19,7 @@ import {
   worldRideCanFly,
   worldRideIsAutonomous,
   worldRideMountDistance,
+  worldRidePreventsZombieBite,
 } from '@/libs/world/world-transport-motion';
 
 const neutral: RideInput = { x: 0, z: 0, yaw: 0, lift: 0 };
@@ -31,7 +32,28 @@ function advance(motion: RideMotion, seconds: number, input: Partial<RideInput> 
 }
 
 describe('world transport motion', () => {
-  it('keeps the five vehicles and adds a distinct dragon while requiring nearby ground contact to mount', () => {
+  it('protects an airborne dragon rider even in low flight, until landing', () => {
+    const ride = createRideMotion('dragon', 0, 0, 0);
+    expect(worldRidePreventsZombieBite(ride)).toBe(false);
+    // Low flight is still within the zombies' usual vertical bite reach.
+    ride.altitude = 0.5;
+    expect(rideStatus(ride).grounded).toBe(false);
+    expect(worldRidePreventsZombieBite(ride)).toBe(true);
+    ride.altitude = 12;
+    expect(worldRidePreventsZombieBite(ride)).toBe(true);
+    ride.altitude = 0.12;
+    expect(rideStatus(ride).grounded).toBe(true);
+    expect(worldRidePreventsZombieBite(ride)).toBe(false);
+  });
+
+  it('keeps the kart protective on the ground while other ground rides rely on their own defenses', () => {
+    expect(worldRidePreventsZombieBite(createRideMotion('kart', 0, 0, 0))).toBe(true);
+    for (const id of ['skateboard', 'bmx', 'hoverboard', 'horse', 'jetpack'] as const)
+      expect(worldRidePreventsZombieBite(createRideMotion(id, 0, 0, 0))).toBe(false);
+    expect(worldRidePreventsZombieBite(null)).toBe(false);
+  });
+
+  it('keeps every existing ride alongside the horse and requires nearby ground contact to mount', () => {
     expect(WORLD_RIDEABLES.map(({ id }) => id)).toEqual([
       'skateboard',
       'jetpack',
@@ -39,9 +61,10 @@ describe('world transport motion', () => {
       'bmx',
       'hoverboard',
       'dragon',
+      'horse',
     ]);
     expect(new Set(WORLD_RIDEABLES.map(({ speed }) => speed)).size).toBe(6);
-    expect(new Set(WORLD_RIDEABLES.map(({ stunt }) => stunt)).size).toBe(6);
+    expect(new Set(WORLD_RIDEABLES.map(({ stunt }) => stunt)).size).toBe(7);
     const item = { x: 0, z: -10 };
     expect(canMountRide({ ...item, y: 0.15 }, item)).toBe(true);
     expect(canMountRide({ x: item.x + RIDE_MOUNT_DISTANCE, y: 0.15, z: item.z }, item)).toBe(true);

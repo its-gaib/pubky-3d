@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createWorldDragonModel } from '@/libs/world/world-dragon';
 import { type Point3, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { createWorldHorseModel } from '@/libs/world/world-horse';
 import { createLandmarkBuilder, type LandmarkBuilder, type LandmarkSurface } from '@/libs/world/world-landmark-details';
 import type { WorldRideableId } from '@/libs/world/world-types';
 
@@ -700,6 +701,7 @@ function hoverboard(builder: LandmarkBuilder, root: THREE.Group) {
 /** Ground rests at Y=0; forward is +Z. Every model owns its shared resources. */
 export function createWorldTransportModel(kind: WorldRideableId): THREE.Group {
   if (kind === 'dragon') return createWorldDragonModel();
+  if (kind === 'horse') return createWorldHorseModel();
   const root = new THREE.Group();
   root.name = `transport-${kind}`;
   root.userData.transportKind = kind;

@@ -1,0 +1,41 @@
+import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import { disposeObject } from '@/libs/world/world-geometry';
+import { applyWorldZombieVision } from '@/libs/world/world-zombie-vision';
+
+describe('zombie vision', () => {
+  it('darkens glowing scenery, basic surfaces, sprites and shaders while preserving living prey and the player', () => {
+    const scene = new THREE.Scene();
+    const glowing = new THREE.MeshStandardMaterial({ color: '#FFFFFF', emissive: '#FFFFFF', emissiveIntensity: 3 });
+    const basic = new THREE.MeshBasicMaterial({ color: '#FFFFFF' });
+    const sprite = new THREE.SpriteMaterial({ color: '#FFFFFF' });
+    const shader = new THREE.ShaderMaterial();
+    for (const material of [glowing, basic, shader]) scene.add(new THREE.Mesh(new THREE.BoxGeometry(), material));
+    scene.add(new THREE.Sprite(sprite));
+    const prey = new THREE.Group();
+    prey.userData.worldPerson = true;
+    const skin = new THREE.MeshStandardMaterial({ color: '#FCE8BC', emissive: '#BDA568' });
+    prey.add(new THREE.Mesh(new THREE.BoxGeometry(), skin));
+    scene.add(prey);
+    const player = new THREE.Group();
+    player.userData.worldPlayer = true;
+    const playerMaterial = new THREE.MeshStandardMaterial({ color: '#719654' });
+    player.add(new THREE.Mesh(new THREE.BoxGeometry(), playerMaterial));
+    scene.add(player);
+    applyWorldZombieVision(scene);
+    expect(glowing.color.r).toBeLessThan(0.01);
+    expect(glowing.emissiveIntensity).toBe(0);
+    expect(glowing.envMapIntensity).toBe(0);
+    expect(basic.color.r).toBeLessThan(0.01);
+    expect(sprite.opacity).toBeLessThan(0.1);
+    expect(shader.visible).toBe(false);
+    expect(skin.color.getHexString()).toBe('fce8bc');
+    expect(playerMaterial.color.getHexString()).toBe('719654');
+    const late = new THREE.MeshBasicMaterial({ color: '#FFFFFF' });
+    scene.add(new THREE.Mesh(new THREE.BoxGeometry(), late));
+    applyWorldZombieVision(scene);
+    expect(late.color.r).toBeLessThan(0.01);
+    expect(skin.color.getHexString()).toBe('fce8bc');
+    disposeObject(scene);
+  });
+});

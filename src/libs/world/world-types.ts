@@ -98,7 +98,7 @@ export interface PersonaState {
   animation: 'idle' | 'walk' | 'jump' | 'dance';
 }
 
-export type WorldRideableId = 'skateboard' | 'jetpack' | 'kart' | 'bmx' | 'hoverboard' | 'dragon';
+export type WorldRideableId = 'skateboard' | 'jetpack' | 'kart' | 'bmx' | 'hoverboard' | 'dragon' | 'horse';
 
 export interface WorldRideStatus {
   id: WorldRideableId;
@@ -108,6 +108,7 @@ export interface WorldRideStatus {
   grounded: boolean;
   stunt: string | null;
   landing?: boolean;
+  horse?: { remaining: number; tired: boolean };
 }
 
 export interface WorldStatus {
@@ -119,6 +120,8 @@ export interface WorldStatus {
   theaterPaused: boolean;
   ride?: WorldRideStatus | null;
   tool?: { id: 'flamethrower'; firing: boolean } | null;
+  /** Local outbreak state; a fresh scene starts a new population. */
+  infection?: { bitten: boolean; humans: number; zombies: number };
 }
 
 export interface WorldOptions {

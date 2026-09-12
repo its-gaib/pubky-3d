@@ -266,6 +266,26 @@ describe('bounded world fire effects', () => {
     });
   });
 
+  it('keeps corpse flames visible beyond the active fire cap while allowing fresh fire emitters', () => {
+    const { scene, fire, view } = create();
+    const corpse = new THREE.Box3(new THREE.Vector3(-1, 0.1, -1), new THREE.Vector3(1, 0.8, 1));
+    for (let index = 0; index < 80; index++) {
+      fire.ignite(`corpse-${index}`, corpse);
+      fire.smolder(`corpse-${index}`, corpse);
+    }
+    const fresh = corpse.clone().translate(new THREE.Vector3(100, 0, 0));
+    fire.ignite('fresh', fresh);
+    for (let tick = 0; tick < 80; tick++) fire.tick(0.05, tick * 0.05, view, true);
+    const retained = scene.getObjectByName('world-smoldering-corpse-flames') as THREE.InstancedMesh;
+    expect(retained.count).toBe(240);
+    expect(retained.instanceMatrix.array.every(Number.isFinite)).toBe(true);
+    expect(activeParticles(scene).every((point) => point.x > 95)).toBe(true);
+    expect(activeParticles(scene).length).toBeGreaterThan(10);
+    fire.remove('corpse-0');
+    fire.tick(0, 10, view, true);
+    expect(retained.count).toBe(237);
+  });
+
   it('owns four shared materials and disposes their procedural textures and geometry exactly once', () => {
     const { scene, fire, view } = create();
     const root = scene.getObjectByName('world-fire-effects')!;

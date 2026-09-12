@@ -26,6 +26,7 @@ import {
   Play,
   Scissors,
   Settings2,
+  Skull,
   Sparkles,
   Sun,
   Theater,
@@ -813,6 +814,7 @@ export function World() {
   const autoActorRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WorldController | null>(null);
+  const bittenRef = useRef(false);
   const initialData = useRef(data);
   const dataLoadingRef = useRef(dataStatus === 'loading');
   const [sceneState, setSceneState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -826,6 +828,8 @@ export function World() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
+  const isZombie = worldStatus.infection?.bitten ?? false;
+  const horseback = worldStatus.ride?.id === 'horse';
   const autonomousRide = worldRideIsAutonomous(worldStatus.ride?.id);
 
   useEffect(() => {
@@ -896,6 +900,8 @@ export function World() {
   useEffect(() => {
     let cancelled = false;
     let controller: WorldController | null = null;
+    bittenRef.current = false;
+    setWorldStatus(INITIAL_STATUS);
     setSceneState('loading');
     void import('@/libs/world/world-scene')
       .then(({ createWorld }) => {
@@ -903,7 +909,7 @@ export function World() {
         controller = createWorld(containerRef.current, {
           data: initialData.current,
           onInteract: (interaction) => {
-            if (!cancelled) {
+            if (!cancelled && !bittenRef.current) {
               if (interaction.kind === 'social-cluster') {
                 setSectorPreviewPage(0);
                 setWelcome(false);
@@ -913,7 +919,21 @@ export function World() {
             }
           },
           onStatus: (nextStatus) => {
-            if (!cancelled) setWorldStatus(nextStatus);
+            if (cancelled) return;
+            if (nextStatus.infection?.bitten && !bittenRef.current) {
+              bittenRef.current = true;
+              setPanel(null);
+              setCameraOpen(false);
+              setAccountMenuOpen(false);
+              setWelcome(false);
+              setOverview(false);
+              controller?.setRideLift(0);
+              controller?.setFiring(false);
+              controller?.setMove(0, 0);
+              controller?.setPaused(false);
+              containerRef.current?.focus({ preventScroll: true });
+            }
+            setWorldStatus(nextStatus);
           },
           onReady: () => {
             if (!cancelled) setSceneState('ready');
@@ -967,13 +987,13 @@ export function World() {
     controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
   }, [dataStatus]);
   useEffect(() => {
-    const paused = panel !== null || cameraOpen || accountMenuOpen;
+    const paused = !isZombie && (panel !== null || cameraOpen || accountMenuOpen);
     if (paused) {
       controllerRef.current?.setRideLift(0);
       controllerRef.current?.setFiring(false);
     }
     controllerRef.current?.setPaused(paused);
-  }, [panel, cameraOpen, accountMenuOpen, sceneState]);
+  }, [panel, cameraOpen, accountMenuOpen, sceneState, isZombie]);
   useEffect(() => {
     if (panel?.kind === 'zone' && panel.id === 'theater') {
       controllerRef.current?.setTheaterPaused(true);
@@ -1014,6 +1034,7 @@ export function World() {
     containerRef.current?.focus({ preventScroll: true });
   }
   function selectPanel(nextPanel: Panel) {
+    if (bittenRef.current) return;
     controllerRef.current?.setPaused(true);
     setPanel(nextPanel);
   }
@@ -1032,6 +1053,7 @@ export function World() {
     travelTo('plaza');
   }
   function travelTo(destination: WorldZoneId, options?: { faceLandmark?: boolean }) {
+    if (bittenRef.current) return;
     setWelcome(false);
     setOverview(false);
     setPanel(null);
@@ -1045,6 +1067,7 @@ export function World() {
     containerRef.current?.focus({ preventScroll: true });
   }
   function visitPerson(id: string) {
+    if (bittenRef.current) return;
     const view = socialViewForPerson(data.people, id);
     if (!view) return;
     setSocialView(view);
@@ -1084,6 +1107,7 @@ export function World() {
     }
   }
   function perform(action: 'dance' | 'jump') {
+    if (bittenRef.current) return;
     setPanel(null);
     setWelcome(false);
     setOverview(false);
@@ -1100,19 +1124,26 @@ export function World() {
       data-world-zone={worldStatus.zone}
       data-world-ride={worldStatus.ride?.id ?? 'walking'}
       data-world-tool={worldStatus.tool?.id ?? 'none'}
+      data-world-zombie={isZombie}
+      data-world-humans={worldStatus.infection?.humans}
+      data-world-zombies={worldStatus.infection?.zombies}
       data-welcome={welcome}
-      data-map-visible={showMap && !welcome}
+      data-map-visible={showMap && !welcome && !isZombie}
     >
       <div
         ref={containerRef}
         className={styles.canvas}
         tabIndex={0}
         aria-label={
-          autonomousRide
-            ? 'Interactive Pubky island. The dragon flies itself. Press F to roll and breathe fire or E to land and get off. Drag to orbit the camera.'
-            : worldStatus.tool
-              ? 'Interactive Pubky island. Drag to aim, hold the mouse or B to fire, and press E to drop the flamethrower. Use W A S D or arrow keys to move.'
-              : 'Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera.'
+          isZombie
+            ? 'You are a zombie. Use W A S D or arrow keys to shamble toward living people and E to bite. Drag to orbit the camera.'
+            : horseback
+              ? 'Ride the horse with W A S D or arrow keys. Your knight swings a sword automatically. Ride into zombies to knock them down. E to get off.'
+              : autonomousRide
+                ? 'Interactive Pubky island. The dragon flies itself. Press F to roll and breathe fire or E to land and get off. Drag to orbit the camera.'
+                : worldStatus.tool
+                  ? 'Interactive Pubky island. Drag to aim, hold the mouse or B to fire, and press E to drop the flamethrower. Use W A S D or arrow keys to move.'
+                  : 'Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera.'
         }
       />
       <div className={styles.vignette} aria-hidden="true" />
@@ -1127,12 +1158,14 @@ export function World() {
           </span>
           <span className={styles.experiment}>EXPERIMENT</span>
         </div>
-        <div className={styles.topActions}>
-          <WorldAccountMenu personaColor={personaColor} onOpenChange={setAccountMenuOpen} />
-        </div>
+        {!isZombie && (
+          <div className={styles.topActions}>
+            <WorldAccountMenu personaColor={personaColor} onOpenChange={setAccountMenuOpen} />
+          </div>
+        )}
       </header>
 
-      {dataError && (
+      {dataError && !isZombie && (
         <div className={styles.dataNotice} role="status">
           <Info size={15} />
           <span>{dataError}</span>
@@ -1233,7 +1266,18 @@ export function World() {
         </div>
       )}
 
-      {!welcome && (
+      {isZombie && (
+        <section className={styles.zombieNotice} aria-labelledby="world-bitten-title">
+          <div role="alert">
+            <Skull size={26} aria-hidden="true" />
+            <h1 id="world-bitten-title">You&apos;ve been bitten by a Zombie</h1>
+            <p>Find the glowing people. Walk up close, then press E or Bite to infect them.</p>
+          </div>
+          <span>{worldStatus.infection?.humans ?? 0} living people remain</span>
+        </section>
+      )}
+
+      {!welcome && !isZombie && (
         <div className={styles.location}>
           <span className={styles.locationDot} />
           <div>
@@ -1250,7 +1294,7 @@ export function World() {
         </div>
       )}
 
-      {showMap && !welcome && (
+      {showMap && !welcome && !isZombie && (
         <aside id="world-pocket-map" className={styles.minimap} aria-label="Island map">
           <div className={styles.mapHeader}>
             <span>POCKET MAP</span>
@@ -1322,6 +1366,7 @@ export function World() {
       )}
 
       {!welcome &&
+        !isZombie &&
         !panel &&
         !cameraOpen &&
         (worldStatus.zone === 'plaza' || socialView.sector !== null || socialViewChanged) && (
@@ -1420,7 +1465,7 @@ export function World() {
           </aside>
         )}
 
-      {worldStatus.nearby && !worldStatus.ride && !worldStatus.tool && !welcome && !panel && (
+      {!isZombie && worldStatus.nearby && !worldStatus.ride && !worldStatus.tool && !welcome && !panel && (
         <Button overrideDefaults className={styles.interactPrompt} onClick={() => controllerRef.current?.interact()}>
           <kbd>E</kbd>
           <span>{worldStatus.nearby}</span>
@@ -1428,7 +1473,23 @@ export function World() {
         </Button>
       )}
 
-      {worldStatus.ride && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+      {isZombie && (
+        <Button
+          overrideDefaults
+          className={`${styles.interactPrompt} ${styles.biteButton}`}
+          onClick={() => {
+            controllerRef.current?.interact();
+            containerRef.current?.focus({ preventScroll: true });
+          }}
+          aria-label="Bite a nearby person"
+        >
+          <kbd>E</kbd>
+          <span>Bite</span>
+          <Skull size={18} aria-hidden="true" />
+        </Button>
+      )}
+
+      {!isZombie && worldStatus.ride && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
         <WorldRideControls
           ride={worldStatus.ride}
           onLift={(value) => controllerRef.current?.setRideLift(value)}
@@ -1443,7 +1504,7 @@ export function World() {
         />
       )}
 
-      {worldStatus.tool && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+      {!isZombie && worldStatus.tool && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
         <WorldToolControls
           firing={worldStatus.tool.firing}
           onFire={(value) => controllerRef.current?.setFiring(value)}
@@ -1454,7 +1515,7 @@ export function World() {
         />
       )}
 
-      {!autonomousRide && (
+      {(isZombie || !autonomousRide) && (
         <div className={styles.touchControls} aria-label="Touch movement controls">
           <div className={styles.directionPad}>
             {[
@@ -1466,7 +1527,7 @@ export function World() {
               <Button
                 overrideDefaults
                 key={label}
-                aria-label={label}
+                aria-label={isZombie ? label.replace('Walk', 'Shamble') : label}
                 style={{ gridArea: area }}
                 onPointerDown={(event) => {
                   event.preventDefault();
@@ -1483,7 +1544,7 @@ export function World() {
               </Button>
             ))}
           </div>
-          {!worldRideCanFly(worldStatus.ride?.id) && (
+          {!isZombie && !horseback && !worldRideCanFly(worldStatus.ride?.id) && (
             <Button
               overrideDefaults
               className={styles.touchJump}
@@ -1504,10 +1565,16 @@ export function World() {
       <footer className={styles.bottomBar}>
         <div className={styles.worldStamp}>
           <Orbit size={15} />
-          <span>AN OPEN WEB, WITH ROOM TO WANDER.</span>
+          <span>
+            {isZombie
+              ? 'FOLLOW THE LIVING.'
+              : worldStatus.infection && !welcome
+                ? `${worldStatus.infection.humans} people · ${worldStatus.infection.zombies} zombies`
+                : 'AN OPEN WEB, WITH ROOM TO WANDER.'}
+          </span>
         </div>
         <div className={styles.movementHelp}>
-          {autonomousRide ? (
+          {autonomousRide && !isZombie ? (
             <span>
               <kbd>F</kbd>Stunt + fire
             </span>
@@ -1517,87 +1584,97 @@ export function World() {
               <kbd>A</kbd>
               <kbd>S</kbd>
               <kbd>D</kbd>
-              {worldStatus.ride ? (worldRideCanFly(worldStatus.ride.id) ? 'Fly' : 'Ride') : 'Walk'}
+              {isZombie
+                ? 'Shamble'
+                : worldStatus.ride
+                  ? worldRideCanFly(worldStatus.ride.id)
+                    ? 'Fly'
+                    : 'Ride'
+                  : 'Walk'}
             </span>
           )}
           <span>
             <MousePointer2 size={14} />
-            {worldStatus.tool ? 'Drag to aim' : 'Drag to orbit'}
+            {!isZombie && worldStatus.tool ? 'Drag to aim' : 'Drag to orbit'}
           </span>
-          {!autonomousRide && (
+          {!isZombie && !horseback && !autonomousRide && (
             <span>
               <kbd>SPACE</kbd>
               {worldRideCanFly(worldStatus.ride?.id) ? 'Ascend' : 'Jump'}
             </span>
           )}
-          {worldStatus.tool && (
+          {!isZombie && worldStatus.tool && (
             <span>
               <kbd>B</kbd>Fire
             </span>
           )}
           <span>
             <kbd>E</kbd>
-            {autonomousRide
-              ? 'Land and get off'
-              : worldStatus.ride
-                ? 'Get off'
-                : worldStatus.tool
-                  ? 'Drop'
-                  : 'Interact'}
+            {isZombie
+              ? 'Bite'
+              : autonomousRide
+                ? 'Land and get off'
+                : worldStatus.ride
+                  ? 'Get off'
+                  : worldStatus.tool
+                    ? 'Drop'
+                    : 'Interact'}
           </span>
         </div>
-        <div className={styles.viewControls}>
-          <WorldCamera
-            disabled={sceneState !== 'ready' || panel !== null}
-            onCapture={() => controllerRef.current?.capturePhoto() ?? Promise.resolve(null)}
-            onOpenChange={setCameraOpen}
-            onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
-          />
-          <Button
-            overrideDefaults
-            aria-label={overview ? 'Follow my persona' : 'Show island overview'}
-            aria-pressed={overview}
-            title={overview ? 'Follow my persona' : 'Island overview'}
-            onClick={() => {
-              setOverview(!overview);
-              setWelcome(false);
-            }}
-          >
-            <Orbit size={18} />
-          </Button>
-          <Button
-            overrideDefaults
-            aria-label={showMap ? 'Hide minimap' : 'Show minimap'}
-            aria-pressed={showMap}
-            aria-controls="world-pocket-map"
-            title="Toggle minimap"
-            onClick={() => setShowMap(!showMap)}
-          >
-            <Map size={18} />
-          </Button>
-          <Button
-            overrideDefaults
-            aria-label={night ? 'Switch to daytime' : 'Switch to nighttime'}
-            aria-pressed={night}
-            title={night ? 'Daytime' : 'Nighttime'}
-            onClick={() => setNight(!night)}
-          >
-            {night ? <Moon size={18} /> : <Sun size={18} />}
-          </Button>
-          <span />
-          <Button
-            overrideDefaults
-            aria-label="World settings"
-            title="Make yourself at home"
-            onClick={() => selectPanel({ kind: 'settings' })}
-          >
-            <Settings2 size={18} />
-          </Button>
-        </div>
+        {!isZombie && (
+          <div className={styles.viewControls}>
+            <WorldCamera
+              disabled={sceneState !== 'ready' || panel !== null}
+              onCapture={() => controllerRef.current?.capturePhoto() ?? Promise.resolve(null)}
+              onOpenChange={setCameraOpen}
+              onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
+            />
+            <Button
+              overrideDefaults
+              aria-label={overview ? 'Follow my persona' : 'Show island overview'}
+              aria-pressed={overview}
+              title={overview ? 'Follow my persona' : 'Island overview'}
+              onClick={() => {
+                setOverview(!overview);
+                setWelcome(false);
+              }}
+            >
+              <Orbit size={18} />
+            </Button>
+            <Button
+              overrideDefaults
+              aria-label={showMap ? 'Hide minimap' : 'Show minimap'}
+              aria-pressed={showMap}
+              aria-controls="world-pocket-map"
+              title="Toggle minimap"
+              onClick={() => setShowMap(!showMap)}
+            >
+              <Map size={18} />
+            </Button>
+            <Button
+              overrideDefaults
+              aria-label={night ? 'Switch to daytime' : 'Switch to nighttime'}
+              aria-pressed={night}
+              title={night ? 'Daytime' : 'Nighttime'}
+              onClick={() => setNight(!night)}
+            >
+              {night ? <Moon size={18} /> : <Sun size={18} />}
+            </Button>
+            <span />
+            <Button
+              overrideDefaults
+              aria-label="World settings"
+              title="Make yourself at home"
+              onClick={() => selectPanel({ kind: 'settings' })}
+            >
+              <Settings2 size={18} />
+            </Button>
+          </div>
+        )}
       </footer>
 
       <Dialog
-        open={panel !== null}
+        open={!isZombie && panel !== null}
         onOpenChange={(open) => {
           if (!open) setPanel(null);
         }}

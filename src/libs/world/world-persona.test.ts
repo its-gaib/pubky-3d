@@ -11,7 +11,47 @@ describe('articulated Pubky explorer', () => {
     figures.push(figure);
     return figure;
   };
+  it('changes the explorer into a green, hunched zombie with slow asymmetric steps', () => {
+    const figure = create();
+    figure.setZombie();
+    figure.animate(0.3, 'walk');
+    expect(figure.group.userData.worldZombie).toBe(true);
+    expect(figure.accent.color.getHexString()).toBe('7ea552');
+    expect(figure.body.rotation.x).toBeCloseTo(0.22);
+    expect(figure.leftArm.rotation.x).toBeLessThan(-1.2);
+    expect(figure.rightArm.rotation.x).toBeLessThan(-1);
+    expect(Math.abs(figure.leftLeg.rotation.x)).toBeLessThan(0.26);
+    figure.animate(1, 'dance', true);
+    const leftArm = figure.leftArm.rotation.toArray();
+    figure.animate(20, 'walk', true);
+    expect(figure.leftArm.rotation.toArray()).toEqual(leftArm);
+    expect(figure.group.getObjectByName('explorer-profile-portrait')!.visible).toBe(false);
+  });
   const rideKinds = ['skateboard', 'jetpack', 'kart', 'bmx', 'hoverboard', 'dragon'] as const;
+  it('wears knight armor on horseback, swings the sword automatically and removes the gear on infection', () => {
+    const figure = create();
+    figure.setRidePose({ kind: 'horse', speed: 8, airborne: false, lean: 0, stuntProgress: null });
+    figure.animate(0, 'walk');
+    const sword = figure.group.getObjectByName('knight-sword')!;
+    const helmet = figure.group.getObjectByName('knight-helmet')!;
+    expect(sword.visible).toBe(true);
+    expect(helmet.visible).toBe(true);
+    const first = figure.rightArm.rotation.toArray();
+    figure.animate(0.3, 'walk');
+    expect(figure.rightArm.rotation.toArray()).not.toEqual(first);
+    figure.animate(1, 'walk', true);
+    const still = figure.rightArm.rotation.toArray();
+    figure.animate(10, 'walk', true);
+    expect(figure.rightArm.rotation.toArray()).toEqual(still);
+    figure.setRidePose(null);
+    expect(sword.visible).toBe(false);
+    expect(helmet.visible).toBe(false);
+    figure.setRidePose({ kind: 'horse', speed: 0, airborne: false, lean: 0, stuntProgress: null });
+    figure.animate(0, 'idle');
+    figure.setZombie();
+    expect(sword.visible).toBe(false);
+    expect(helmet.visible).toBe(false);
+  });
   const ride = (kind: WorldPersonaRidePose['kind'], overrides: Partial<WorldPersonaRidePose> = {}) => ({
     kind,
     speed: 8,

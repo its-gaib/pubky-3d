@@ -471,8 +471,18 @@ export function createRunner(scene: THREE.Scene, anchor: readonly [number, numbe
     persona,
     mention,
     burnTarget,
+    setZombiePose(stride: number, reducedMotion: boolean) {
+      const step = reducedMotion ? 0 : stride * 0.22;
+      body.rotation.x = 0.23;
+      for (let index = 0; index < legs.length; index++) {
+        legs[index].rotation.x = (index ? -step * 0.7 : step) - 0.03;
+        knees[index].rotation.x = 0.15 + Math.max(0, index ? -step : step) * 0.7;
+        arms[index].rotation.x = -1.28 + (index ? step : -step) * 0.15;
+        elbows[index].rotation.x = -0.25;
+      }
+    },
     animate(_time: number, delta: number, reducedMotion = false) {
-      if (escaping || !persona.visible) return;
+      if (escaping || persona.userData.worldZombie || persona.userData.worldBurnPending || !persona.visible) return;
       if (reducedMotion) {
         if (!wasReduced) paint(true);
         wasReduced = true;

@@ -1,5 +1,54 @@
 # Pubky World validation record
 
+## Wandering NPCs, zombie outbreak and knight ride — 2026-09-12
+
+This checkpoint covers the feature's local validation. Open pull requests in the fork
+and upstream were checked before implementation; no matching work was found.
+
+The world regression checks passed 471 unique tests across 51 files. The initial
+sweep exposed an existing random dragon-landing assertion: current and HEAD
+motion code produced identical results across 500 deterministic route seeds.
+The test now exercises a fixed descending route, checking momentum braking,
+roll clearance and eventual landing. Its final 17-test transport rerun passed
+and supersedes that initial failure; production flight behavior was unchanged.
+Strict TypeScript passed for all 30 changed or added TypeScript files and their
+imports, covering 3,487 files. Changed-source ESLint, formatting and whitespace
+checks passed. Full repository TypeScript did not complete within this host's
+available memory; the scoped check retains the normal strict compiler settings.
+The local webpack production build also exhausted its bounded 1,024 MB JavaScript
+heap after about two minutes, without a source diagnostic. That local attempt
+could not verify a complete production build.
+The loopback development preview started on port 4322, but its first-page
+compilation also stalled under memory pressure. That owned process tree was
+stopped; no working preview is claimed for this checkpoint.
+Later preview attempts were also memory-limited. The temporary user service,
+its runtime settings and preview launch artifacts were removed at the user's
+request before proceeding to the established Vercel cloud deployment path.
+
+Chromium checks exercised the real Three.js scene, simulation and controller
+through a temporary harness outside the repository. Fresh scenes each created
+100 generated humans and one randomly placed zombie, plus 11 susceptible scenery
+people. Checks covered spreading infection, protected social profiles, player
+transformation and restricted controls, zombie vision, civilian burn escape,
+stationary burning zombies and disappearance after 60 seconds. Horse checks
+covered armor and automatic sword animation, trampling, cumulative 60-second
+stamina, braking and automatic dismount, the 120-second tired state, and burning
+horse escape. Kart protection, vulnerable ground rides and forced dismounts also
+passed. A jetpack at 4 m stayed safe beside a ground zombie; lowering it to 0.5 m
+caused a bite. An airborne dragon at 0.5 m stayed safe, then was bitten after
+landing. An elevated zombie's reach against a similarly elevated jetpack rider
+is also covered by the simulation tests.
+
+The temporary browser harness blocked external requests, skipped the startup
+environment probe, disabled shadows and advanced simulation ticks explicitly.
+Model screenshots separately show the horse, knight armor and crowd in a small
+Three.js scene. These checks establish behavior and model appearance, not a
+full-map frame-rate benchmark or visual regression baseline. Runtime evidence,
+screenshots and command logs are in the local
+`~/.cache/pubky-3d-browser/zombie-feature/` directory. Final production-path and
+test-change security reviews found no actionable issues. No accounts were
+authenticated or social data written during these checks.
+
 ## Profile-tag neighborhoods — 2026-09-08
 
 Open PRs were checked before implementation. The fork has no open PR; upstream

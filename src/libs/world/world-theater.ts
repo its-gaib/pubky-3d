@@ -40,6 +40,7 @@ function createSpectators(theater: THREE.Group, construction: ReturnType<typeof 
   const spectators: {
     group: THREE.Group;
     setEscapePose: (frame: WorldBurnEscapeFrame, reducedMotion: boolean) => void;
+    setZombiePose: (stride: number, reducedMotion: boolean) => void;
   }[] = [];
   const wardrobes = [
     {
@@ -429,6 +430,8 @@ function createSpectators(theater: THREE.Group, construction: ReturnType<typeof 
     const wrist = new THREE.Vector3();
     let previousStride: number | undefined;
     let previousFalling = false;
+    let zombiePose = false;
+    const zombieFrame: WorldBurnEscapeFrame = { position: spectator.position, yaw: 0, stride: 0, falling: false };
     const align = (
       matrix: THREE.Matrix4,
       restFrom: THREE.Vector3,
@@ -444,6 +447,12 @@ function createSpectators(theater: THREE.Group, construction: ReturnType<typeof 
     };
     spectators.push({
       group: spectator,
+      setZombiePose(stride, reducedMotion) {
+        if (!zombiePose) previousStride = undefined;
+        zombiePose = true;
+        zombieFrame.stride = stride * 0.3;
+        this.setEscapePose(zombieFrame, reducedMotion);
+      },
       setEscapePose(frame, reducedMotion) {
         const stride = reducedMotion || !Number.isFinite(frame.stride) ? 0 : THREE.MathUtils.clamp(frame.stride, -1, 1);
         if (stride === previousStride && frame.falling === previousFalling) return;
@@ -468,9 +477,21 @@ function createSpectators(theater: THREE.Group, construction: ReturnType<typeof 
           align(matrices[limb.joint + 1], limb.knee, limb.ankle, knee, ankle);
           shoulder.copy(limb.shoulder);
           shoulder.y += lift;
-          poseDirection.set(limb.side * 0.09, frame.falling ? 0.06 : -0.28, 0.12 - step * 0.2).normalize();
+          poseDirection
+            .set(
+              limb.side * 0.09,
+              zombiePose ? -0.06 : frame.falling ? 0.06 : -0.28,
+              zombiePose ? 0.6 : 0.12 - step * 0.2,
+            )
+            .normalize();
           elbow.copy(shoulder).addScaledVector(poseDirection, limb.shoulder.distanceTo(limb.elbow));
-          poseDirection.set(-limb.side * 0.05, frame.falling ? 0.32 : 0.16, 0.32 + step * 0.15).normalize();
+          poseDirection
+            .set(
+              -limb.side * 0.05,
+              zombiePose ? -0.04 : frame.falling ? 0.32 : 0.16,
+              zombiePose ? 0.65 : 0.32 + step * 0.15,
+            )
+            .normalize();
           wrist.copy(elbow).addScaledVector(poseDirection, limb.elbow.distanceTo(limb.wrist));
           align(matrices[limb.joint + 2], limb.shoulder, limb.elbow, shoulder, elbow);
           align(matrices[limb.joint + 3], limb.elbow, limb.wrist, elbow, wrist);

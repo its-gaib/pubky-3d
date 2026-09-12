@@ -11,6 +11,7 @@ import type {
   WorldInteraction,
   WorldOptions,
   WorldRideStatus,
+  WorldStatus,
 } from '@/libs/world/world-types';
 import { World } from './World';
 import type { WorldSocialState } from './WorldSocialPanel';
@@ -195,6 +196,22 @@ async function updateRide(ride: WorldRideStatus | null, nearby: string | null = 
   );
 }
 
+async function updateInfection(bitten: boolean, overrides: Partial<WorldStatus> = {}) {
+  await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+  await act(async () =>
+    mocks.createWorld.mock.calls[0][1].onStatus({
+      zone: 'plaza',
+      position: [0, 8],
+      nearby: null,
+      collected: 0,
+      theaterIndex: 0,
+      theaterPaused: false,
+      infection: { bitten, humans: bitten ? 98 : 100, zombies: bitten ? 3 : 1 },
+      ...overrides,
+    }),
+  );
+}
+
 function ridePointer(target: HTMLElement, type: string, pointerId = 1) {
   const event = new MouseEvent(type, { bubbles: true, button: 0 });
   Object.defineProperty(event, 'pointerId', { value: pointerId });
@@ -223,6 +240,78 @@ afterEach(() => {
 });
 
 describe('World', () => {
+  it('shows the horse riding budget and automatic sword instructions until the rider gets off', async () => {
+    render(<World />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const horse: WorldRideStatus = {
+      ...JETPACK_RIDE,
+      id: 'horse',
+      name: 'Horse',
+      grounded: true,
+      altitude: 0,
+      horse: { remaining: 42.4, tired: false },
+    };
+    await updateRide(horse);
+    const controls = screen.getByRole('region', { name: 'Horse riding controls' });
+    expect(within(controls).getByLabelText('Horse riding time remaining')).toHaveTextContent('43s');
+    expect(within(controls).getByText(/Your sword swings automatically/)).toBeInTheDocument();
+    expect(within(controls).queryByRole('button', { name: 'Perform a stunt' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Jump' })).not.toBeInTheDocument();
+
+    await updateRide({ ...horse, horse: { remaining: 0, tired: true } });
+    expect(within(controls).getByText('The horse is tired. Slowing to a stop…')).toBeInTheDocument();
+    await updateRide(null);
+    expect(screen.queryByRole('region', { name: 'Horse riding controls' })).not.toBeInTheDocument();
+  });
+
+  it('replaces exploration and weapon controls with zombie movement and biting after infection', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.account = { id: VIEWER_ID, name: 'Avery' };
+    render(<World />);
+    fireEvent.click(screen.getByRole('button', { name: 'Enter your world' }));
+    await updateInfection(false, { tool: { id: 'flamethrower', firing: true } });
+    expect(screen.getByRole('button', { name: 'World settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jump' })).toBeInTheDocument();
+
+    // Even a final held-tool status cannot leave its controls usable after the bite.
+    await updateInfection(true, { tool: { id: 'flamethrower', firing: true }, nearby: 'Tag forest' });
+    expect(screen.getByRole('alert')).toHaveTextContent("You've been bitten by a Zombie");
+    expect(screen.getByText('98 living people remain')).toBeInTheDocument();
+    expect(screen.getByTestId('pubky-world')).toHaveAttribute('data-world-zombie', 'true');
+    expect(screen.queryByRole('button', { name: 'World settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Jump' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Account menu for Avery' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Island map' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Social plaza view' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Drop.*flamethrower/i })).not.toBeInTheDocument();
+    expect(mocks.controller.setFiring).toHaveBeenLastCalledWith(false);
+    expect(mocks.controller.setRideLift).toHaveBeenLastCalledWith(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bite a nearby person' }));
+    expect(mocks.controller.interact).toHaveBeenCalledOnce();
+    const forward = screen.getByRole('button', { name: 'Shamble forward' });
+    forward.setPointerCapture = vi.fn();
+    ridePointer(forward, 'pointerdown');
+    expect(mocks.controller.setMove).toHaveBeenLastCalledWith(0, -1);
+    ridePointer(forward, 'pointerup');
+    expect(mocks.controller.setMove).toHaveBeenLastCalledWith(0, 0);
+  });
+
+  it('closes an open panel on infection and ignores subsequent scenery interactions', async () => {
+    render(<World />);
+    await updateInfection(false);
+    fireEvent.click(screen.getByRole('button', { name: 'World settings' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+
+    await updateInfection(true);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+    await interact({ kind: 'zone', id: 'forest' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows controls after mounting a discovered ride and preserves touch movement and jumping', async () => {
     render(<World />);
     await updateRide(null, 'Skateboard');
@@ -648,7 +737,7 @@ describe('World', () => {
     mocks.useWorldSocial.mockReturnValue(state);
     const { rerender } = render(<World />);
     await interact({ kind: 'person', id: PERSON_ID });
-    await user.click(screen.getByRole('button', { name: 'Follow', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Follow' }));
     expect(mocks.toggleFollow).toHaveBeenCalledOnce();
     const followed = {
       ...state,
@@ -657,7 +746,7 @@ describe('World', () => {
     };
     mocks.useWorldSocial.mockReturnValue(followed);
     rerender(<World />);
-    expect(screen.getByRole('button', { name: 'Unfollow', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unfollow' })).toBeInTheDocument();
     expect(mocks.controller.updateData).toHaveBeenLastCalledWith(expect.objectContaining({ people: followed.people }));
   });
 

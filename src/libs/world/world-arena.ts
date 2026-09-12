@@ -461,7 +461,13 @@ function createGladiatorDuel(parent: THREE.Group) {
     const orbit = (phase / 12) * Math.PI * 2;
     for (let index = 0; index < fighters.length; index++) {
       const { fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow } = fighters[index];
-      if (fighter.parent !== duel || fighter.userData.worldBurnPending === true || !fighter.visible) continue;
+      if (
+        fighter.parent !== duel ||
+        fighter.userData.worldBurnPending ||
+        fighter.userData.worldZombie ||
+        !fighter.visible
+      )
+        continue;
       const turn = (phase + index * 6) % 12;
       const attacking = turn < 6;
       const beat = turn % 6;
@@ -488,6 +494,17 @@ function createGladiatorDuel(parent: THREE.Group) {
     animate,
     gladiators: fighters.map(({ fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow }) => ({
       group: fighter,
+      setZombiePose(stride: number, reducedMotion: boolean) {
+        const step = reducedMotion ? 0 : stride * 0.18;
+        legs[0].rotation.x = step - 0.03;
+        legs[1].rotation.x = -step * 0.65;
+        knees[0].rotation.x = 0.17 + Math.max(0, step) * 0.5;
+        knees[1].rotation.x = 0.21 + Math.max(0, -step) * 0.4;
+        swordArm.rotation.set(-1.25 + step * 0.1, 0, -0.15);
+        shieldArm.rotation.set(-1.3 - step * 0.15, 0, 0.15);
+        swordElbow.rotation.x = -0.15;
+        shieldElbow.rotation.x = -0.22;
+      },
       setEscapePose(frame: WorldBurnEscapeFrame, reducedMotion: boolean) {
         const stride = reducedMotion ? 0 : frame.stride;
         const falling = frame.falling && !reducedMotion;

@@ -61,7 +61,7 @@ their readers and nearby interactions reveal more as you approach.
   entrance and center stay walkable. **Try out the Pubky Arena** opens the arena
   experiment; the local rock, paper, scissors challenge remains available. Two
   small bronze-armored gladiators circle, lunge, strike, parry and retreat in a
-  playful 12-second duel. They are decorative performers, with no player combat.
+  playful 12-second duel until fire or infection interrupts them.
 - **Pubky University:** short lessons linking to the official Pubky documentation.
 - **Open Source Yard:** workshops introducing the organization's GitHub projects.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark,
@@ -150,6 +150,26 @@ their readers and nearby interactions reveal more as you approach.
   disappear without exploding. Refresh restores them;
   public profiles, posts and application data are never deleted. Fire from a
   dragon stunt uses the same local burn behavior.
+- **Wandering people and zombies:** each map load adds 100 peaceful walkers and
+  one zombie in a random location. Walkers explore and pause to look around.
+  Zombies shamble at one-third their speed, pursue nearby visible people and
+  repel one another more weakly than they pursue people. Bites spread infection
+  to walkers, Hal Finney, theater spectators, arena fighters and the player.
+  Social Plaza profile markers cannot be bitten and never attract zombies.
+  Burning people flee over the coast; burning zombies collapse and keep burning
+  on the ground for one minute before vanishing, unable to move or bite.
+  A bitten player becomes a slow zombie: scenery darkens, living people stand
+  out, and only movement and biting remain. Reloading starts a fresh outbreak.
+- **Horse and knight armor:** find the horse and armor together, then mount to
+  become a knight. The sword swings automatically; ride into zombies to knock
+  them down. Fallen zombies disappear after one minute. The horse gives one
+  minute of riding in total, then slows, stops and lets you off. **The horse is
+  tired** floats above it during its two-minute rest. Dismounting early does not
+  refill its riding time. Burning the parked horse or its armor sends the horse
+  fleeing in flames over the coast. The kart protects its rider from bites but
+  cannot hurt zombies. The dragon protects its rider while airborne. A jetpack
+  rider must fly above the zombies' reach; low hovering at their height remains
+  vulnerable. Zombies can knock riders off unprotected vehicles and bite them.
 - **Camera:** moving gradually turns the camera behind the direction of travel.
   Manual dragging takes priority, with a short delay before following resumes.
   The camera stays under manual control while aiming the flamethrower.
@@ -243,6 +263,11 @@ The in-zone Explore/read interaction opens the plaza directory; neighborhood
 paging and the return-to-neighborhood-overview control appear after selecting a
 3D neighborhood. Accessible readers remain available if WebGL cannot start.
 
+After a zombie bite, W A S D / arrows shamble, dragging still turns the camera,
+and **E** or the on-screen **Bite** button infects a living person within reach.
+Running, jumping, dancing, rides, tools, portals, readers, the map and photography
+are unavailable until the map is reloaded.
+
 ## Camera and posting
 
 Orbit and zoom, then use the camera button. The photo contains the rendered world
@@ -272,6 +297,9 @@ YouTube iframe stay in the DOM, keeping their pixels out of world captures.
   render window. Reduced motion applies transitions immediately.
 - `world-layout.ts` and `world-motion.ts`: shared anchors, bounds, monument camera
   poses, camera-relative walking and simple collision resolution on a flat plane.
+- `world-infection.ts` and `world-crowd.ts`: scene-local wandering and contagion,
+  instanced crowd figures and infection adapters for the existing scenery cast.
+  Procedural walkers use no account identities or network requests.
 - `world-landmarks.ts`, `world-arena.ts`, `world-theater.ts`, `world-cinema.ts`,
   `world-satoshi.ts`, `world-tether.ts` and `world-bank.ts`: procedural places,
   local text/brand geometry and bounded decorative animation.

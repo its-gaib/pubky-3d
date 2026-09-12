@@ -12,6 +12,7 @@ import { createChess } from '@/libs/world/world-chess';
 import { createCinema } from '@/libs/world/world-cinema';
 import { createCinemaScreen } from '@/libs/world/world-cinema-screen';
 import { createConferences } from '@/libs/world/world-conferences';
+import { createWorldCrowd } from '@/libs/world/world-crowd';
 import { getWorldDragonMouth } from '@/libs/world/world-dragon';
 import { createCoastalNature, createIslandTerrain, createPathFurniture } from '@/libs/world/world-environment';
 import { createWorldFireEffects } from '@/libs/world/world-fire-effects';
@@ -22,6 +23,7 @@ import {
 } from '@/libs/world/world-flamethrower';
 import { createTagTree } from '@/libs/world/world-forest';
 import { disposeObject, label, mesh, ring, WORLD_PALETTE } from '@/libs/world/world-geometry';
+import { animateWorldHorse } from '@/libs/world/world-horse';
 import { createHotSauce, HOT_SAUCE_HEIGHT, HOT_SAUCE_RADIUS } from '@/libs/world/world-hot-sauce';
 import { createGalacticJellyfish } from '@/libs/world/world-jellyfish';
 import { createLandmarks } from '@/libs/world/world-landmarks';
@@ -48,7 +50,7 @@ import { createSocialPlaza } from '@/libs/world/world-social';
 import { worldGrainTexture, worldPlanarUv } from '@/libs/world/world-surfaces';
 import { createTether } from '@/libs/world/world-tether';
 import { createTheater } from '@/libs/world/world-theater';
-import { worldRideMountDistance } from '@/libs/world/world-transport-motion';
+import { worldRideMountDistance, worldRidePreventsZombieBite } from '@/libs/world/world-transport-motion';
 import { createWorldTransports, type WorldTransportAction } from '@/libs/world/world-transports';
 import type {
   PersonaState,
@@ -58,6 +60,7 @@ import type {
   WorldOptions,
   WorldRideableId,
 } from '@/libs/world/world-types';
+import { applyWorldZombieVision } from '@/libs/world/world-zombie-vision';
 import { createZoneGround } from '@/libs/world/world-zone-ground';
 
 interface Interactive {
@@ -158,6 +161,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   };
   const fire = createWorldFireEffects(scene);
   const burning = createWorldBurning({
+    ledger: new Set(),
     onIgnite({ id, bounds }) {
       fire.ignite(id, bounds);
       nearby = null;
@@ -167,8 +171,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       lastStatus = -1;
     },
     onUpdate: ({ id, bounds }) => fire.follow(id, bounds),
+    onExtinguish: (id) => fire.remove(id),
     onGone(id, event) {
       if (event.completion === 'fall') fire.remove(id);
+      else if (event.completion === 'smolder') fire.smolder(id, event.bounds);
       else fire.explode(id, event.bounds);
     },
   });
@@ -177,6 +183,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) {
       if (
         !parent.visible ||
+        parent.userData.worldZombie ||
         parent.userData.worldBurnPending ||
         (parent.userData.worldBurnId && burnUnavailable(parent.userData.worldBurnId))
       )
@@ -322,6 +329,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   }
   const avatarImages = createWorldAvatarImageLoader();
   const player = createPersona('#C8FF03', avatarImages);
+  player.group.userData.worldPlayer = true;
   player.group.position.set(0, 0.15, 24);
   scene.add(player.group);
   const playerHalo = ring(scene, 1, 0.08, '#C8FF03', [0, 0.2, 24]);
@@ -406,6 +414,32 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   const sceneryHumans = [runner.burnTarget, ...theaterHumans, ...arenaHumans];
   const pendingHumanBurns = new Set<(typeof sceneryHumans)[number]>();
   for (const target of sceneryHumans) burning.bind(target);
+  const crowd = createWorldCrowd(scene, obstacles, burning);
+  crowd.registerPerson({
+    id: runner.burnTarget.id,
+    group: runner.persona,
+    pose: (stride, zombie, reducedMotion) => {
+      if (zombie) runner.setZombiePose(stride, reducedMotion);
+    },
+  });
+  for (const [index, spectator] of theater.spectators.entries()) {
+    crowd.registerPerson({
+      id: theaterHumans[index].id,
+      group: spectator.group,
+      pose: (stride, zombie, reducedMotion) => {
+        if (zombie) spectator.setZombiePose(stride, reducedMotion);
+      },
+    });
+  }
+  for (const [index, gladiator] of arena.gladiators.entries()) {
+    crowd.registerPerson({
+      id: arenaHumans[index].id,
+      group: gladiator.group,
+      pose: (stride, zombie, reducedMotion) => {
+        if (zombie) gladiator.setZombiePose(stride, reducedMotion);
+      },
+    });
+  }
   const igniteSceneryHuman = (target: (typeof sceneryHumans)[number]) => {
     if (burning.isGone(target.id) || burning.isBurning(target.id)) return;
     // Detach even when all flame slots are occupied, so the building cannot
@@ -450,6 +484,23 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   planets.group.children.forEach((root, index) => burning.bind(createWorldGroupBurnTarget(`planet:${index}`, [root])));
   for (const item of transports.burnEntries) {
     const unavailable = () => transports.setAvailable(item.id, false);
+    if (item.id === 'horse') {
+      const target = createWorldHumanBurnTarget('ride:horse', item.model, scene, (_frame, reducedMotion) => {
+        animateWorldHorse(item.model, { mounted: false, speed: 16, time, reducedMotion });
+      });
+      burning.bind({
+        ...target,
+        obstacles: [item.obstacle],
+        canIgnite: () => transports.active?.id !== 'horse' && (target.canIgnite?.() ?? true),
+        onIgnite() {
+          unavailable();
+          target.onIgnite?.();
+          const armor = item.model.getObjectByName('horse-knight-armor');
+          if (armor) armor.visible = false;
+        },
+      });
+      continue;
+    }
     burning.bind(
       createWorldGroupBurnTarget(`ride:${item.id}`, [item.model], [item.obstacle], {
         canIgnite: () => transports.active?.id !== item.id,
@@ -491,6 +542,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let pendingTool = false;
   let animation: PersonaState['animation'] = 'idle';
   let capturingPhoto = false;
+  let playerBitten = false;
+  let biteRequested = false;
+  let crowdStatus = { playerBitten: false, humans: 100 + sceneryHumans.length, zombies: 1 };
   let landmarkPose: ReturnType<typeof worldLandmarkPose> | null = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   const cameraGoal = new THREE.Vector3();
@@ -515,6 +569,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     pendingRide = null;
     pendingTool = false;
     pointerFiring = buttonFiring = false;
+    biteRequested = false;
     flamethrower.clearInput();
     transports.clearInput();
   };
@@ -527,18 +582,18 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     landmarkPose = null;
   };
   const jump = () => {
-    if (paused) return;
+    if (paused || playerBitten || transports.active?.id === 'horse') return;
     if (transports.active) transports.jump();
     else if (jumpHeight === 0) jumpVelocity = 10;
   };
   const dance = () => {
-    if (!paused && !transports.active && !flamethrower.equipped) danceUntil = time + 4;
+    if (!paused && !playerBitten && !transports.active && !flamethrower.equipped) danceUntil = time + 4;
   };
   const stunt = () => {
-    if (!paused && transports.stunt()) lastStatus = -1;
+    if (!paused && !playerBitten && transports.stunt()) lastStatus = -1;
   };
   const mountRide = (id: WorldRideableId) => {
-    if (jumpHeight > 0.1 || jumpVelocity > 0) return false;
+    if (playerBitten || jumpHeight > 0.1 || jumpVelocity > 0) return false;
     if (!transports.isAvailable(id)) return false;
     if (flamethrower.equipped && !flamethrower.drop()) return false;
     if (!transports.mount(id)) return false;
@@ -550,6 +605,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     return true;
   };
   const dispatch = (action: Interactive['action']) => {
+    if (playerBitten) return;
     const represented = interactives.filter((item) => item.action === action);
     if (represented.length && !represented.some((item) => objectAvailable(item.object))) return;
     if (action.kind === 'tool') {
@@ -570,6 +626,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       return;
     }
     if (action.kind === 'transport') {
+      if (action.id === 'horse' && transports.active?.id !== 'horse' && transports.getHorseState().tired) return;
       const previous = transports.active?.id;
       if (previous) {
         if (!transports.dismount()) return;
@@ -595,6 +652,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   };
   const interact = () => {
     if (paused) return;
+    if (playerBitten) {
+      biteRequested = true;
+      return;
+    }
     if (transports.active) {
       if (transports.dismount()) clearInput();
       lastStatus = -1;
@@ -609,6 +670,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (nearby) dispatch(nearby.action);
   };
   const travelTo: WorldController['travelTo'] = (id, travelOptions) => {
+    if (playerBitten) return;
     const zone = WORLD_ZONES.find((value) => value.id === id);
     if (!zone) return;
     transports.reset();
@@ -629,6 +691,26 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       cameraTarget.set(...landmarkPose.target);
       camera.position.set(...landmarkPose.cameraPosition);
     }
+    lastStatus = -1;
+  };
+  const becomeZombie = () => {
+    if (playerBitten) return;
+    playerBitten = true;
+    paused = false;
+    clearInput();
+    transports.reset();
+    flamethrower.dispose();
+    flamethrower.setAvailable(false);
+    flamethrower.model.visible = false;
+    jumpHeight = jumpVelocity = danceUntil = 0;
+    player.group.position.y = 0.15;
+    player.setZombie();
+    enterExplore();
+    nearby = null;
+    theater.setPaused(true);
+    cinemaScreen.dispose();
+    crowd.setZombieVision(true);
+    applyWorldZombieVision(scene);
     lastStatus = -1;
   };
   const handleKey = (event: KeyboardEvent) => {
@@ -662,6 +744,11 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     ];
     if (!handled.includes(event.code)) return;
     event.preventDefault();
+    if (
+      playerBitten &&
+      !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyE'].includes(event.code)
+    )
+      return;
     keys.add(event.code);
     if (!event.repeat) {
       if (event.code === 'Space') jump();
@@ -688,6 +775,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     raycaster.setFromCamera(pointer, camera);
   };
   const pick = () => {
+    if (playerBitten) return null;
     const socialHit = social.pick(raycaster);
     const hits = raycaster.intersectObjects(
       interactives.filter((item) => objectAvailable(item.object)).map((item) => item.object),
@@ -742,6 +830,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     if (renderer.domElement.hasPointerCapture(event.pointerId))
       renderer.domElement.releasePointerCapture(event.pointerId);
     if (!clicked) return;
+    if (playerBitten) {
+      interact();
+      return;
+    }
     pointRay(event);
     const selected = pick();
     if (selected) dispatch(selected.action);
@@ -795,7 +887,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     lastTime = timestamp;
     if (document.hidden) return;
     // The theater can resume from its reading panel while avatar input stays paused.
-    if (!burnUnavailable('zone:theater') && theater.tick(Math.min(elapsed, 1))) lastStatus = -1;
+    if (!playerBitten && !burnUnavailable('zone:theater') && theater.tick(Math.min(elapsed, 1))) lastStatus = -1;
     if (!paused) time += delta;
     const previousPlayerX = player.group.position.x;
     const previousPlayerZ = player.group.position.z;
@@ -810,7 +902,17 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       let rideX = inputX;
       let rideZ = inputZ;
       const movementYaw = cameraFollow.movementYaw(yaw, inputX, inputZ);
-      let step = movementStep(inputX, inputZ, movementYaw, delta, keys.has('ShiftLeft') || keys.has('ShiftRight'));
+      let step = movementStep(
+        inputX,
+        inputZ,
+        movementYaw,
+        delta,
+        !playerBitten && (keys.has('ShiftLeft') || keys.has('ShiftRight')),
+      );
+      if (playerBitten) {
+        step.x /= 3;
+        step.z /= 3;
+      }
       if (inputX || inputZ) {
         enterExplore();
         walkTarget = null;
@@ -860,7 +962,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       const grounded = transports.active
         ? transports.active.altitude < 0.01 && transports.active.velocityY === 0
         : jumpHeight === 0;
-      const transfer = portals.step(player.group.position, time, moving && grounded);
+      const transfer = !playerBitten && portals.step(player.group.position, time, moving && grounded);
       if (transfer) {
         clearInput();
         player.group.position.set(transfer.x, 0.15, transfer.z);
@@ -886,12 +988,13 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           player.group.position.x - WORLD_ANCHORS.trampoline[0],
           player.group.position.z - WORLD_ANCHORS.trampoline[1],
         ) < 2.3;
-      if (onTrampoline && moving && !burnUnavailable('fun:trampoline')) {
+      if (!playerBitten && onTrampoline && moving && !burnUnavailable('fun:trampoline')) {
         if (transports.active) transports.jump();
         else if (jumpHeight === 0) jumpVelocity = 18;
       }
       collectibles.forEach((item, index) => {
         if (
+          !playerBitten &&
           !burnUnavailable(`key:${index}`) &&
           item.visible &&
           Math.abs(item.position.y - (player.group.position.y + 1)) < 2 &&
@@ -1003,7 +1106,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     snapCamera = false;
     camera.lookAt(cameraTarget.x, cameraTarget.y + vertical.lookLift, cameraTarget.z);
 
-    flamethrower.setFiring(!paused && !overview && !ride && (pointerFiring || buttonFiring || keys.has('KeyB')));
+    flamethrower.setFiring(
+      !playerBitten && !paused && !overview && !ride && (pointerFiring || buttonFiring || keys.has('KeyB')),
+    );
     if (!paused) {
       if (flamethrower.isFiring && flamethrower.getNozzle(fireOrigin, fireDirection)) {
         fire.emitStream(fireOrigin, fireDirection, 1, 'weapon');
@@ -1044,6 +1149,20 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       for (const target of pendingHumanBurns)
         if (burning.isGone(target.id) || burning.ignite(target.id)) pendingHumanBurns.delete(target);
     burning.tick(paused ? 0 : delta, reducedMotion);
+    if (!paused && ride?.id === 'horse') crowd.knockDownZombies(player.group.position, 2.8);
+    crowdStatus = crowd.tick(
+      paused ? 0 : delta,
+      time,
+      {
+        position: player.group.position,
+        zombie: playerBitten,
+        canBeBitten: !paused && !overview && !worldRidePreventsZombieBite(ride),
+        bite: !paused && biteRequested,
+      },
+      reducedMotion,
+    );
+    biteRequested = false;
+    if (crowdStatus.playerBitten) becomeZombie();
     fire.tick(paused ? 0 : delta, time, camera, reducedMotion);
 
     if (time - lastStatus > 0.2 || lastStatus === -1) {
@@ -1051,7 +1170,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       let nearestDistance = 7;
       nearby = null;
       for (const item of interactives) {
+        if (playerBitten) break;
         if (!objectAvailable(item.object)) continue;
+        if (item.action.kind === 'transport' && item.action.id === 'horse' && transports.getHorseState().tired)
+          continue;
         if (ride && (item.action.kind === 'transport' || ride.altitude > 0.7)) continue;
         item.object.getWorldPosition(tempPosition);
         const distanceTo = Math.hypot(
@@ -1068,7 +1190,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         }
       }
       const personNearby =
-        !ride || ride.altitude < 0.7
+        !playerBitten && (!ride || ride.altitude < 0.7)
           ? social.nearest(player.group.position.x, player.group.position.z, nearestDistance)
           : null;
       if (personNearby) nearby = personNearby;
@@ -1080,25 +1202,33 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       );
       renderer.domElement.setAttribute(
         'aria-label',
-        ride?.id === 'dragon'
-          ? 'Pubky world. The dragon flies itself. F to roll and breathe fire, E to land and get off. Drag to orbit.'
-          : flamethrower.equipped
-            ? 'Pubky world. W A S D or arrows to move. Drag to aim, hold mouse or B to fire, E to drop the flamethrower.'
-            : 'Pubky world. W A S D or arrows to move, Space to jump or fly up, C to fly down, E to interact, F to dance or perform a riding stunt.',
+        playerBitten
+          ? 'You have been bitten by a zombie. W A S D or arrows to shamble. E or click to bite nearby people.'
+          : ride?.id === 'horse'
+            ? 'Pubky world. W A S D or arrows to ride the horse. Your knight swings the sword automatically. E to step off. Drag to look around.'
+            : ride?.id === 'dragon'
+              ? 'Pubky world. The dragon flies itself. F to roll and breathe fire, E to land and get off. Drag to orbit.'
+              : flamethrower.equipped
+                ? 'Pubky world. W A S D or arrows to move. Drag to aim, hold mouse or B to fire, E to drop the flamethrower.'
+                : 'Pubky world. W A S D or arrows to move, Space to jump or fly up, C to fly down, E to interact, F to dance or perform a riding stunt.',
       );
       options.onStatus({
         zone: zone.id,
         position: [player.group.position.x, player.group.position.z],
-        nearby: ride
-          ? ride.altitude > 0.12
-            ? 'Land to step off'
-            : `Get off ${transports.getStatus()?.name}`
-          : (nearby?.title ?? null),
+        nearby: playerBitten
+          ? 'Bite a nearby person'
+          : ride
+            ? ride.altitude > 0.12
+              ? 'Land to step off'
+              : `Get off ${transports.getStatus()?.name}`
+            : (nearby?.title ?? null),
         ride: transports.getStatus(),
         tool: flamethrower.equipped ? { id: 'flamethrower', firing: flamethrower.isFiring } : null,
         collected,
+        infection: { bitten: playerBitten, humans: crowdStatus.humans, zombies: crowdStatus.zombies },
         ...theater.getStatus(),
       });
+      if (playerBitten) applyWorldZombieVision(scene);
     }
     updateShadows(cameraTarget, overview);
     renderer.render(scene, camera);
@@ -1110,14 +1240,17 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   return {
     travelTo,
     setSocialView(value) {
+      if (playerBitten) return;
       social.setView(value);
       nearby = null;
       lastStatus = -1;
     },
     setSocialFocus(id) {
+      if (playerBitten) return;
       social.setFocus(id);
     },
     travelToPerson(id) {
+      if (playerBitten) return;
       const person = social.findPerson(id);
       if (!person) return;
       transports.reset();
@@ -1133,6 +1266,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       lastStatus = -1;
     },
     setOverview(value) {
+      if (playerBitten) return;
       if (value) clearInput();
       if (overview !== value) {
         walkTarget = null;
@@ -1144,7 +1278,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       zoom = 1;
     },
     setChessGame(game) {
-      if (!burnUnavailable('zone:chess')) chess.setGame(game);
+      if (!playerBitten && !burnUnavailable('zone:chess')) chess.setGame(game);
     },
     setPaused(value) {
       paused = value;
@@ -1152,6 +1286,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       drag = null;
     },
     setNight(value) {
+      if (playerBitten) return;
       const color = value ? '#03050C' : WORLD_PALETTE.background;
       scene.background = new THREE.Color(color);
       scene.fog = new THREE.Fog(color, 155, 330);
@@ -1172,15 +1307,16 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       }
     },
     setTheaterPaused(value) {
-      if (burnUnavailable('zone:theater')) return;
+      if (playerBitten || burnUnavailable('zone:theater')) return;
       theater.setPaused(value);
       lastStatus = -1;
     },
     setTheaterLoading(value) {
+      if (playerBitten) return;
       theater.setLoading(value);
     },
     stepTheater(delta) {
-      if (burnUnavailable('zone:theater')) return;
+      if (playerBitten || burnUnavailable('zone:theater')) return;
       theater.step(delta);
       lastStatus = -1;
     },
@@ -1190,7 +1326,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       social.setAvatarIdentities(people);
     },
     setPersonaColor(color) {
-      if (/^#[0-9a-f]{6}$/i.test(color)) player.accent.color.set(color);
+      if (!playerBitten && /^#[0-9a-f]{6}$/i.test(color)) player.accent.color.set(color);
     },
     setMove(x, z) {
       if (!paused) {
@@ -1199,10 +1335,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       }
     },
     setRideLift(value) {
-      touch.lift = !paused && (value === -1 || value === 1) ? value : 0;
+      touch.lift = !paused && !playerBitten && (value === -1 || value === 1) ? value : 0;
     },
     setFiring(value) {
-      buttonFiring = value === true && !paused && flamethrower.equipped && !transports.active;
+      buttonFiring = value === true && !paused && !playerBitten && flamethrower.equipped && !transports.active;
       if (buttonFiring) enterExplore();
     },
     stunt,
@@ -1210,7 +1346,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
     dance,
     interact,
     async capturePhoto() {
-      if (disposed || capturingPhoto) return null;
+      if (disposed || playerBitten || capturingPhoto) return null;
       clearInput();
       capturingPhoto = true;
       const frame = document.createElement('canvas');
@@ -1227,7 +1363,11 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         renderer.render(scene, camera);
         context.drawImage(source, 0, 0, frame.width, frame.height);
         const blob = await new Promise<Blob | null>((resolve) => frame.toBlob(resolve, 'image/png'));
-        return !disposed && blob?.type === 'image/png' && blob.size > 0 && blob.size <= IMAGE_MAX_RAW_SIZE
+        return !disposed &&
+          !playerBitten &&
+          blob?.type === 'image/png' &&
+          blob.size > 0 &&
+          blob.size <= IMAGE_MAX_RAW_SIZE
           ? blob
           : null;
       } catch {
@@ -1247,6 +1387,10 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       theaterPosts = data.trendingPosts;
       dataSource = data.source;
       nearby = null;
+      if (playerBitten) {
+        crowd.setZombieVision(true);
+        applyWorldZombieVision(scene);
+      }
       lastStatus = -1;
     },
     getPersonaState() {
@@ -1268,6 +1412,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       renderer.domElement.removeEventListener('contextmenu', contextMenu);
       renderer.domElement.removeEventListener('wheel', wheel);
       landmarks.dispose();
+      crowd.dispose();
       burning.dispose();
       pendingHumanBurns.clear();
       fire.dispose();

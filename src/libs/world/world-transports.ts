@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { animateWorldDragon } from '@/libs/world/world-dragon';
+import { label } from '@/libs/world/world-geometry';
+import { animateWorldHorse, createWorldHorseStamina } from '@/libs/world/world-horse';
 import type { WorldObstacle } from '@/libs/world/world-motion';
 import type { createPersona } from '@/libs/world/world-persona';
 import { createWorldTransportModel } from '@/libs/world/world-transport-models';
@@ -35,7 +37,11 @@ export function createWorldTransports(
 ) {
   const items = WORLD_RIDEABLES.map((definition) => {
     const model = createWorldTransportModel(definition.id);
-    const home = resolveRidePosition(...definition.position, definition.radius + 0.3, obstacles);
+    const home = resolveRidePosition(
+      ...definition.position,
+      (definition.parkedRadius ?? definition.radius) + 0.3,
+      obstacles,
+    );
     model.position.set(home.x, 0.15, home.z);
     model.rotation.y = definition.rotation;
     scene.add(model);
@@ -46,16 +52,22 @@ export function createWorldTransports(
       height: new THREE.Box3().setFromObject(model).max.y,
     };
     obstacles.push(obstacle);
+    const tiredLabel = definition.id === 'horse' ? label(model, 'The horse is tired', [0, 4.9, 0], 7.5) : null;
+    if (tiredLabel) {
+      tiredLabel.name = 'horse-tired-label';
+      tiredLabel.visible = false;
+    }
     register(model, { kind: 'transport', id: definition.id }, `Ride ${definition.name}`);
     const animated: THREE.Object3D[] = [];
     model.traverse((object) => {
       if (object.userData.transportAnimation) animated.push(object);
     });
-    return { definition, model, home, obstacle, animated, available: true };
+    return { definition, model, home, obstacle, animated, tiredLabel, available: true };
   });
   const burnEntries = items.map(({ definition, model, obstacle }) => ({ id: definition.id, model, obstacle }));
   let active: RideMotion | null = null;
   let pedalPhase = 0;
+  const horseStamina = createWorldHorseStamina();
 
   const park = (x: number, z: number, rotation: number) => {
     if (!active) return;
@@ -68,6 +80,17 @@ export function createWorldTransports(
     item.obstacle.x = x;
     item.obstacle.z = z;
     item.obstacle.enabled = item.available;
+    if (item.definition.id === 'horse') {
+      horseStamina.dismounted();
+      animateWorldHorse(item.model, {
+        mounted: false,
+        speed: 0,
+        time: 0,
+        reducedMotion: true,
+        tired: horseStamina.getStatus().tired,
+      });
+      if (item.tiredLabel) item.tiredLabel.visible = item.available && horseStamina.getStatus().tired;
+    }
     active = null;
     player.setRidePose(null);
     item.animated.forEach((object) => {
@@ -97,14 +120,26 @@ export function createWorldTransports(
       if (!item) return;
       item.available = available;
       item.obstacle.enabled = available && active?.id !== id;
+      if (!available && item.tiredLabel) item.tiredLabel.visible = false;
     },
     isAvailable(id: WorldRideableId) {
       const item = items.find((item) => item.definition.id === id);
-      return !active && !!item?.available && canMountRide(player.group.position, item.model.position, id);
+      return (
+        !active &&
+        !!item?.available &&
+        (id !== 'horse' || horseStamina.canMount()) &&
+        canMountRide(player.group.position, item.model.position, id)
+      );
     },
     mount(id: WorldRideableId) {
       const item = items.find((item) => item.definition.id === id);
-      if (active || !item?.available || !canMountRide(player.group.position, item.model.position, id)) return false;
+      if (
+        active ||
+        !item?.available ||
+        (id === 'horse' && !horseStamina.canMount()) ||
+        !canMountRide(player.group.position, item.model.position, id)
+      )
+        return false;
       item.obstacle.enabled = false;
       active = createRideMotion(id, item.model.position.x, item.model.position.z, item.model.rotation.y);
       player.group.position.set(active.x, 0.15, active.z);
@@ -114,6 +149,7 @@ export function createWorldTransports(
       item.model.rotation.set(0, 0, 0);
       const kickstand = item.model.getObjectByName('kickstand');
       if (kickstand) kickstand.visible = false;
+      if (id === 'horse') animateWorldHorse(item.model, { mounted: true, speed: 0, time: 0, reducedMotion: true });
       pedalPhase = 0;
       return true;
     },
@@ -132,7 +168,12 @@ export function createWorldTransports(
     reset() {
       if (!active) return;
       const item = items.find((item) => item.definition.id === active?.id)!;
-      const home = resolveRidePosition(item.home.x, item.home.z, item.definition.radius + 0.3, obstacles);
+      const home = resolveRidePosition(
+        item.home.x,
+        item.home.z,
+        (item.definition.parkedRadius ?? item.definition.radius) + 0.3,
+        obstacles,
+      );
       park(home.x, home.z, item.definition.rotation);
     },
     clearInput() {
@@ -142,16 +183,32 @@ export function createWorldTransports(
       if (worldRideCanFly(active.id)) active.velocityY = 0;
     },
     jump() {
-      return active ? jumpRide(active) : false;
+      return active && !(active.id === 'horse' && horseStamina.getStatus().tired) ? jumpRide(active) : false;
     },
     stunt() {
       return active ? startRideStunt(active, obstacles) : false;
     },
     step(seconds: number, input: RideInput) {
       if (!active) return;
+      if (active.id === 'horse') {
+        horseStamina.step(seconds, true);
+        if (horseStamina.getStatus().tired) input = { ...input, x: 0, z: 0, lift: 0, brake: true };
+      }
       stepRide(active, input, seconds, obstacles);
       player.group.position.set(active.x, 0.15 + active.altitude, active.z);
       player.group.rotation.y = active.rotation;
+      if (
+        active.id === 'horse' &&
+        horseStamina.getStatus().tired &&
+        Math.hypot(active.velocityX, active.velocityZ) < 0.1
+      ) {
+        const destination = rideDismountPosition(active, obstacles);
+        if (destination) {
+          park(active.x, active.z, active.rotation);
+          player.group.position.set(destination.x, 0.15, destination.z);
+          return;
+        }
+      }
       if (
         active.autopilot?.phase === 'descending' &&
         active.altitude === 0 &&
@@ -170,7 +227,20 @@ export function createWorldTransports(
       active = createRideMotion(active.id, x, z, rotation);
     },
     animate(seconds: number, time: number, reducedMotion = false) {
+      if (active?.id !== 'horse') horseStamina.step(seconds, false);
       for (const item of items) {
+        if (item.definition.id === 'horse' && item.available) {
+          const mounted = active?.id === 'horse';
+          const tired = horseStamina.getStatus().tired;
+          if (item.tiredLabel) item.tiredLabel.visible = !mounted && tired;
+          animateWorldHorse(item.model, {
+            mounted,
+            speed: mounted ? Math.hypot(active!.velocityX, active!.velocityZ) : 0,
+            time,
+            reducedMotion,
+            tired,
+          });
+        }
         if (item.definition.id !== 'dragon' || !item.available) continue;
         const dragon = active?.id === item.definition.id ? active : null;
         const breathingFire =
@@ -224,8 +294,15 @@ export function createWorldTransports(
       });
     },
     getStatus() {
-      return active ? rideStatus(active) : null;
+      if (!active) return null;
+      const status = rideStatus(active);
+      if (active.id === 'horse') {
+        const { remaining, tired } = horseStamina.getStatus();
+        status.horse = { remaining, tired };
+      }
+      return status;
     },
+    getHorseState: () => horseStamina.getStatus(),
     /** Detach mounted resources so scene disposal still sees every vehicle. */
     dispose() {
       if (active) park(active.x, active.z, active.rotation);

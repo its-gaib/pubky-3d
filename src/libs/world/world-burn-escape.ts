@@ -64,23 +64,42 @@ export function createWorldHumanBurnTarget(
   onPose?: (frame: WorldBurnEscapeFrame, reducedMotion: boolean) => void,
 ): WorldBurnTarget {
   let escape: ReturnType<typeof createWorldBurnEscape> | null = null;
+  let collapsing = false;
   const position = new THREE.Vector3();
-  const target = createWorldGroupBurnTarget(id, [figure]);
+  const floorBounds = new THREE.Box3();
+  const collapseFrame: WorldBurnEscapeFrame = { position, yaw: 0, stride: 0, falling: true };
+  const target = createWorldGroupBurnTarget(id, [figure], [], {
+    canIgnite: () => figure.userData.worldZombieFallen !== true,
+  });
   return {
     ...target,
-    completion: 'fall',
+    get completion() {
+      return figure.userData.worldZombie === true ? 'smolder' : 'fall';
+    },
     onIgnite() {
-      if (escape) return;
+      if (escape || collapsing) return;
       figure.getWorldPosition(position);
-      escape = createWorldBurnEscape(position);
+      collapsing = figure.userData.worldZombie === true;
+      if (!collapsing) escape = createWorldBurnEscape(position);
       scene.attach(figure);
+      collapseFrame.yaw = figure.rotation.y;
       figure.userData.worldBurnPending = true;
       figure.traverse((object) => {
         if (object instanceof THREE.Sprite) object.visible = false;
       });
     },
-    getDuration: () => escape?.duration ?? 15,
+    getDuration: () => (collapsing ? 1.2 : (escape?.duration ?? 15)),
     applyProgress(progress, reducedMotion = false) {
+      if (collapsing) {
+        const fraction = reducedMotion ? 1 : THREE.MathUtils.smoothstep(progress, 0, 0.85);
+        onPose?.(collapseFrame, reducedMotion);
+        figure.position.copy(position);
+        figure.rotation.set(fraction * Math.PI * 0.5, collapseFrame.yaw, 0);
+        // Keep the whole prone body resting on the floor, even with scaled rigs.
+        if (target.getBounds(floorBounds)) figure.position.y += 0.13 - floorBounds.min.y;
+        figure.updateMatrixWorld(true);
+        return;
+      }
       if (!escape) return;
       const frame = escape.sample(progress, reducedMotion);
       figure.position.copy(frame.position);

@@ -5,6 +5,8 @@ export const WORLD_BURN_LIMITS = {
   targets: 4096,
   remembered: 8192,
   concurrent: 32,
+  smoldering: 256,
+  corpseSeconds: 60,
   heatSeconds: 0.2,
   maxStep: 0.1,
   range: 80,
@@ -23,8 +25,8 @@ export interface WorldBurnTarget {
   /** Returns the closest physical hit in this ray's range, or null. */
   raycast?: (raycaster: THREE.Raycaster) => number | null;
   canIgnite?: () => boolean;
-  /** People leave the island; other targets finish with an explosion. */
-  completion?: 'explode' | 'fall';
+  /** Humans leave the island; zombies remain as burning, inert corpses. */
+  completion?: 'explode' | 'fall' | 'smolder';
   getDuration?: () => number;
   applyProgress?: (progress: number, reducedMotion?: boolean) => void;
   hide: () => void;
@@ -35,7 +37,7 @@ export interface WorldBurnEvent {
   id: string;
   bounds: THREE.Box3;
   duration: number;
-  completion: 'explode' | 'fall';
+  completion: 'explode' | 'fall' | 'smolder';
 }
 
 export interface WorldBurnOptions {
@@ -45,6 +47,8 @@ export interface WorldBurnOptions {
   /** Moving human emitters follow the latest physical bounds during escape. */
   onUpdate?: (event: WorldBurnEvent) => void;
   onGone?: (id: string, event: WorldBurnEvent) => void;
+  /** A collapsed zombie finally leaves the scene after its corpse lifetime. */
+  onExtinguish?: (id: string) => void;
 }
 
 export interface WorldFireExposure {
@@ -275,6 +279,7 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
   const ledger = options.ledger ?? pageLedger;
   const targets = new Map<string, { target: WorldBurnTarget; bounds: THREE.Box3; heat: number; exposedAt: number }>();
   const active = new Map<string, { elapsed: number; event: WorldBurnEvent }>();
+  const smoldering = new Map<string, number>();
   const candidates: { id: string; target: WorldBurnTarget; bounds: THREE.Box3 }[] = [];
   const heated = new Set<string>();
   const completed: WorldBurnEvent[] = [];
@@ -303,11 +308,11 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
   }
 
   function isGone(id: string) {
-    return lineage(id, (key) => ledger.has(key) && !active.has(key));
+    return lineage(id, (key) => ledger.has(key) && !active.has(key) && !smoldering.has(key));
   }
 
   function isBurning(id: string) {
-    return !isGone(id) && lineage(id, (key) => active.has(key));
+    return !isGone(id) && lineage(id, (key) => active.has(key) || smoldering.has(key));
   }
 
   function applyAvailability() {
@@ -329,6 +334,9 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
       isGone(id) ||
       isBurning(id) ||
       active.size >= WORLD_BURN_LIMITS.concurrent ||
+      (record.target.completion === 'smolder' &&
+        smoldering.size + [...active.values()].filter(({ event }) => event.completion === 'smolder').length >=
+          WORLD_BURN_LIMITS.smoldering) ||
       ledger.size >= WORLD_BURN_LIMITS.remembered ||
       record.target.canIgnite?.() === false ||
       !record.target.getBounds(record.bounds) ||
@@ -339,7 +347,7 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
       id,
       bounds: record.bounds.clone(),
       duration: 4 + Math.min(3, record.bounds.getSize(size).length() * 0.075),
-      completion: record.target.completion === 'fall' ? 'fall' : 'explode',
+      completion: record.target.completion ?? 'explode',
     };
     ledger.add(id);
     active.set(id, { elapsed: 0, event });
@@ -457,17 +465,25 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
       for (const record of targets.values()) {
         if (clock - record.exposedAt > 0.12) record.heat = Math.max(0, record.heat - delta);
       }
+      for (const [id, elapsed] of smoldering) {
+        const next = elapsed + delta;
+        if (next >= WORLD_BURN_LIMITS.corpseSeconds) {
+          smoldering.delete(id);
+          options.onExtinguish?.(id);
+        } else smoldering.set(id, next);
+      }
       for (const [id, state] of active) {
         const record = targets.get(id);
         state.elapsed = Math.min(state.event.duration, state.elapsed + delta);
         record?.target.applyProgress?.(state.elapsed / state.event.duration, reducedMotion);
-        if (state.event.completion === 'fall') {
+        if (state.event.completion === 'fall' || state.event.completion === 'smolder') {
           if (record?.target.getBounds(record.bounds) && validBounds(record.bounds))
             state.event.bounds.copy(record.bounds);
           options.onUpdate?.(copyEvent(state.event));
         }
         if (state.elapsed >= state.event.duration) {
           active.delete(id);
+          if (state.event.completion === 'smolder') smoldering.set(id, state.elapsed);
           completed.push(copyEvent(state.event));
         }
       }
@@ -482,6 +498,7 @@ export function createWorldBurning(options: WorldBurnOptions = {}) {
       disposed = true;
       targets.clear();
       active.clear();
+      smoldering.clear();
       candidates.length = 0;
       heated.clear();
       completed.length = 0;

@@ -11,6 +11,7 @@ import {
   WORLD_MASK_COLORS,
 } from '@/libs/world/world-avatar-head';
 import type { createWorldAvatarImageLoader } from '@/libs/world/world-avatar-image';
+import { createWorldKnightEquipment } from '@/libs/world/world-knight';
 import type { PersonaState, WorldAvatarIdentity, WorldRideableId } from '@/libs/world/world-types';
 
 type Point = readonly [number, number, number];
@@ -128,6 +129,7 @@ function parts(parent: THREE.Group) {
 export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof createWorldAvatarImageLoader>) {
   const group = new THREE.Group();
   group.name = 'Pubky explorer';
+  let zombie = false;
   // Physics owns the outer root. Rider and vehicle turn together around this
   // visual center without moving the floor origin used by scene locomotion.
   const riderPivot = new THREE.Group();
@@ -382,6 +384,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
   portraitBack.castShadow = true;
   identityHead.add(portraitBack);
   function showPortrait(visible: boolean) {
+    visible = visible && !zombie;
     portrait.visible = portraitBack.visible = visible;
     maskParts.forEach((object) => {
       object.visible = !visible;
@@ -659,6 +662,8 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     });
 
   let ridePose: WorldPersonaRidePose | null = null;
+  let knight: ReturnType<typeof createWorldKnightEquipment> | null = null;
+  let knightPieces: THREE.Group[] = [];
   let toolPitch: number | null = null;
   let lastSeconds = 0;
   let lastAnimation: PersonaState['animation'] = 'idle';
@@ -667,6 +672,24 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
   const rideHandTarget = new THREE.Vector3();
   const toolGrip = new THREE.Vector3();
   const toolPivot = new THREE.Vector3(0, 1.45, 0.2);
+
+  function knightEquipment(visible: boolean) {
+    if (visible && !knight) {
+      knight = createWorldKnightEquipment();
+      knightPieces = Object.values(knight);
+      body.add(knight.chest);
+      head.add(knight.helmet);
+      leftArm.add(knight.leftShoulder);
+      rightArm.add(knight.rightShoulder);
+      leftKnee.add(knight.leftShin);
+      rightKnee.add(knight.rightShin);
+      rightElbow.add(knight.sword);
+      knight.sword.position.set(0, -0.43, 0.045);
+      leftElbow.add(knight.shield);
+      knight.shield.position.set(0, -0.37, 0.13);
+    }
+    for (const piece of knightPieces) piece.visible = visible;
+  }
 
   function resetRideTransforms() {
     riderPivot.position.set(0, 1, 0);
@@ -766,6 +789,21 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     riderPivot.rotation.z = -lean * 0.12;
 
     switch (ridePose.kind) {
+      case 'horse': {
+        const lift = 2.48 - 0.908 + bob;
+        figure.position.y += lift;
+        figure.position.z = -0.12;
+        body.rotation.x = 0.09;
+        head.rotation.x = -0.05;
+        placeRideFoot(leftLeg, leftKnee, leftFoot, 1.55 + 0.161 - lift, -0.05 - figure.position.z, -0.72);
+        placeRideFoot(rightLeg, rightKnee, rightFoot, 1.55 + 0.161 - lift, -0.05 - figure.position.z, 0.72);
+        placeRideHands(0.37, 2.98, 0.95, lift);
+        const sweep = reducedMotion ? 0 : Math.sin(time * 4.8);
+        rightArm.rotation.set(-1.07 - Math.max(0, sweep) * 0.28, sweep * 0.62, 0.35 + sweep * 0.55);
+        rightElbow.rotation.x = -0.25 - Math.max(0, -sweep) * 0.25;
+        riderPivot.rotation.z = -lean * 0.07;
+        break;
+      }
       case 'skateboard':
       case 'hoverboard': {
         const skateboard = ridePose.kind === 'skateboard';
@@ -871,9 +909,28 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     lastAnimation = animation;
     lastReducedMotion = reducedMotion;
     resetRideTransforms();
+    knightEquipment(!zombie && ridePose?.kind === 'horse');
     atlas.flush();
     const time = Number.isFinite(seconds) ? Math.max(0, seconds) % 3600 : 0;
     const walking = animation === 'walk' && !reducedMotion;
+    if (zombie) {
+      const stagger = walking ? Math.sin(time * 3.7) : 0;
+      const drag = walking ? Math.sin(time * 3.7 + 0.7) : 0;
+      body.position.y = 1.015 + (walking ? Math.abs(stagger) * 0.022 : 0);
+      body.rotation.set(0.22, stagger * 0.045, reducedMotion ? 0.04 : 0.04 + drag * 0.035);
+      head.rotation.set(-0.07, 0.06, -0.12);
+      leftLeg.rotation.set(stagger * 0.2 - 0.05, 0, -0.035);
+      rightLeg.rotation.set(-drag * 0.13, 0, 0.065);
+      leftKnee.rotation.x = 0.12 + Math.max(0, stagger) * 0.25;
+      rightKnee.rotation.x = 0.19 + Math.max(0, -drag) * 0.17;
+      leftFoot.rotation.set(-0.09, 0, 0);
+      rightFoot.rotation.set(-0.13, 0, 0);
+      leftArm.rotation.set(-1.37 + stagger * 0.06, 0, -0.2);
+      rightArm.rotation.set(-1.19 - drag * 0.09, 0, 0.23);
+      leftElbow.rotation.x = -0.14;
+      rightElbow.rotation.x = -0.27;
+      return;
+    }
     const dancing = animation === 'dance' && !reducedMotion;
     const jumping = animation === 'jump';
     const stride = walking ? Math.sin(time * 11.5) * 0.46 : 0;
@@ -942,6 +999,26 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     leftFoot,
     rightFoot,
     animate,
+    /** Infection lasts for this scene; atlas updates cannot replace the zombie face. */
+    setZombie(value = true) {
+      if (!value || zombie) return;
+      zombie = true;
+      group.userData.worldZombie = true;
+      skin.color.set('#81A86A');
+      warmSkin.color.set('#577C45');
+      accent.color.set('#7EA552');
+      coat.color.set('#1C2920');
+      for (const object of maskParts) {
+        if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshStandardMaterial)) continue;
+        object.material.color.set(object.name.endsWith('visor') ? '#44291D' : '#719654');
+        object.material.emissive.set(object.name.endsWith('visor') ? '#B9973F' : '#2C4022');
+        object.material.emissiveIntensity = 0.5;
+      }
+      showPortrait(false);
+      ridePose = null;
+      toolPitch = null;
+      animate(lastSeconds, 'idle', lastReducedMotion);
+    },
     setToolPose(pitch: number | null) {
       const wasHoldingTool = toolPitch !== null;
       toolPitch = pitch !== null && Number.isFinite(pitch) ? THREE.MathUtils.clamp(pitch, -0.65, 0.8) : null;
@@ -950,6 +1027,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     setRidePose(value: WorldPersonaRidePose | null) {
       const wasRiding = ridePose !== null;
       ridePose = value;
+      if (!value) knightEquipment(false);
       if (wasRiding && !value) animate(lastSeconds, lastAnimation, lastReducedMotion);
     },
     setAvatarIdentity(value: WorldAvatarIdentity | null) {

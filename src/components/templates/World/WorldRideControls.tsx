@@ -1,7 +1,7 @@
 'use client';
 
 import { type FocusEvent, type KeyboardEvent, type PointerEvent, useEffect, useId, useRef } from 'react';
-import { ArrowDown, ArrowUp, Gauge, LogOut, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, Gauge, LogOut, Sparkles, Swords } from 'lucide-react';
 import { Button } from '@/atoms/Button/Button';
 import { worldRideCanFly, worldRideIsAutonomous } from '@/libs/world/world-transport-motion';
 import type { WorldController, WorldStatus } from '@/libs/world/world-types';
@@ -24,6 +24,7 @@ export function WorldRideControls({ ride, onLift, onStunt, onGetOff }: WorldRide
   const held = useRef<{ up: number | null; down: number | null }>({ up: null, down: null });
   const autonomous = worldRideIsAutonomous(ride.id);
   const flying = worldRideCanFly(ride.id);
+  const horseback = ride.id === 'horse';
   const getOffHint = autonomous
     ? ride.landing
       ? 'Finding clear ground and landing…'
@@ -122,6 +123,11 @@ export function WorldRideControls({ ride, onLift, onStunt, onGetOff }: WorldRide
               <b>{altitude}</b>
             </span>
           )}
+          {horseback && ride.horse && (
+            <span aria-label="Horse riding time remaining">
+              <b>{Math.ceil(Math.max(0, ride.horse.remaining))}s</b>
+            </span>
+          )}
         </div>
       </div>
       <div className={styles.actions}>
@@ -152,19 +158,21 @@ export function WorldRideControls({ ride, onLift, onStunt, onGetOff }: WorldRide
               <kbd>{shortcut === 'Space' ? 'SPACE' : shortcut}</kbd>
             </Button>
           ))}
-        <Button
-          overrideDefaults
-          className={styles.control}
-          onClick={onStunt}
-          disabled={ride.landing}
-          aria-label="Perform a stunt"
-          aria-keyshortcuts="F"
-          title={autonomous ? 'F · Roll and breathe fire' : 'F · Stunt'}
-        >
-          <Sparkles size={17} aria-hidden="true" />
-          <span className={styles.buttonLabel}>{autonomous ? 'Stunt + fire' : 'Stunt'}</span>
-          <kbd>F</kbd>
-        </Button>
+        {!horseback && (
+          <Button
+            overrideDefaults
+            className={styles.control}
+            onClick={onStunt}
+            disabled={ride.landing}
+            aria-label="Perform a stunt"
+            aria-keyshortcuts="F"
+            title={autonomous ? 'F · Roll and breathe fire' : 'F · Stunt'}
+          >
+            <Sparkles size={17} aria-hidden="true" />
+            <span className={styles.buttonLabel}>{autonomous ? 'Stunt + fire' : 'Stunt'}</span>
+            <kbd>F</kbd>
+          </Button>
+        )}
         <Button
           overrideDefaults
           className={`${styles.control} ${styles.leave}`}
@@ -181,12 +189,19 @@ export function WorldRideControls({ ride, onLift, onStunt, onGetOff }: WorldRide
         </Button>
       </div>
       <p className={styles.hint} id={hintId}>
-        {getOffHint ? (
+        {horseback ? (
+          <>
+            <Swords size={14} aria-hidden="true" />
+            {ride.horse?.tired
+              ? 'The horse is tired. Slowing to a stop…'
+              : 'Ride into zombies · Your sword swings automatically'}
+          </>
+        ) : getOffHint ? (
           getOffHint
         ) : autonomous ? (
           'Enjoy the flight · F to roll and breathe fire · E to land'
         ) : flying ? (
-          'Hold to rise or descend'
+          'Fly above zombies to stay out of reach · Hold to rise or descend'
         ) : (
           <>
             <kbd>SPACE</kbd> to hop · <kbd>SHIFT</kbd> to brake

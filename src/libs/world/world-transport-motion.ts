@@ -121,6 +121,22 @@ export const WORLD_RIDEABLES: readonly RideDefinition[] = [
       stuntBounds: { radius: 6.5, below: 6, above: 7 },
     },
   },
+  {
+    id: 'horse',
+    name: 'Knight horse',
+    position: [72, 18],
+    rotation: -0.45,
+    speed: 22,
+    acceleration: 2.4,
+    turning: 4.5,
+    stopping: 2.1,
+    radius: 2.35,
+    parkedRadius: 3.6,
+    mountDistance: 4.8,
+    jumpSpeed: 0,
+    stunt: 'Sword sweep',
+    stuntDuration: 0.7,
+  },
 ];
 
 export const RIDE_MOUNT_DISTANCE = 3.6;
@@ -167,6 +183,10 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export const rideDefinition = (id: WorldRideableId) => WORLD_RIDEABLES.find((item) => item.id === id)!;
 export const worldRideCanFly = (id: WorldRideableId | undefined) => !!id && !!rideDefinition(id).flight;
 export const worldRideIsAutonomous = (id: WorldRideableId | undefined) => !!id && !!rideDefinition(id).autonomous;
+/** Jetpacks rely on each zombie's relative bite reach; only the kart/airborne dragon shield riders. */
+export function worldRidePreventsZombieBite(ride: Pick<WorldRideStatus, 'id' | 'altitude'> | null) {
+  return ride?.id === 'kart' || (ride?.id === 'dragon' && Number.isFinite(ride.altitude) && ride.altitude > 0.12);
+}
 export const worldRideMountDistance = (id: WorldRideableId | undefined) =>
   (id && rideDefinition(id).mountDistance) || RIDE_MOUNT_DISTANCE;
 
@@ -252,20 +272,28 @@ export function resolveRidePosition(
 /** Step off beside the vehicle, never into a wall or outside the island. */
 export function rideDismountPosition(motion: RideMotion, obstacles: readonly WorldObstacle[]) {
   if (motion.altitude > 0.12 || motion.stuntProgress !== null) return null;
-  const distance = rideDefinition(motion.id).radius + 1;
-  for (const offset of [Math.PI / 2, -Math.PI / 2, Math.PI, 0]) {
-    const x = motion.x + Math.sin(motion.rotation + offset) * distance;
-    const z = motion.z + Math.cos(motion.rotation + offset) * distance;
-    if (Math.hypot(x, z) > WORLD_RADIUS - 0.65) continue;
-    if (
-      obstacles.every(
-        (obstacle) =>
-          obstacle.enabled === false ||
-          (obstacle.minHeight ?? 0) > 0 ||
-          Math.hypot(x - obstacle.x, z - obstacle.z) >= obstacle.radius + 0.65,
+  const definition = rideDefinition(motion.id);
+  const distance = (definition.parkedRadius ?? definition.radius) + 1;
+  const offsets = [Math.PI / 2, -Math.PI / 2, Math.PI, 0];
+  // Exhausted horses cannot move to make another exit available. Search at
+  // most 24 nearby positions so small props on the four sides cannot trap riders.
+  if (motion.id === 'horse') offsets.push(Math.PI / 4, -Math.PI / 4, (Math.PI * 3) / 4, (-Math.PI * 3) / 4);
+  const distances = motion.id === 'horse' ? [distance, distance + 1, distance + 2] : [distance];
+  for (const radius of distances) {
+    for (const offset of offsets) {
+      const x = motion.x + Math.sin(motion.rotation + offset) * radius;
+      const z = motion.z + Math.cos(motion.rotation + offset) * radius;
+      if (Math.hypot(x, z) > WORLD_RADIUS - 0.65) continue;
+      if (
+        obstacles.every(
+          (obstacle) =>
+            obstacle.enabled === false ||
+            (obstacle.minHeight ?? 0) > 0 ||
+            Math.hypot(x - obstacle.x, z - obstacle.z) >= obstacle.radius + 0.65,
+        )
       )
-    )
-      return { x, z };
+        return { x, z };
+    }
   }
   return null;
 }
@@ -439,12 +467,19 @@ function autonomousRideInput(motion: RideMotion, seconds: number, obstacles: rea
 }
 
 export function jumpRide(motion: RideMotion) {
-  if (worldRideCanFly(motion.id) || motion.altitude > 0.01 || motion.velocityY > 0) return false;
+  if (
+    worldRideCanFly(motion.id) ||
+    rideDefinition(motion.id).jumpSpeed <= 0 ||
+    motion.altitude > 0.01 ||
+    motion.velocityY > 0
+  )
+    return false;
   motion.velocityY = rideDefinition(motion.id).jumpSpeed;
   return true;
 }
 
 export function startRideStunt(motion: RideMotion, obstacles: readonly WorldObstacle[] = []) {
+  if (motion.id === 'horse') return false;
   if (motion.stuntProgress !== null || motion.stuntCooldown > 0) return false;
   if (landingPhase(motion.autopilot?.phase)) return false;
   const definition = rideDefinition(motion.id);

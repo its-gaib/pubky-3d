@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorldBurnEscape, createWorldHumanBurnTarget, WORLD_BURN_ESCAPE } from '@/libs/world/world-burn-escape';
-import { createWorldBurning, createWorldGroupBurnTarget } from '@/libs/world/world-burning';
+import { createWorldBurning, createWorldGroupBurnTarget, WORLD_BURN_LIMITS } from '@/libs/world/world-burning';
 import { disposeObject } from '@/libs/world/world-geometry';
 
 describe('burning human escape', () => {
@@ -93,6 +93,63 @@ describe('burning human escape', () => {
     person.visible = true;
     burning.tick(0);
     expect(person.visible).toBe(false);
+    burning.dispose();
+  });
+
+  it('collapses burning zombies on the floor, releases fire capacity, then clears corpses after sixty seconds', () => {
+    const scene = new THREE.Scene();
+    scenes.push(scene);
+    const onGone = vi.fn();
+    const onExtinguish = vi.fn();
+    const burning = createWorldBurning({ ledger: new Set(), onGone, onExtinguish });
+    const people = Array.from({ length: WORLD_BURN_LIMITS.concurrent + 1 }, (_, index) => {
+      const person = new THREE.Group();
+      person.position.set(index * 2, 0.15, 0);
+      person.add(
+        new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.8).translate(0, 1.4, 0), new THREE.MeshBasicMaterial()),
+      );
+      scene.add(person);
+      const target = createWorldHumanBurnTarget(`human:zombie-${index}`, person, scene);
+      burning.bind(target);
+      // Targets may turn into zombies after they were registered as humans.
+      person.userData.worldZombie = true;
+      return { person, target };
+    });
+    for (const { target } of people.slice(0, WORLD_BURN_LIMITS.concurrent))
+      expect(burning.ignite(target.id)).toBe(true);
+    expect(burning.ignite(people.at(-1)!.target.id)).toBe(false);
+    for (let tick = 0; tick < 14; tick++) burning.tick(0.1);
+    const { person, target } = people[0];
+    expect(person.visible).toBe(true);
+    expect(person.position.x).toBe(0);
+    expect(person.position.z).toBe(0);
+    expect(person.rotation.x).toBeCloseTo(Math.PI / 2);
+    expect(new THREE.Box3().setFromObject(person).min.y).toBeCloseTo(0.13);
+    expect(burning.isBurning(target.id)).toBe(true);
+    expect(burning.isGone(target.id)).toBe(false);
+    expect(burning.ignite(target.id)).toBe(false);
+    expect(burning.ignite(people.at(-1)!.target.id)).toBe(true);
+    expect(onGone.mock.calls.every(([, event]) => event.completion === 'smolder')).toBe(true);
+    for (let tick = 0; tick < 570; tick++) burning.tick(0.1);
+    expect(person.visible).toBe(true);
+    for (let tick = 0; tick < 50; tick++) burning.tick(0.1);
+    expect(people.every(({ person }) => !person.visible)).toBe(true);
+    expect(burning.isGone(target.id)).toBe(true);
+    expect(onExtinguish).toHaveBeenCalledTimes(people.length);
+    burning.dispose();
+  });
+
+  it('does not reignite zombies already knocked down by a weapon', () => {
+    const scene = new THREE.Scene();
+    scenes.push(scene);
+    const figure = new THREE.Group();
+    figure.add(new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), new THREE.MeshBasicMaterial()));
+    scene.add(figure);
+    const burning = createWorldBurning({ ledger: new Set() });
+    const target = createWorldHumanBurnTarget('human:fallen', figure, scene);
+    burning.bind(target);
+    figure.userData.worldZombieFallen = true;
+    expect(burning.ignite(target.id)).toBe(false);
     burning.dispose();
   });
 });

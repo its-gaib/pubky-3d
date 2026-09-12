@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WORLD_BURN_LIMITS } from '@/libs/world/world-burning';
 import { disposeObject } from '@/libs/world/world-geometry';
 
 export type WorldFireStreamKind = 'weapon' | 'dragon';
@@ -9,6 +10,7 @@ export const WORLD_FIRE_LIMITS = {
   embers: 192,
   debris: 96,
   fires: 32,
+  smoldering: WORLD_BURN_LIMITS.smoldering,
   explosions: 32,
   weaponRange: 22,
   dragonRange: 32,
@@ -195,6 +197,29 @@ export function createWorldFireEffects(scene: THREE.Scene) {
   const debrisSpins = new Float32Array(WORLD_FIRE_LIMITS.debris * 3);
   const pools = [smoke, flames, embers];
   const fires = new Map<string, BurningVolume>();
+  const smoldering = new Map<string, BurningVolume>();
+  const createCorpseFlames = () => {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        color: '#FF8C27',
+        map: sprite('flame'),
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      }),
+      WORLD_FIRE_LIMITS.smoldering * 3,
+    );
+    mesh.name = 'world-smoldering-corpse-flames';
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    root.add(mesh);
+    return mesh;
+  };
+  let corpseFlames: ReturnType<typeof createCorpseFlames> | null = null;
   const explosions = new Map<string, Explosion>();
   const streams: Stream[] = (['weapon', 'dragon'] as const).map((kind) => ({
     origin: new THREE.Vector3(),
@@ -696,6 +721,7 @@ export function createWorldFireEffects(scene: THREE.Scene) {
       if (
         disposed ||
         fires.has(id) ||
+        smoldering.has(id) ||
         explosions.has(id) ||
         fires.size >= WORLD_FIRE_LIMITS.fires ||
         !validBounds(bounds)
@@ -703,6 +729,20 @@ export function createWorldFireEffects(scene: THREE.Scene) {
         return;
       const size = bounds.getSize(new THREE.Vector3());
       fires.set(id, { min: bounds.min.clone(), max: bounds.max.clone(), size, elapsed: 0, credit: 0 });
+    },
+    /** Corpses keep one bounded instanced flame draw without occupying active fire slots. */
+    smolder(id: string, bounds: THREE.Box3) {
+      if (disposed || smoldering.has(id) || smoldering.size >= WORLD_FIRE_LIMITS.smoldering || !validBounds(bounds))
+        return;
+      fires.delete(id);
+      corpseFlames ??= createCorpseFlames();
+      smoldering.set(id, {
+        min: bounds.min.clone(),
+        max: bounds.max.clone(),
+        size: bounds.getSize(new THREE.Vector3()),
+        elapsed: 0,
+        credit: 0,
+      });
     },
     /** Moving figures keep the same fire ramp and budget as their bounds follow them. */
     follow(id: string, bounds: THREE.Box3) {
@@ -739,6 +779,25 @@ export function createWorldFireEffects(scene: THREE.Scene) {
         stream.pending = false;
       }
       for (const fire of fires.values()) fireParticles(fire, dt, reducedMotion);
+      let corpseSlot = 0;
+      for (const fire of smoldering.values()) {
+        for (let plume = 0; plume < 3; plume++) {
+          const spread = (plume - 1) * 0.3;
+          const flicker = reducedMotion ? 1 : 1 + Math.sin(clock * 5 + corpseSlot * 1.7) * 0.12;
+          position.set(
+            (fire.min.x + fire.max.x) / 2 + spread * Math.min(1.8, fire.size.x),
+            fire.min.y + 0.6 * flicker,
+            (fire.min.z + fire.max.z) / 2 + spread * Math.min(1.8, fire.size.z),
+          );
+          scale.set(0.85, 1.45 * flicker, 1);
+          matrix.compose(position, cameraRotation, scale);
+          corpseFlames?.setMatrixAt(corpseSlot++, matrix);
+        }
+      }
+      if (corpseFlames) {
+        corpseFlames.count = corpseSlot;
+        if (corpseSlot) corpseFlames.instanceMatrix.needsUpdate = true;
+      }
       let simultaneous = 0;
       for (const explosion of explosions.values()) if (explosion.pending) simultaneous++;
       for (const [id, explosion] of explosions) {
@@ -753,15 +812,17 @@ export function createWorldFireEffects(scene: THREE.Scene) {
       for (const particles of pools) {
         if (updateParticles(particles, dt, clock, reducedMotion)) visible = true;
       }
-      root.visible = visible;
+      root.visible = visible || corpseSlot > 0;
     },
     remove(id: string) {
       fires.delete(id);
+      smoldering.delete(id);
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       fires.clear();
+      smoldering.clear();
       explosions.clear();
       streams.forEach((stream) => {
         stream.pending = false;

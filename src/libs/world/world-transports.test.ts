@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Dragon from '@/libs/world/world-dragon';
 import { disposeObject } from '@/libs/world/world-geometry';
 import type { WorldObstacle } from '@/libs/world/world-motion';
@@ -11,6 +11,9 @@ import { asOpaque } from '@/test-utils/type-assertions';
 
 describe('world transport ownership and animation', () => {
   const fixtures: { scene: THREE.Scene; transports: ReturnType<typeof createWorldTransports> }[] = [];
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
 
   function create(existing: WorldObstacle[] = []) {
     const scene = new THREE.Scene();
@@ -56,10 +59,10 @@ describe('world transport ownership and animation', () => {
     vi.restoreAllMocks();
   });
 
-  it('registers all six discoverable models and adds persistent obstacle slots without replacing existing obstacles', () => {
+  it('registers every discoverable model and adds persistent obstacle slots without replacing existing obstacles', () => {
     const existing: WorldObstacle = { x: -65, z: -37, radius: 2, height: 2 };
     const { scene, obstacles, register, model, slot } = create([existing]);
-    expect(obstacles).toHaveLength(7);
+    expect(obstacles).toHaveLength(WORLD_RIDEABLES.length + 1);
     expect(obstacles[0]).toBe(existing);
     expect(register.mock.calls.map(([, action, title]) => ({ action, title }))).toEqual(
       WORLD_RIDEABLES.map(({ id, name }) => ({ action: { kind: 'transport', id }, title: `Ride ${name}` })),
@@ -72,7 +75,13 @@ describe('world transport ownership and animation', () => {
       expect(slot(id).z).toBe(object.position.z);
       expect(slot(id).radius).toBeGreaterThan(0);
       expect(slot(id).enabled).not.toBe(false);
-      const bounds = new THREE.Box3().setFromObject(object);
+      const bounds = new THREE.Box3();
+      object.updateWorldMatrix(true, true);
+      object.traverse((part) => {
+        if (!(part instanceof THREE.Mesh)) return;
+        part.geometry.computeBoundingBox();
+        if (part.geometry.boundingBox) bounds.union(part.geometry.boundingBox.clone().applyMatrix4(part.matrixWorld));
+      });
       expect(slot(id).height).toBeGreaterThanOrEqual(bounds.max.y - 1e-6);
     }
     expect(
@@ -148,7 +157,7 @@ describe('world transport ownership and animation', () => {
         }
         expect(transports.active).toBeNull();
       } else expect(transports.dismount()).toBe(true);
-      expect(obstacles).toHaveLength(6);
+      expect(obstacles).toHaveLength(WORLD_RIDEABLES.length);
       obstacles.forEach((obstacle, index) => expect(obstacle).toBe(originalSlots[index]));
       [...models.values()].forEach((object, index) => expect(object).toBe(originalModels[index]));
       expect(slot(kind).x).toBe(model(kind).position.x);
@@ -335,12 +344,16 @@ describe('world transport ownership and animation', () => {
   it('finishes an airborne dragon roll before landing and ignores repeated landing requests', () => {
     const { scene, player, transports, model, slot, mount } = create();
     expect(mount('dragon')).toBe(true);
+    const motion = transports.active!;
+    // This route is descending when the roll starts, so landing must brake
+    // existing momentum while it waits for the roll to finish.
+    motion.autopilot!.seed = 60;
     for (let tick = 0; tick < 600; tick++) {
       transports.step(1 / 60, { x: 0, z: 0, yaw: 0, lift: 0 });
     }
     expect(transports.stunt()).toBe(true);
-    const motion = transports.active!;
-    const altitude = motion.altitude;
+    const verticalSpeed = motion.velocityY;
+    expect(verticalSpeed).toBeLessThan(0);
     expect(transports.dismount()).toBe(false);
     const target = motion.autopilot!.target;
     expect(transports.dismount()).toBe(false);
@@ -349,7 +362,10 @@ describe('world transport ownership and animation', () => {
       transports.step(1 / 60, { x: 0, z: 0, yaw: 0, lift: 0 });
     }
     expect(motion.stuntProgress).not.toBeNull();
-    expect(motion.altitude).toBeGreaterThan(altitude - 1);
+    expect(motion.autopilot!.phase).toBe('landing');
+    expect(motion.velocityY).toBeGreaterThan(verticalSpeed);
+    expect(motion.velocityY).toBeLessThanOrEqual(0);
+    expect(motion.altitude).toBeGreaterThanOrEqual(rideDefinition('dragon').flight!.stuntBounds!.below);
     expect(transports.getStatus()).toMatchObject({ id: 'dragon', landing: true, stunt: 'Fire roll' });
     expect(transports.stunt()).toBe(false);
     for (let tick = 0; tick < 2400 && transports.active; tick++) {
@@ -409,7 +425,7 @@ describe('world transport ownership and animation', () => {
     expect(model('kart').parent).toBe(scene);
     expect(player.transportMount.children).toHaveLength(0);
     expect(slot('kart')).toMatchObject({ enabled: true, x: 4, z: 7 });
-    expect(obstacles).toHaveLength(6);
+    expect(obstacles).toHaveLength(WORLD_RIDEABLES.length);
     expect(player.setRidePose).toHaveBeenLastCalledWith(null);
     transports.dispose();
     expect(model('kart').parent).toBe(scene);
@@ -417,7 +433,7 @@ describe('world transport ownership and animation', () => {
 
   it('exposes stable burn targets and refuses to mount a burned parked ride', () => {
     const { player, transports, model, slot, mount } = create();
-    expect(transports.burnEntries).toHaveLength(6);
+    expect(transports.burnEntries).toHaveLength(WORLD_RIDEABLES.length);
     for (const entry of transports.burnEntries) {
       expect(entry.model).toBe(model(entry.id));
       expect(entry.obstacle).toBe(slot(entry.id));
@@ -488,5 +504,76 @@ describe('world transport ownership and animation', () => {
     transports.reset();
     expect(slot('dragon').enabled).toBe(false);
     expect(model('dragon').visible).toBe(false);
+  });
+
+  it('keeps the same horse stamina through voluntary remounts and transfers', () => {
+    const { transports, mount, model } = create();
+    expect(mount('horse')).toBe(true);
+    expect(model('horse').getObjectByName('horse-knight-armor')!.visible).toBe(false);
+    for (let frame = 0; frame < 400; frame++) transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
+    expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(40);
+    expect(transports.dismount()).toBe(true);
+    expect(model('horse').getObjectByName('horse-knight-armor')!.visible).toBe(true);
+    for (let frame = 0; frame < 100; frame++) transports.animate(0.05, frame * 0.05, true);
+    expect(mount('horse')).toBe(true);
+    transports.transfer(0, 70, 0);
+    expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(40);
+    expect(transports.jump()).toBe(false);
+    expect(transports.stunt()).toBe(false);
+  });
+
+  it('slows an exhausted horse to a stop, dismounts automatically and blocks remounting for two minutes', () => {
+    const { transports, mount, model, player, slot } = create();
+    expect(mount('horse')).toBe(true);
+    for (let frame = 0; frame < 1198; frame++) transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
+    transports.active!.velocityZ = 15;
+    for (let frame = 0; frame < 3; frame++) transports.step(0.05, { x: 0, z: 1, yaw: 0, lift: 0 });
+    expect(transports.getStatus()?.horse?.tired).toBe(true);
+    const speed = transports.getStatus()!.speed;
+    transports.step(0.05, { x: 0, z: 1, yaw: 0, lift: 0 });
+    expect(transports.getStatus()!.speed).toBeLessThan(speed);
+    for (let frame = 0; frame < 100 && transports.active; frame++) {
+      transports.step(0.05, { x: 1, z: 1, yaw: 0, lift: 0 });
+    }
+    expect(transports.active).toBeNull();
+    expect(player.group.position.distanceTo(model('horse').position)).toBeGreaterThan(slot('horse').radius + 0.65);
+    expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(true);
+    expect(mount('horse')).toBe(false);
+    transports.setAvailable('horse', true);
+    expect(transports.isAvailable('horse')).toBe(false);
+    for (let frame = 0; frame < 2399; frame++) transports.animate(0.05, frame * 0.05, true);
+    expect(mount('horse')).toBe(false);
+    transports.animate(0.05, 120, true);
+    expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(false);
+    expect(mount('horse')).toBe(true);
+    expect(transports.getStatus()?.horse).toEqual({ remaining: 60, tired: false });
+  });
+
+  it('dismounts an exhausted horse through a clear diagonal when all four sides are blocked', () => {
+    const { transports, obstacles, player, model, mount } = create();
+    expect(mount('horse')).toBe(true);
+    transports.transfer(0, 0, 0);
+    const distance = rideDefinition('horse').parkedRadius! + 1;
+    obstacles.push(
+      { x: distance, z: 0, radius: 0.3 },
+      { x: -distance, z: 0, radius: 0.3 },
+      { x: 0, z: distance, radius: 0.3 },
+      { x: 0, z: -distance, radius: 0.3 },
+    );
+    for (let frame = 0; frame < 1201 && transports.active; frame++) {
+      transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
+    }
+    expect(transports.active).toBeNull();
+    expect(transports.getHorseState()).toMatchObject({ rest: 120, tired: true });
+    expect(Math.abs(player.group.position.x)).toBeGreaterThan(0.1);
+    expect(Math.abs(player.group.position.z)).toBeGreaterThan(0.1);
+    for (const obstacle of obstacles) {
+      if (obstacle.enabled === false) continue;
+      expect(Math.hypot(player.group.position.x - obstacle.x, player.group.position.z - obstacle.z)).toBeGreaterThan(
+        obstacle.radius + 0.65,
+      );
+    }
+    expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(true);
+    expect(mount('horse')).toBe(false);
   });
 });
