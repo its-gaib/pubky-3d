@@ -2,7 +2,7 @@
 
 ## Wandering NPCs, zombie outbreak and knight ride — 2026-09-12
 
-This checkpoint covers the feature's local validation. Open pull requests in the fork
+This checkpoint covers the feature's implementation and validation. Open pull requests in the fork
 and upstream were checked before implementation; no matching work was found.
 
 The world regression checks passed 471 unique tests across 51 files. The initial
@@ -24,6 +24,16 @@ stopped; no working preview is claimed for this checkpoint.
 Later preview attempts were also memory-limited. The temporary user service,
 its runtime settings and preview launch artifacts were removed at the user's
 request before proceeding to the established Vercel cloud deployment path.
+
+Source `92007cc005ac3fd59ee754f2c88fad720da592bb` was deployed through that manual
+Vercel path. Its cloud webpack compilation, TypeScript checks and eight static
+pages passed. [Deployment 9yu76Nf134yZnUt3D5si45mPLRnD](https://vercel.com/its-gaibs-projects/pubky-world/9yu76Nf134yZnUt3D5si45mPLRnD)
+is READY in the expected project and organization; both source metadata fields
+match that commit. The [production alias](https://pubky-world.vercel.app/) resolves
+to this exact deployment. Anonymous root and sign-in requests returned HTTP 200,
+with all nine runtime settings matching the committed production configuration
+on both pages. The verification artifact is `production/verification.json` under
+the local evidence directory below.
 
 Chromium checks exercised the real Three.js scene, simulation and controller
 through a temporary harness outside the repository. Fresh scenes each created
