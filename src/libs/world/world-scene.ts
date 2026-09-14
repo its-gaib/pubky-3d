@@ -1439,7 +1439,6 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         }
       }
       const population = crowd.getPopulation();
-      population.livingPeople += social.getLivingCount();
       if (!player.group.userData.worldArenaDead) {
         population.livingPeople++;
         if (playerBitten) population.zombies++;

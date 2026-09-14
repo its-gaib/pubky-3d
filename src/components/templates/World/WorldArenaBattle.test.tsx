@@ -29,4 +29,52 @@ describe('WorldArenaBattle', () => {
     expect(screen.getByRole('status')).toBe(announcement);
     expect(screen.getByRole('region', { name: 'Arena battle' })).toHaveAttribute('data-reduced-motion', 'true');
   });
+
+  it('starts fullscreen confetti on victory without restarting it as the remaining time changes', () => {
+    const { rerender } = render(
+      <WorldArenaBattle battle={{ phase: 'fighting', remaining: 8 }} reducedMotion={false} />,
+    );
+    expect(screen.queryByTestId('arena-victory-confetti')).not.toBeInTheDocument();
+
+    rerender(<WorldArenaBattle battle={{ phase: 'victory', remaining: 4 }} reducedMotion={false} />);
+    const confetti = screen.getByTestId('arena-victory-confetti');
+    const firstPiece = confetti.firstElementChild;
+    expect(confetti).toHaveAttribute('aria-hidden', 'true');
+    // The viewport layer must stay outside the transformed, narrow announcement banner.
+    expect(screen.getByRole('region', { name: 'Arena battle' })).not.toContainElement(confetti);
+    expect(firstPiece).not.toBeNull();
+
+    rerender(<WorldArenaBattle battle={{ phase: 'victory', remaining: 1 }} reducedMotion={false} />);
+    expect(screen.getByTestId('arena-victory-confetti')).toBe(confetti);
+    expect(confetti.firstElementChild).toBe(firstPiece);
+
+    rerender(<WorldArenaBattle battle={{ phase: 'defeat', remaining: 15 }} reducedMotion={false} />);
+    expect(screen.queryByTestId('arena-victory-confetti')).not.toBeInTheDocument();
+  });
+
+  it('removes confetti when victory ends and creates a fresh celebration for the next victory', () => {
+    const { rerender, unmount } = render(
+      <WorldArenaBattle battle={{ phase: 'victory', remaining: 4 }} reducedMotion={false} />,
+    );
+    const firstCelebration = screen.getByTestId('arena-victory-confetti');
+    rerender(<WorldArenaBattle battle={{ phase: 'fighting', remaining: 8 }} reducedMotion={false} />);
+    expect(firstCelebration).not.toBeInTheDocument();
+
+    rerender(<WorldArenaBattle battle={{ phase: 'victory', remaining: 4 }} reducedMotion={false} />);
+    expect(screen.getByTestId('arena-victory-confetti')).not.toBe(firstCelebration);
+    unmount();
+    expect(screen.queryByTestId('arena-victory-confetti')).not.toBeInTheDocument();
+  });
+
+  it('respects reduced motion while keeping the victory announcement visible', () => {
+    const { rerender } = render(<WorldArenaBattle battle={{ phase: 'victory', remaining: 4 }} reducedMotion />);
+    expect(screen.queryByTestId('arena-victory-confetti')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
+
+    rerender(<WorldArenaBattle battle={{ phase: 'victory', remaining: 3 }} reducedMotion={false} />);
+    expect(screen.getByTestId('arena-victory-confetti')).toBeInTheDocument();
+    rerender(<WorldArenaBattle battle={{ phase: 'victory', remaining: 2 }} reducedMotion />);
+    expect(screen.queryByTestId('arena-victory-confetti')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
+  });
 });

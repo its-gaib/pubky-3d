@@ -127,7 +127,7 @@ export interface WorldStatus {
   tool?: { id: 'flamethrower'; firing: boolean } | null;
   /** Local outbreak state; a fresh scene starts a new population. */
   infection?: { bitten: boolean; humans: number; zombies: number };
-  /** Living zombies versus everyone still alive, including zombies and the player. */
+  /** Living zombies versus living zombies plus susceptible humans, including the player but excluding immune social profiles. */
   population?: { zombies: number; livingPeople: number };
   /** Scene-local knight encounter, including its victory celebration or respawn countdown. */
   arenaBattle?: WorldArenaBattleStatus | null;

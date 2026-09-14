@@ -257,7 +257,7 @@ function fixture() {
 }
 
 describe('world gameplay integration', () => {
-  it('counts only living zombies and everyone still alive, including social identities and the infected player', () => {
+  it('counts living zombies and susceptible humans, including the player but excluding immune social identities', () => {
     const world = fixture();
     expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
     const person = {
@@ -276,7 +276,7 @@ describe('world gameplay integration', () => {
       people: [person, person],
     });
     world.refresh();
-    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 114 });
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
     // Advance only the real crowd's bite cooldown before presenting the player as prey.
     const crowd = harness.crowds.at(-1)!;
     for (let frame = 0; frame < WORLD_INFECTION.biteCooldown / 0.05 + 1; frame++) {
@@ -290,10 +290,10 @@ describe('world gameplay integration', () => {
     world.scene.getObjectByName('crowd-zombie-0')!.position.copy(world.player.group.position);
     world.frame();
     expect(world.status().infection?.bitten).toBe(true);
-    expect(world.status().population).toEqual({ zombies: 2, livingPeople: 114 });
+    expect(world.status().population).toEqual({ zombies: 2, livingPeople: 113 });
     world.player.group.userData.worldArenaDead = true;
     world.refresh();
-    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 112 });
   }, 45_000);
 
   it('spawns the full key budget and charges three keys only on the first successful horse mount', () => {

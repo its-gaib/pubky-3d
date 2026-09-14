@@ -10,7 +10,7 @@ export const WORLD_HORSE = {
   reins: [0.37, 2.98, 0.95],
 } as const;
 
-/** Stamina belongs to this horse, so dismounting, transfer and remounting cannot refill it. */
+/** Stamina stays with the horse and recovers one second per second spent dismounted. */
 export function createWorldHorseStamina() {
   let used = 0;
   let rest = 0;
@@ -18,12 +18,11 @@ export function createWorldHorseStamina() {
     step(seconds: number, mounted: boolean) {
       const delta = Number.isFinite(seconds) ? THREE.MathUtils.clamp(seconds, 0, 0.05) : 0;
       if (mounted && rest === 0) used = Math.min(WORLD_HORSE.rideSeconds, used + delta);
-      else if (!mounted && rest > 0) {
+      else if (!mounted) {
+        used = Math.max(0, used - delta);
         rest = Math.max(0, rest - delta);
-        if (rest < 1e-8) {
-          rest = 0;
-          used = 0;
-        }
+        if (used < 1e-8) used = 0;
+        if (rest < 1e-8) rest = 0;
       }
     },
     dismounted() {

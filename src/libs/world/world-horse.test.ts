@@ -12,19 +12,49 @@ describe('horse stamina and model', () => {
   const models: THREE.Group[] = [];
   afterEach(() => models.splice(0).forEach(disposeObject));
 
-  it('keeps used stamina across voluntary dismounts and restores it only after a full one-minute rest', () => {
+  it('recovers one second of ride time per dismounted second and stops at full capacity', () => {
     const stamina = createWorldHorseStamina();
     for (let frame = 0; frame < 400; frame++) stamina.step(0.05, true);
     stamina.dismounted();
-    for (let frame = 0; frame < 100; frame++) stamina.step(0.05, false);
     expect(stamina.getStatus().remaining).toBeCloseTo(40);
+    for (let frame = 0; frame < 100; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus().remaining).toBeCloseTo(45);
     expect(stamina.canMount()).toBe(true);
+    for (let frame = 0; frame < 300; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus()).toEqual({ remaining: 60, rest: 0, tired: false });
+    for (let frame = 0; frame < 100; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus()).toEqual({ remaining: 60, rest: 0, tired: false });
+  });
+
+  it('keeps partially recovered ride time across remounts and repeated short rests', () => {
+    const stamina = createWorldHorseStamina();
     for (let frame = 0; frame < 800; frame++) stamina.step(0.05, true);
+    for (let ride = 0; ride < 3; ride++) {
+      stamina.dismounted();
+      for (let frame = 0; frame < 40; frame++) stamina.step(0.05, false);
+      expect(stamina.getStatus().remaining).toBeCloseTo(22 + ride);
+      expect(stamina.canMount()).toBe(true);
+      for (let frame = 0; frame < 20; frame++) stamina.step(0.05, true);
+      expect(stamina.getStatus().remaining).toBeCloseTo(21 + ride);
+    }
+  });
+
+  it('gradually recovers an exhausted horse while keeping its full one-minute rest', () => {
+    const stamina = createWorldHorseStamina();
+    for (let frame = 0; frame < 1200; frame++) stamina.step(0.05, true);
     expect(stamina.getStatus().tired).toBe(true);
     expect(stamina.canMount()).toBe(false);
     stamina.dismounted();
     expect(stamina.getStatus().rest).toBe(60);
-    for (let frame = 0; frame < 1199; frame++) stamina.step(0.05, false);
+    for (let frame = 0; frame < 600; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus().remaining).toBeCloseTo(30);
+    expect(stamina.getStatus().rest).toBeCloseTo(30);
+    expect(stamina.getStatus().tired).toBe(true);
+    expect(stamina.canMount()).toBe(false);
+    stamina.dismounted();
+    expect(stamina.getStatus().rest).toBeCloseTo(30);
+    for (let frame = 0; frame < 599; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus().remaining).toBeCloseTo(59.95);
     expect(stamina.canMount()).toBe(false);
     stamina.step(0.05, false);
     expect(stamina.getStatus()).toEqual({ remaining: 60, rest: 0, tired: false });
@@ -38,6 +68,15 @@ describe('horse stamina and model', () => {
     expect(stamina.getStatus().remaining).toBeCloseTo(59.95);
     for (let frame = 0; frame < 1300; frame++) stamina.step(0.05, true);
     expect(stamina.getStatus()).toEqual({ remaining: 0, rest: 0, tired: true });
+    stamina.dismounted();
+    for (const delta of [NaN, Infinity, -5]) stamina.step(delta, false);
+    expect(stamina.getStatus()).toEqual({ remaining: 0, rest: 60, tired: true });
+    stamina.step(1000, false);
+    expect(stamina.getStatus().remaining).toBeCloseTo(0.05);
+    expect(stamina.getStatus().rest).toBeCloseTo(59.95);
+    stamina.step(0.05, true);
+    expect(stamina.getStatus().remaining).toBeCloseTo(0.05);
+    expect(stamina.getStatus().rest).toBeCloseTo(59.95);
   });
 
   it('places a saddle and separate armor beside a four-legged horse with its hooves above the floor', () => {

@@ -64,8 +64,9 @@ their readers and nearby interactions reveal more as you approach.
   playful 12-second duel until fire or infection interrupts them.
   Ride into the arena on the knight's horse to challenge both gladiators in a
   cinematic battle. Each encounter has a **60% chance of victory**: **Victory!**
-  appears after the gladiators fall dead to the sand, three seconds apart. In
-  half of the losing encounters, the knight kills one gladiator before the
+  appears after the gladiators fall dead to the sand, three seconds apart, with
+  confetti falling across the whole screen. Reduced motion skips the confetti.
+  In half of the losing encounters, the knight kills one gladiator before the
   survivor strikes back. Every defeat leaves the armored knight and horse
   fallen together beneath **A glorious death**, followed by a
   **15-second countdown**. Respawn rebuilds the entire local island and its
@@ -183,11 +184,12 @@ their readers and nearby interactions reveal more as you approach.
   out, and movement, biting and the local badge collection remain available.
   Reloading starts a fresh outbreak.
   A biohazard symbol beside the key and trophy counters shows living zombies
-  followed by everyone still alive, including zombies, without explaining either
-  number in the game. Killed zombies leave both counts immediately, even while
-  their bodies remain visible. The player counts toward the living total until
-  death and also joins the zombie count when bitten. Arena fighters and distinct
-  Social Plaza profiles are included, with fleeing people counted until they die.
+  followed by the sum of living zombies and living humans who can become zombies,
+  without explaining either number in the game. Immune Social Plaza profiles are
+  excluded. Killed zombies leave both counts immediately, even while their bodies
+  remain visible. The player counts toward the living total until death and also
+  joins the zombie count when bitten. Arena fighters are included, with fleeing
+  people counted until they die.
   Reload and respawn start a fresh tally.
   Twenty walkers wear original anime-style T-shirt graphics. Approaching one
   introduces the shirt with **I bought my shirt on style.ninja!** once per game
@@ -199,8 +201,10 @@ their readers and nearby interactions reveal more as you approach.
   become a knight. Ride into zombies to unleash a full circular sword sweep with
   a golden blade trail and knock them down. Fallen zombies disappear after one minute. The horse gives one
   minute of riding in total, then slows, stops and lets you off. **The horse is
-  tired** floats above it during its one-minute rest. Dismounting early does not
-  refill its riding time. Burning the parked horse or its armor sends the horse
+  tired** floats above it during its one-minute rest. While dismounted, the horse
+  slowly recovers one second of riding time per second, up to the full minute.
+  Dismounting early lets it recover before the next ride; a fully exhausted horse
+  must finish its rest before it can be ridden again. Burning the parked horse or its armor sends the horse
   fleeing in flames over the coast. The kart protects its rider from bites but
   cannot hurt zombies. The dragon protects its rider while airborne. A jetpack
   rider must fly above the zombies' reach; low hovering at their height remains

@@ -98,6 +98,57 @@
   font-variant-numeric: tabular-nums;
 }
 
+.confetti {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confettiPiece {
+  position: absolute;
+  top: -16px;
+  border-radius: 1px;
+  background: #ffe2a3;
+  animation: confettiFall linear both;
+}
+
+.confettiPiece:nth-child(6n + 2) {
+  background: var(--world-lime, #c8ff03);
+}
+
+.confettiPiece:nth-child(6n + 3) {
+  background: #6ce6e5;
+}
+
+.confettiPiece:nth-child(6n + 4) {
+  background: #ff96ad;
+}
+
+.confettiPiece:nth-child(6n + 5) {
+  background: #c5a4ff;
+}
+
+.confettiPiece:nth-child(6n) {
+  background: #fff2d7;
+}
+
+@keyframes confettiFall {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 0deg);
+  }
+  10%,
+  75% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 115vh, 0) rotate3d(1, 1, 1, var(--confetti-spin));
+  }
+}
+
 @keyframes arrive {
   from {
     opacity: 0;
@@ -114,6 +165,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .confetti {
+    display: none;
+  }
+  .confettiPiece {
+    animation: none;
+  }
   .announcement {
     animation: none;
   }

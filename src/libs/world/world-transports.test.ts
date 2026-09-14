@@ -506,7 +506,7 @@ describe('world transport ownership and animation', () => {
     expect(model('dragon').visible).toBe(false);
   });
 
-  it('keeps the same horse stamina through voluntary remounts and transfers', () => {
+  it('recharges the dismounted horse gradually and carries its remaining stamina through remounts and transfers', () => {
     const { transports, mount, model } = create();
     expect(mount('horse')).toBe(true);
     expect(model('horse').getObjectByName('horse-knight-armor')!.visible).toBe(false);
@@ -514,10 +514,17 @@ describe('world transport ownership and animation', () => {
     expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(40);
     expect(transports.dismount()).toBe(true);
     expect(model('horse').getObjectByName('horse-knight-armor')!.visible).toBe(true);
+    expect(transports.getHorseState().remaining).toBeCloseTo(40);
     for (let frame = 0; frame < 100; frame++) transports.animate(0.05, frame * 0.05, true);
+    expect(transports.getHorseState().remaining).toBeCloseTo(45);
     expect(mount('horse')).toBe(true);
     transports.transfer(0, 70, 0);
-    expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(40);
+    expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(45);
+    for (let frame = 0; frame < 20; frame++) {
+      transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
+      transports.animate(0.05, frame * 0.05, true);
+    }
+    expect(transports.getStatus()?.horse?.remaining).toBeCloseTo(44);
     expect(transports.jump()).toBe(false);
     expect(transports.stunt()).toBe(false);
   });
@@ -541,7 +548,12 @@ describe('world transport ownership and animation', () => {
     expect(mount('horse')).toBe(false);
     transports.setAvailable('horse', true);
     expect(transports.isAvailable('horse')).toBe(false);
-    for (let frame = 0; frame < 1199; frame++) transports.animate(0.05, frame * 0.05, true);
+    for (let frame = 0; frame < 600; frame++) transports.animate(0.05, frame * 0.05, true);
+    expect(transports.getHorseState().remaining).toBeCloseTo(30);
+    expect(transports.getHorseState().rest).toBeCloseTo(30);
+    expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(true);
+    expect(mount('horse')).toBe(false);
+    for (let frame = 0; frame < 599; frame++) transports.animate(0.05, 30 + frame * 0.05, true);
     expect(mount('horse')).toBe(false);
     transports.animate(0.05, 60, true);
     expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(false);
