@@ -1,5 +1,37 @@
 # Pubky World validation record
 
+## Outbreak counter, horse recovery and arena confetti — 2026-09-14
+
+Source `f6e6f4f273274d28fed4e3018673f3820b86be2d` excludes immune social-circle
+profiles from the outbreak population, restores one second of horse riding time
+per dismounted second, and adds fullscreen confetti to arena victories. The
+living player remains included in the counter, and an exhausted horse retains
+its full one-minute rest before it can be ridden again. Fork and upstream open
+pull requests were checked before implementation; no matching work was found.
+
+The focused regression checks passed 111 unique tests across six files. Final
+scene and World UI integration reruns passed after the horse and confetti changes.
+Full repository TypeScript, changed-source ESLint, formatting and whitespace
+checks passed. The final security review found no actionable issues.
+
+An isolated Chromium check of the actual arena component and CSS passed 23
+checks at 1440×900 and 390×844. Confetti fills the viewport, allows clicks through
+to underlying controls, finishes without restarting on countdown updates, and
+is removed when victory ends. Fighting, defeat and reduced-motion settings do
+not show the effect. There were no overflow, console or runtime errors. The
+screenshots use a fixture background and are not full-gameplay captures or a
+visual regression baseline. The owned browser and loopback server were closed.
+Evidence is stored in `~/.cache/pubky-3d-browser/counter-recovery-confetti/`.
+
+[Vercel deployment GkgZiHcWJpZhVV6QzKTWMqNfLHNS](https://vercel.com/its-gaibs-projects/pubky-world/GkgZiHcWJpZhVV6QzKTWMqNfLHNS)
+passed its production build and is READY in the expected project and organization.
+Both source metadata fields match the commit above, and the
+[production alias](https://pubky-world.vercel.app/) resolves to this exact
+deployment. Anonymous `/` and `/sign-in` requests returned HTTP 200, with all nine
+runtime settings matching the committed production configuration on both pages.
+The verification artifact is `production/verification.json` in the evidence
+directory above. No account authentication or social writes were performed.
+
 ## Wandering NPCs, zombie outbreak and knight ride — 2026-09-12
 
 This checkpoint covers the feature's implementation and validation. Open pull requests in the fork
