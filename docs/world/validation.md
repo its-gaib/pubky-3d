@@ -1,5 +1,39 @@
 # Pubky World validation record
 
+## Mounted stamina and victorious Glory — 2026-09-14
+
+Source `eb0c8797953f0de880ad284229bc361141ef80df` adds a stamina bar above the
+mounted horse and knight. Green remaining stamina drains from the right to
+reveal red, reaching fully red at zero. Arena victories last ten seconds with
+continuous fullscreen confetti and a large 2D GLORY flag sharing the arena
+banners' artwork and approved champion portrait.
+
+All 146 focused tests passed across nine files, including scene and World UI
+integration. Full repository TypeScript, changed-source ESLint, formatting and
+whitespace checks passed. Security reviews before and after implementation found
+no actionable issues. Portrait tests cover approval withdrawal, account changes,
+stale image responses, cleanup and guest victories that cannot acquire a later
+login's identity.
+
+An isolated Chromium check of the actual components and CSS passed 94 checks at
+1440×900, 390×844 and 844×390. Full, half and zero stamina showed the expected
+green/red proportions, followed the anchor and allowed clicks through. The 2D
+GLORY flag remained visible and unclipped; confetti still covered the screen at
+4.3 and 9.1 seconds. Phase cleanup and reduced-motion suppression passed without
+overflow, console or runtime errors. Screenshots use a fixture background and
+are not full-gameplay captures or a visual regression baseline. The owned
+browser and loopback server were closed. Evidence is stored in
+`~/.cache/pubky-3d-browser/horse-stamina-glory/`.
+
+[Vercel deployment 8mJYpMdjZyzJEfHRuM2sTVBjfTVt](https://vercel.com/its-gaibs-projects/pubky-world/8mJYpMdjZyzJEfHRuM2sTVBjfTVt)
+passed webpack compilation, TypeScript and eight static pages, and is READY in
+the expected project and organization. Both commit metadata fields match the
+source above. The [production alias](https://pubky-world.vercel.app/) resolves to
+this exact deployment. Anonymous `/` and `/sign-in` requests returned HTTP 200,
+with all nine runtime settings matching the committed production configuration.
+The report and build evidence are in `production/` under the evidence directory
+above. No accounts were authenticated and no social data was written.
+
 ## Outbreak counter, horse recovery and arena confetti — 2026-09-14
 
 Source `f6e6f4f273274d28fed4e3018673f3820b86be2d` excludes immune social-circle
