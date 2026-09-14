@@ -84,6 +84,7 @@ import { WorldCamera } from './WorldCamera';
 import { WorldChess } from './WorldChess';
 import { WorldCinema } from './WorldCinema';
 import { WorldConferences } from './WorldConferences';
+import { WorldHorseStamina } from './WorldHorseStamina';
 import { WorldRideControls } from './WorldRideControls';
 import rideStyles from './WorldRideControls.module.css';
 import { WorldSectorPreview } from './WorldSectorPreview';
@@ -1291,7 +1292,7 @@ function WorldSession({
       />
       <div className={styles.vignette} aria-hidden="true" />
 
-      {arenaBattle && <WorldArenaBattle battle={arenaBattle} reducedMotion={reducedMotion} />}
+      {arenaBattle && <WorldArenaBattle battle={arenaBattle} reducedMotion={reducedMotion} viewer={avatarViewer} />}
 
       {!arenaBattle && (
         <header className={styles.topbar}>
@@ -1348,6 +1349,24 @@ function WorldSession({
           )}
         </div>
       )}
+
+      {horseback &&
+        worldStatus.ride?.horse &&
+        worldStatus.horseStaminaAnchor &&
+        !arenaBattle &&
+        !isZombie &&
+        !welcome &&
+        !overview &&
+        !panel &&
+        !cameraOpen &&
+        !accountMenuOpen &&
+        !achievementsOpen && (
+          <WorldHorseStamina
+            anchor={worldStatus.horseStaminaAnchor}
+            remaining={worldStatus.ride.horse.remaining}
+            reducedMotion={reducedMotion}
+          />
+        )}
 
       {shirtIntroduction &&
         worldStatus.shirtSpeaker?.id === shirtIntroduction &&

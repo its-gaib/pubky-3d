@@ -49,6 +49,7 @@ import { createGraphSculpture, createWorldBalloon, createWorldKey } from '@/libs
 import { createWorldShadows, worldPixelRatio } from '@/libs/world/world-render-quality';
 import { createRunner } from '@/libs/world/world-runner';
 import { createSatoshi } from '@/libs/world/world-satoshi';
+import { projectWorldScreenAnchor } from '@/libs/world/world-screen-projection';
 import { projectWorldShirtSpeaker, type WorldShirtSpeaker } from '@/libs/world/world-shirt-speech';
 import { createWorldStars } from '@/libs/world/world-sky';
 import { createSocialPlaza } from '@/libs/world/world-social';
@@ -595,6 +596,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let arenaVictoryCelebrated = false;
   let shirtSpeakerId: string | null = null;
   const shirtSpeakerPosition = new THREE.Vector3();
+  const horseStaminaPosition = new THREE.Vector3();
   let crowdStatus: ReturnType<typeof crowd.tick> = {
     playerBitten: false,
     humans: 100 + sceneryHumans.length,
@@ -1438,6 +1440,14 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           if (shirtSpeaker) shirtSpeakerId = candidateId;
         }
       }
+      const horseStaminaAnchor =
+        !paused && !overview && !playerBitten && !battleLocked && ride?.id === 'horse'
+          ? projectWorldScreenAnchor(
+              // Keep the meter above the mounted knight's helmet and plume, including jumps.
+              horseStaminaPosition.set(player.group.position.x, player.group.position.y + 5.1, player.group.position.z),
+              camera,
+            )
+          : null;
       const population = crowd.getPopulation();
       if (!player.group.userData.worldArenaDead) {
         population.livingPeople++;
@@ -1474,6 +1484,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
                   : `Unlock ${lockedItem.name} · ${unlockCost} ${unlockCost === 1 ? 'key' : 'keys'}`
                 : (nearby?.title ?? null),
         ride: transports.getStatus(),
+        horseStaminaAnchor,
         tool: flamethrower.equipped ? { id: 'flamethrower', firing: flamethrower.isFiring } : null,
         collected,
         achievementProgress: {
@@ -1544,6 +1555,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       if (playerBitten || arenaBattle.isLocked()) return;
       if (value) clearInput();
       if (overview !== value) {
+        lastStatus = -1;
         walkTarget = null;
         pendingRide = null;
         pitch = value ? 0.72 : 0.26;
@@ -1556,7 +1568,9 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       if (!playerBitten && !arenaBattle.isLocked() && !burnUnavailable('zone:chess')) chess.setGame(game);
     },
     setPaused(value) {
-      paused = value && !arenaBattle.isLocked();
+      const nextPaused = value && !arenaBattle.isLocked();
+      if (paused !== nextPaused) lastStatus = -1;
+      paused = nextPaused;
       clearInput();
       drag = null;
     },

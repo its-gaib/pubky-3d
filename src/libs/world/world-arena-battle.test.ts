@@ -129,7 +129,7 @@ describe('mounted arena battle', () => {
       );
       battle.update(18, reducedMotion);
       expect(gladiators[1].group.userData.worldArenaDead).toBe(true);
-      expect(battle.getStatus()).toEqual({ phase: 'victory', remaining: 4 });
+      expect(battle.getStatus()).toEqual({ phase: 'victory', remaining: 10 });
       expect(gladiators[0].setCombatPose).toHaveBeenCalledTimes(firstCombatCalls);
       expect([...gladiators[0].group.position.toArray(), ...gladiators[0].group.quaternion.toArray()]).toEqual(
         firstCorpse,
@@ -187,7 +187,7 @@ describe('mounted arena battle', () => {
     const { battle, gladiators, player, armor, horse } = fixture();
     battle.start(0);
     battle.update(8, false);
-    expect(battle.getStatus()).toEqual({ phase: 'victory', remaining: 4 });
+    expect(battle.getStatus()).toEqual({ phase: 'victory', remaining: 10 });
     expect(battle.isLocked()).toBe(true);
     battle.update(10, false);
     for (const { group } of gladiators) {
@@ -196,7 +196,12 @@ describe('mounted arena battle', () => {
       expect(group.rotation.x).toBeCloseTo(-Math.PI / 2);
       expect(new THREE.Box3().setFromObject(group).min.y).toBeCloseTo(0.17);
     }
-    battle.update(12, false);
+    battle.update(17.999, false);
+    expect(battle.getStatus()).toEqual({ phase: 'victory', remaining: 1 });
+    expect(battle.isLocked()).toBe(true);
+    battle.update(18, false);
+    expect(battle.getStatus()).toBeNull();
+    expect(battle.isLocked()).toBe(false);
     const corpses = gladiators.map(({ group }) => [...group.position.toArray(), ...group.rotation.toArray()]);
     battle.update(100, false);
     expect(gladiators.map(({ group }) => [...group.position.toArray(), ...group.rotation.toArray()])).toEqual(corpses);

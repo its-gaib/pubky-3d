@@ -4,7 +4,7 @@ import { animateWorldHorse } from '@/libs/world/world-horse';
 
 export const WORLD_ARENA_BATTLE = {
   fightSeconds: 8,
-  victorySeconds: 4,
+  victorySeconds: 10,
   respawnSeconds: 15,
   victoryChance: 0.6,
   gladiatorFallGapSeconds: 3,

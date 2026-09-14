@@ -185,7 +185,11 @@ const JETPACK_RIDE: WorldRideStatus = {
   stunt: null,
 };
 
-async function updateRide(ride: WorldRideStatus | null, nearby: string | null = null) {
+async function updateRide(
+  ride: WorldRideStatus | null,
+  nearby: string | null = null,
+  horseStaminaAnchor: WorldStatus['horseStaminaAnchor'] = null,
+) {
   await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
   await act(async () =>
     mocks.createWorld.mock.calls[0][1].onStatus({
@@ -196,6 +200,7 @@ async function updateRide(ride: WorldRideStatus | null, nearby: string | null = 
       theaterIndex: 0,
       theaterPaused: false,
       ride,
+      horseStaminaAnchor,
     }),
   );
 }
@@ -325,7 +330,7 @@ describe('World', () => {
     render(<World />);
     await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
     const options = mocks.createWorld.mock.calls[0][1];
-    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 4 } })));
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 10 } })));
     expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Achievement unlocked' })).not.toBeInTheDocument();
     expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain('arena-champion');
@@ -415,14 +420,16 @@ describe('World', () => {
     expect(screen.queryByRole('complementary', { name: 'Island map' })).not.toBeInTheDocument();
     expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
 
-    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 4 } })));
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 10 } })));
     await interact({ kind: 'zone', id: 'forest' });
     expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Glory flag for the arena champion' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
     await act(async () => options.onStatus(sceneStatus({ arenaBattle: null })));
     expect(screen.queryByRole('region', { name: 'Arena battle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Glory flag for the arena champion' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'World settings' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Island map' })).toBeInTheDocument();
     await interact({ kind: 'zone', id: 'forest' });
@@ -583,7 +590,7 @@ describe('World', () => {
     expect(removeItem).not.toHaveBeenCalledWith(expect.stringContaining('shirt'));
   });
 
-  it('shows the horse riding budget and automatic sword instructions until the rider gets off', async () => {
+  it('shows the overhead horse stamina and riding controls until the rider gets off', async () => {
     render(<World />);
     fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
     const horse: WorldRideStatus = {
@@ -594,17 +601,49 @@ describe('World', () => {
       altitude: 0,
       horse: { remaining: 42.4, tired: false },
     };
-    await updateRide(horse);
+    const anchor = { x: 0.5, y: 0.4 };
+    await updateRide(horse, null, anchor);
+    expect(screen.getByRole('progressbar', { name: 'Horse stamina' })).toHaveAttribute('aria-valuenow', '42.4');
     const controls = screen.getByRole('region', { name: 'Horse riding controls' });
     expect(within(controls).getByLabelText('Horse riding time remaining')).toHaveTextContent('43s');
     expect(within(controls).getByText(/Your sword swings automatically/)).toBeInTheDocument();
     expect(within(controls).queryByRole('button', { name: 'Perform a stunt' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Jump' })).not.toBeInTheDocument();
 
-    await updateRide({ ...horse, horse: { remaining: 0, tired: true } });
+    await updateRide({ ...horse, horse: { remaining: 0, tired: true } }, null, anchor);
+    expect(screen.getByRole('progressbar', { name: 'Horse stamina' })).toHaveAttribute('aria-valuenow', '0');
     expect(within(controls).getByText('The horse is tired. Slowing to a stop…')).toBeInTheDocument();
     await updateRide(null);
     expect(screen.queryByRole('region', { name: 'Horse riding controls' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar', { name: 'Horse stamina' })).not.toBeInTheDocument();
+  });
+
+  it('hides a stale horse stamina anchor during overview and arena celebrations', async () => {
+    render(<World />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const horse: WorldRideStatus = {
+      ...JETPACK_RIDE,
+      id: 'horse',
+      name: 'Horse',
+      grounded: true,
+      altitude: 0,
+      horse: { remaining: 30, tired: false },
+    };
+    const anchor = { x: 0.5, y: 0.4 };
+    await updateRide(horse, null, anchor);
+    expect(screen.getByRole('progressbar', { name: 'Horse stamina' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show island overview' }));
+    expect(screen.queryByRole('progressbar', { name: 'Horse stamina' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Follow my persona' }));
+    expect(screen.getByRole('progressbar', { name: 'Horse stamina' })).toBeInTheDocument();
+
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus(
+        sceneStatus({ ride: horse, horseStaminaAnchor: anchor, arenaBattle: { phase: 'victory', remaining: 10 } }),
+      ),
+    );
+    expect(screen.queryByRole('progressbar', { name: 'Horse stamina' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
   });
 
   it('replaces exploration and weapon controls with zombie movement and biting after infection', async () => {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WORLD_ARENA_BATTLE } from '@/libs/world/world-arena-battle';
 import { WORLD_INFECTION } from '@/libs/world/world-infection';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import { createWorld } from '@/libs/world/world-scene';
@@ -290,6 +291,7 @@ describe('world gameplay integration', () => {
     world.scene.getObjectByName('crowd-zombie-0')!.position.copy(world.player.group.position);
     world.frame();
     expect(world.status().infection?.bitten).toBe(true);
+    expect(world.status().horseStaminaAnchor).toBeNull();
     expect(world.status().population).toEqual({ zombies: 2, livingPeople: 113 });
     world.player.group.userData.worldArenaDead = true;
     world.refresh();
@@ -298,6 +300,7 @@ describe('world gameplay integration', () => {
 
   it('spawns the full key budget and charges three keys only on the first successful horse mount', () => {
     const world = fixture();
+    expect(world.status().horseStaminaAnchor).toBeNull();
     expect(world.keys).toHaveLength(WORLD_KEY_COUNT);
     expect(world.status().keys).toEqual({ available: 0, total: WORLD_KEY_COUNT, unlocked: 0 });
     world.approachHorse();
@@ -314,12 +317,29 @@ describe('world gameplay integration', () => {
     expect(world.status().keys?.available).toBe(2);
     expect(world.status().nearby).toContain('Find 1 key to unlock');
     world.mountHorse();
+    expect(world.status().horseStaminaAnchor).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+    expect(world.status().horseStaminaAnchor!.x).toBeCloseTo(0.5);
+    expect(world.status().horseStaminaAnchor!.y).toBeLessThan(0.5);
+    expect(world.status().horseStaminaAnchor!.y).toBeGreaterThan(0);
+    world.controller.setPaused(true);
+    world.frame();
+    expect(world.status().horseStaminaAnchor).toBeNull();
+    world.controller.setPaused(false);
+    world.frame();
+    expect(world.status().horseStaminaAnchor).not.toBeNull();
+    world.controller.setOverview(true);
+    world.frame();
+    expect(world.status().horseStaminaAnchor).toBeNull();
+    world.controller.setOverview(false);
+    world.frame();
+    expect(world.status().horseStaminaAnchor).not.toBeNull();
     expect(world.keys[0].visible).toBe(false);
     expect(world.status().keys).toEqual({ available: 0, total: WORLD_KEY_COUNT, unlocked: 1 });
     expect(world.transports.getModel('horse')?.getObjectByName('transport-lock-horse')?.visible).toBe(false);
     world.controller.interact();
     world.refresh();
     expect(world.transports.active).toBeNull();
+    expect(world.status().horseStaminaAnchor).toBeNull();
     world.approachHorse();
     world.controller.interact();
     world.refresh();
@@ -405,14 +425,16 @@ describe('world gameplay integration', () => {
     const population = world.status().population!;
     const began = world.enterArena();
     expect(world.status().population).toEqual(population);
+    expect(world.status().horseStaminaAnchor).toBeNull();
     world.frame(began + 5_000);
     world.refresh();
     expect(world.status().population).toEqual({ ...population, livingPeople: population.livingPeople - 1 });
     world.frame(began + 10_000);
     expect(world.battle.getStatus()?.phase).toBe('victory');
+    expect(world.status().horseStaminaAnchor).toBeNull();
     expect(world.status().population).toEqual({ ...population, livingPeople: population.livingPeople - 2 });
     expect(celebrate).toHaveBeenCalledOnce();
-    world.frame(began + 12_000);
+    world.frame(began + (WORLD_ARENA_BATTLE.fightSeconds + WORLD_ARENA_BATTLE.victorySeconds) * 1000);
     expect(world.battle.isLocked()).toBe(false);
     const fighters = ['arena-gladiator-crimson', 'arena-gladiator-teal'].map(
       (name) => world.scene.getObjectByName(name)!,
@@ -451,6 +473,7 @@ describe('world gameplay integration', () => {
     world.controller.interact();
     world.frame();
     expect(world.transports.active?.id).toBe('dragon');
+    expect(world.status().horseStaminaAnchor).toBeNull();
     // Position the real autonomous ride in clear air, then use its normal stunt state machine.
     world.transports.active!.altitude = 14;
     world.frame();
@@ -474,6 +497,7 @@ describe('world gameplay integration', () => {
     const began = world.enterArena();
     world.frame(began + 8_000);
     expect(world.battle.getStatus()).toEqual({ phase: 'defeat', remaining: 15 });
+    expect(world.status().horseStaminaAnchor).toBeNull();
     expect(world.status().achievementProgress?.['glorious-end']).toBe(1);
     const fallen = world.player.group.position.clone();
     const horse = world.transports.getModel('horse')!;

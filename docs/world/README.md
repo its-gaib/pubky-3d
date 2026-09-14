@@ -65,7 +65,10 @@ their readers and nearby interactions reveal more as you approach.
   Ride into the arena on the knight's horse to challenge both gladiators in a
   cinematic battle. Each encounter has a **60% chance of victory**: **Victory!**
   appears after the gladiators fall dead to the sand, three seconds apart, with
-  confetti falling across the whole screen. Reduced motion skips the confetti.
+  confetti falling across the whole screen for the ten-second celebration.
+  A large 2D **GLORY** flag shows your approved profile picture, or a crown when
+  no picture is available, using the same maroon-and-gold design as the arena
+  flags. Reduced motion skips the confetti.
   In half of the losing encounters, the knight kills one gladiator before the
   survivor strikes back. Every defeat leaves the armored knight and horse
   fallen together beneath **A glorious death**, followed by a
@@ -200,7 +203,10 @@ their readers and nearby interactions reveal more as you approach.
 - **Horse and knight armor:** find the horse and armor together, then mount to
   become a knight. Ride into zombies to unleash a full circular sword sweep with
   a golden blade trail and knock them down. Fallen zombies disappear after one minute. The horse gives one
-  minute of riding in total, then slows, stops and lets you off. **The horse is
+  minute of riding in total, then slows, stops and lets you off. A stamina bar
+  floats above the mounted horse and knight: remaining time is green on the
+  left, while red grows from the right as the horse tires. It is fully red at
+  zero. **The horse is
   tired** floats above it during its one-minute rest. While dismounted, the horse
   slowly recovers one second of riding time per second, up to the full minute.
   Dismounting early lets it recover before the next ride; a fully exhausted horse

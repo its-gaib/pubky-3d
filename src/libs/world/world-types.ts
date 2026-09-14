@@ -1,6 +1,7 @@
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import type { WorldAchievementId } from '@/libs/world/world-achievements';
 import type { WorldArenaBattleStatus } from '@/libs/world/world-arena-battle';
+import type { WorldScreenAnchor } from '@/libs/world/world-screen-projection';
 import type { WorldShirtSpeaker } from '@/libs/world/world-shirt-speech';
 
 /** Serializable world state, independent of rendering or a future presence transport. */
@@ -124,6 +125,8 @@ export interface WorldStatus {
   theaterIndex: number;
   theaterPaused: boolean;
   ride?: WorldRideStatus | null;
+  /** Screen anchor above the mounted knight; null when the horse meter should be hidden. */
+  horseStaminaAnchor?: WorldScreenAnchor | null;
   tool?: { id: 'flamethrower'; firing: boolean } | null;
   /** Local outbreak state; a fresh scene starts a new population. */
   infection?: { bitten: boolean; humans: number; zombies: number };

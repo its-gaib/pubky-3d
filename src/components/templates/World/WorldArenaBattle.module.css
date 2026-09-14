@@ -72,6 +72,17 @@
   font-style: italic;
 }
 
+.glory {
+  display: block;
+  width: auto;
+  height: min(390px, 46vh, 72vw);
+  height: min(390px, 46dvh, 72vw);
+  max-width: 100%;
+  margin: clamp(12px, 2vh, 24px) auto 0;
+  aspect-ratio: 2 / 3;
+  filter: drop-shadow(0 8px 18px #10070499);
+}
+
 .banner[data-phase='defeat'] {
   --battle-gold: #ffc0a5;
 }
@@ -111,7 +122,7 @@
   top: -16px;
   border-radius: 1px;
   background: #ffe2a3;
-  animation: confettiFall linear both;
+  animation: confettiFall linear infinite both;
 }
 
 .confettiPiece:nth-child(6n + 2) {
@@ -186,6 +197,11 @@
   }
   .banner[data-phase='victory'] .title {
     font-size: 62px;
+  }
+  .glory {
+    height: min(220px, calc(100vh - 195px));
+    height: min(220px, calc(100dvh - 195px));
+    margin-top: 10px;
   }
   .description {
     font-size: 12px;

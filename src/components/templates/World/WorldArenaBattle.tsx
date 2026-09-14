@@ -1,9 +1,11 @@
 import { Crown, Skull, Swords } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { WorldArenaBattleStatus } from '@/libs/world/world-arena-battle';
+import type { WorldAvatarIdentity } from '@/libs/world/world-types';
 import styles from './WorldArenaBattle.module.css';
+import { WorldArenaGlory } from './WorldArenaGlory';
 
-// Stable variation keeps the one-shot animation running across status updates.
+// Stable variation keeps the celebration running across status updates.
 const CONFETTI_PIECES = Array.from(
   { length: 120 },
   (_, index) =>
@@ -43,9 +45,12 @@ const BATTLE_COPY = {
 export function WorldArenaBattle({
   battle,
   reducedMotion,
+  viewer = null,
 }: {
   battle: WorldArenaBattleStatus;
   reducedMotion: boolean;
+  /** Only the current identity approved by useWorldAvatarIdentities. */
+  viewer?: WorldAvatarIdentity | null;
 }) {
   const { eyebrow, title, description, Icon } = BATTLE_COPY[battle.phase];
   const remaining = Math.max(0, Math.ceil(battle.remaining));
@@ -72,6 +77,7 @@ export function WorldArenaBattle({
           </div>
           <h1 className={styles.title}>{title}</h1>
           <p className={styles.description}>{description}</p>
+          {battle.phase === 'victory' && <WorldArenaGlory viewer={viewer} />}
         </div>
         {battle.phase === 'defeat' && (
           <div className={styles.countdown} role="timer" aria-label="Respawn countdown" aria-live="off">
