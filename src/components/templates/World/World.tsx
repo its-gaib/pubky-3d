@@ -13,8 +13,8 @@ import {
   ChevronRight,
   Compass,
   Footprints,
-  Hand,
   Info,
+  KeyRound,
   Leaf,
   LoaderCircle,
   Map,
@@ -24,28 +24,29 @@ import {
   Orbit,
   Pause,
   Play,
-  Scissors,
   Settings2,
   Skull,
   Sparkles,
   Sun,
   Theater,
   TreePine,
-  Trophy,
   VolumeX,
   X,
 } from 'lucide-react';
 import { AUTH_ROUTES } from '@/app/routes';
 import { Button } from '@/atoms/Button/Button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/atoms/Collapsible/Collapsible';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/atoms/Dialog/Dialog';
 import { Switch } from '@/atoms/Switch/Switch';
 import { useAuthStatus } from '@/hooks/useAuthStatus/useAuthStatus';
 import { useRequireAuth } from '@/hooks/useRequireAuth/useRequireAuth';
+import { useWorldAchievements } from '@/hooks/useWorldAchievements/useWorldAchievements';
 import { useWorldAvatarIdentities } from '@/hooks/useWorldAvatarIdentities/useWorldAvatarIdentities';
 import { useWorldChess } from '@/hooks/useWorldChess/useWorldChess';
 import { useWorldData } from '@/hooks/useWorldData/useWorldData';
 import { useWorldSocial } from '@/hooks/useWorldSocial/useWorldSocial';
-import { Bitkit, Github, PubkyIcon } from '@/icons';
+import { Bitkit, Github, PubkyIcon, Synonym } from '@/icons';
+import type { WorldInteractionAchievementId } from '@/libs/world/world-achievements';
 import { GITHUB_PROJECTS, UNIVERSITY_ARTICLES, WORLD_EXPERIMENTS, WORLD_ZONES } from '@/libs/world/world-catalog';
 import { WORLD_CONFERENCES } from '@/libs/world/world-conference-catalog';
 import { consumeWorldEntry } from '@/libs/world/world-entry';
@@ -63,7 +64,8 @@ import {
   socialViewPageCount,
   socialViewPeople,
 } from '@/libs/world/world-social-layout';
-import { worldRideCanFly, worldRideIsAutonomous } from '@/libs/world/world-transport-motion';
+import { WORLD_RIDEABLES, worldRideCanFly, worldRideIsAutonomous } from '@/libs/world/world-transport-motion';
+import { WORLD_KEY_COUNT, WORLD_UNLOCK_COSTS } from '@/libs/world/world-transport-unlocks';
 import type {
   WorldController,
   WorldData,
@@ -75,6 +77,8 @@ import type {
 } from '@/libs/world/world-types';
 import styles from './World.module.css';
 import { WorldAccountMenu } from './WorldAccountMenu';
+import { WorldAchievements } from './WorldAchievements';
+import { WorldArenaBattle } from './WorldArenaBattle';
 import { WorldCamera } from './WorldCamera';
 import { WorldChess } from './WorldChess';
 import { WorldCinema } from './WorldCinema';
@@ -82,6 +86,7 @@ import { WorldConferences } from './WorldConferences';
 import { WorldRideControls } from './WorldRideControls';
 import rideStyles from './WorldRideControls.module.css';
 import { WorldSectorPreview } from './WorldSectorPreview';
+import { WorldShirtIntroduction } from './WorldShirtIntroduction';
 import {
   worldDirectoryPage,
   type WorldDirectoryScope,
@@ -99,19 +104,95 @@ const INITIAL_STATUS: WorldStatus = {
   position: [0, 8],
   nearby: null,
   collected: 0,
+  keys: { available: 0, total: WORLD_KEY_COUNT, unlocked: 0 },
   theaterIndex: 0,
   theaterPaused: false,
 };
 type Panel = WorldInteraction | { kind: 'settings' };
 
-function ExternalWorldLink({ href, children, className }: { href?: string; children: ReactNode; className?: string }) {
+function ExternalWorldLink({
+  href,
+  children,
+  className,
+  onOpen,
+}: {
+  href?: string;
+  children: ReactNode;
+  className?: string;
+  onOpen?: () => void;
+}) {
   // Content links are rendered as text unless they are safe external HTTPS URLs.
   if (!href || !/^https:\/\//i.test(href)) return null;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+      onClick={onOpen}
+      onAuxClick={(event) => {
+        if (event.button === 1) onOpen?.();
+      }}
+    >
       {children}
       <ArrowUpRight size={15} aria-hidden="true" />
     </a>
+  );
+}
+
+function WorldProjectDisplays({ onOpen }: { onOpen: (id: 'pubky' | 'synonym' | 'bitkit') => void }) {
+  const projects = [
+    {
+      id: 'pubky',
+      title: 'Pubky',
+      Icon: PubkyIcon,
+      description: UNIVERSITY_ARTICLES[0].description,
+      href: 'https://pubky.org/',
+    },
+    {
+      id: 'synonym',
+      title: 'Synonym',
+      Icon: Synonym,
+      description:
+        'The Synonym symbol flies above the arena alongside Pubky. Explore the official project site to meet the ideas behind the banner.',
+      href: 'https://synonym.to/',
+    },
+    {
+      id: 'bitkit',
+      title: 'Bitkit',
+      Icon: Bitkit,
+      description:
+        'A self-custodial Bitcoin and Lightning wallet. Find its orange beacon on the island, then explore the official project site.',
+      href: 'https://bitkit.to/',
+    },
+  ] as const;
+  return (
+    <section className={styles.projectDisplays} aria-label="Meet the projects">
+      <div className={styles.sectionLabel}>Meet the projects</div>
+      {projects.map(({ id, title, Icon, description, href }) => (
+        <Collapsible
+          key={id}
+          className={styles.projectDisplay}
+          onOpenChange={(open) => {
+            if (open) onOpen(id);
+          }}
+        >
+          <CollapsibleTrigger asChild>
+            <Button overrideDefaults className={styles.projectDisplayTrigger}>
+              <Icon size={25} aria-hidden="true" />
+              About {title}
+              <ChevronRight size={17} aria-hidden="true" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className={styles.projectDisplayContent}>
+            <p>{description}</p>
+            <ExternalWorldLink href={href} className={styles.textLink}>
+              Explore {title}
+            </ExternalWorldLink>
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+    </section>
   );
 }
 
@@ -222,51 +303,6 @@ function PostLeaf({ post, source }: { post: WorldPost; source: WorldData['source
         </ExternalWorldLink>
       )}
     </article>
-  );
-}
-
-function ArenaGame() {
-  const [wins, setWins] = useState(0);
-  const [result, setResult] = useState('The champion is ready. The champion is a duck.');
-  const choices = [
-    { label: 'Rock', Icon: Orbit },
-    { label: 'Paper', Icon: Hand },
-    { label: 'Scissors', Icon: Scissors },
-  ];
-  function play(choice: number) {
-    const duck = window.crypto.getRandomValues(new Uint8Array(1))[0] % choices.length;
-    const outcome = (choice - duck + 3) % 3;
-    if (outcome === 1) setWins((count) => count + 1);
-    setResult(
-      `You chose ${choices[choice].label.toLowerCase()}. Quack chose ${choices[duck].label.toLowerCase()}. ${outcome === 0 ? 'A draw. Suspiciously similar thinking.' : outcome === 1 ? 'You win! The duck has requested a rematch.' : 'Quack wins. Try not to let it go to his beak.'}`,
-    );
-  }
-  return (
-    <div className={styles.arenaGame}>
-      <div className={styles.champion}>
-        <span aria-hidden="true">🦆</span>
-        <div>
-          <span className={styles.eyebrow}>LOCAL MINI-GAME</span>
-          <h3>Rock. Paper. Quack.</h3>
-          <p>Just you and one very competitive duck.</p>
-        </div>
-      </div>
-      <div className={styles.gameChoices}>
-        {choices.map(({ label, Icon }, index) => (
-          <Button key={label} overrideDefaults className={styles.gameChoice} onClick={() => play(index)}>
-            <Icon size={29} />
-            <span>{label}</span>
-          </Button>
-        ))}
-      </div>
-      <p className={styles.gameResult} role="status">
-        {result}
-      </p>
-      <div className={styles.gameScore}>
-        <Trophy size={17} />
-        <strong>{wins}</strong> {wins === 1 ? 'glorious victory' : 'glorious victories'} this visit
-      </div>
-    </div>
   );
 }
 
@@ -390,6 +426,7 @@ function WorldPanel({
   onTheaterStep,
   chess,
   signedIn,
+  onAchievementInteraction,
 }: {
   panel: WorldInteraction;
   data: WorldData;
@@ -416,6 +453,7 @@ function WorldPanel({
   onTheaterStep: (delta: number) => void;
   chess: ReturnType<typeof useWorldChess>;
   signedIn: boolean;
+  onAchievementInteraction: (id: WorldInteractionAchievementId, identity?: string) => void;
 }) {
   if (panel.kind === 'portal')
     return (
@@ -692,7 +730,6 @@ function WorldPanel({
         <ExternalWorldLink href={WORLD_EXPERIMENTS.arena.url} className={styles.primaryButton}>
           {WORLD_EXPERIMENTS.arena.action}
         </ExternalWorldLink>
-        <ArenaGame />
         <Button overrideDefaults className={styles.monumentLink} onClick={() => onSelect({ kind: 'fun', id: 'bank' })}>
           <span aria-hidden="true">$</span>
           <span>
@@ -732,7 +769,11 @@ function WorldPanel({
               <div>
                 <h3>{article.title}</h3>
                 <p>{article.description}</p>
-                <ExternalWorldLink href={article.url} className={styles.textLink}>
+                <ExternalWorldLink
+                  href={article.url}
+                  className={styles.textLink}
+                  onOpen={() => onAchievementInteraction('sovereign-scholar', article.url)}
+                >
                   Read the full lesson
                 </ExternalWorldLink>
               </div>
@@ -740,6 +781,7 @@ function WorldPanel({
           ))}
         </div>
         <p className={styles.smallPrint}>Original short summaries of the official documentation at pubky.org.</p>
+        <WorldProjectDisplays onOpen={(id) => onAchievementInteraction('synonym-circuit', id)} />
       </>
     );
   if (panel.id === 'github')
@@ -755,7 +797,11 @@ function WorldPanel({
               <span className={styles.projectNumber}>/{String(index + 1).padStart(2, '0')}</span>
               <h3>{project.title}</h3>
               <p>{project.description}</p>
-              <ExternalWorldLink href={project.url} className={styles.textLink}>
+              <ExternalWorldLink
+                href={project.url}
+                className={styles.textLink}
+                onOpen={() => onAchievementInteraction('open-source-adventurer', project.url)}
+              >
                 Open workshop
               </ExternalWorldLink>
             </article>
@@ -782,9 +828,33 @@ function WorldPanel({
 }
 
 export function World() {
+  const [session, setSession] = useState(0);
+  const achievements = useWorldAchievements();
+
+  return (
+    <WorldSession
+      key={session}
+      startExploring={session > 0}
+      onRespawn={() => setSession((current) => current + 1)}
+      achievements={achievements}
+    />
+  );
+}
+
+function WorldSession({
+  startExploring,
+  onRespawn,
+  achievements,
+}: {
+  startExploring: boolean;
+  onRespawn: () => void;
+  achievements: ReturnType<typeof useWorldAchievements>;
+}) {
   const { isFullyAuthenticated, isLoading: isAuthLoading } = useAuthStatus();
   const chess = useWorldChess();
   const { data: baseData, status: dataStatus, error: dataError, loadProduction } = useWorldData();
+  const sessionAliveRef = useRef(false);
+  const achievementActionsRef = useRef(achievements);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [socialView, setSocialView] = useState<WorldSocialView>({ sector: null, page: 0 });
   const [socialViewChanged, setSocialViewChanged] = useState(false);
@@ -797,6 +867,7 @@ export function World() {
     enabled: true,
     selectedId: panel?.kind === 'person' ? panel.id : null,
     directoryIds,
+    onFollowSuccess: () => recordAchievementInteraction('follow-the-signal'),
   });
   const { requireAuth } = useRequireAuth();
   const personal = baseData.source === 'production' && Boolean(social.viewerId);
@@ -815,22 +886,34 @@ export function World() {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WorldController | null>(null);
   const bittenRef = useRef(false);
+  const arenaBattleRef = useRef(false);
+  const respawnRef = useRef(onRespawn);
+  const shirtIntroductionSeen = useRef(false);
   const initialData = useRef(data);
   const dataLoadingRef = useRef(dataStatus === 'loading');
   const [sceneState, setSceneState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
-  const [welcome, setWelcome] = useState(true);
-  const [overview, setOverview] = useState(true);
+  const [welcome, setWelcome] = useState(!startExploring);
+  const [overview, setOverview] = useState(!startExploring);
   const [showMap, setShowMap] = useState(true);
   const [night, setNight] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [personaColor, setPersonaColor] = useState(PERSONA_COLORS[0]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [shirtIntroduction, setShirtIntroduction] = useState<string | null>(null);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>(INITIAL_STATUS);
+  const arenaBattle = worldStatus.arenaBattle ?? null;
+  const inArenaBattle = arenaBattle !== null;
+  const keys = worldStatus.keys ?? INITIAL_STATUS.keys!;
   const isZombie = worldStatus.infection?.bitten ?? false;
   const horseback = worldStatus.ride?.id === 'horse';
   const autonomousRide = worldRideIsAutonomous(worldStatus.ride?.id);
+
+  useEffect(() => {
+    achievementActionsRef.current = achievements;
+  }, [achievements]);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -899,9 +982,13 @@ export function World() {
 
   useEffect(() => {
     let cancelled = false;
+    let respawnRequested = false;
     let controller: WorldController | null = null;
+    sessionAliveRef.current = true;
     bittenRef.current = false;
+    arenaBattleRef.current = false;
     setWorldStatus(INITIAL_STATUS);
+    achievementActionsRef.current.resetProgress(INITIAL_STATUS);
     setSceneState('loading');
     void import('@/libs/world/world-scene')
       .then(({ createWorld }) => {
@@ -909,7 +996,7 @@ export function World() {
         controller = createWorld(containerRef.current, {
           data: initialData.current,
           onInteract: (interaction) => {
-            if (!cancelled && !bittenRef.current) {
+            if (!cancelled && !bittenRef.current && !arenaBattleRef.current) {
               if (interaction.kind === 'social-cluster') {
                 setSectorPreviewPage(0);
                 setWelcome(false);
@@ -920,6 +1007,32 @@ export function World() {
           },
           onStatus: (nextStatus) => {
             if (cancelled) return;
+            achievementActionsRef.current.observe(nextStatus);
+            const battleStarting = Boolean(nextStatus.arenaBattle) && !arenaBattleRef.current;
+            arenaBattleRef.current = Boolean(nextStatus.arenaBattle);
+            if (battleStarting) {
+              setShirtIntroduction(null);
+              setPanel(null);
+              setCameraOpen(false);
+              setAccountMenuOpen(false);
+              setAchievementsOpen(false);
+              setWelcome(false);
+              setOverview(false);
+              controller?.setRideLift(0);
+              controller?.setFiring(false);
+              controller?.setMove(0, 0);
+              controller?.setPaused(false);
+              containerRef.current?.focus({ preventScroll: true });
+            }
+            if (
+              nextStatus.shirtSpeaker &&
+              !nextStatus.arenaBattle &&
+              !nextStatus.infection?.bitten &&
+              !shirtIntroductionSeen.current
+            ) {
+              shirtIntroductionSeen.current = true;
+              setShirtIntroduction(nextStatus.shirtSpeaker.id);
+            }
             if (nextStatus.infection?.bitten && !bittenRef.current) {
               bittenRef.current = true;
               setPanel(null);
@@ -936,18 +1049,26 @@ export function World() {
             setWorldStatus(nextStatus);
           },
           onReady: () => {
-            if (!cancelled) setSceneState('ready');
+            if (!cancelled) {
+              setSceneState('ready');
+              if (startExploring) containerRef.current?.focus({ preventScroll: true });
+            }
           },
           onExplore: () => {
-            if (!cancelled) {
+            if (!cancelled && !arenaBattleRef.current) {
               setWelcome(false);
               setOverview(false);
             }
           },
+          onRespawn: () => {
+            if (cancelled || respawnRequested) return;
+            respawnRequested = true;
+            respawnRef.current();
+          },
         });
         controllerRef.current = controller;
         controller.setTheaterLoading(dataLoadingRef.current);
-        controller.setOverview(true);
+        controller.setOverview(!startExploring);
         controller.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       })
       .catch(() => {
@@ -955,13 +1076,14 @@ export function World() {
       });
     return () => {
       cancelled = true;
+      sessionAliveRef.current = false;
       // Parent cleanup runs before the held controls can release their input.
       controller?.setRideLift(0);
       controller?.setFiring(false);
       controller?.dispose();
       controllerRef.current = null;
     };
-  }, [attempt]);
+  }, [attempt, startExploring]);
 
   useEffect(() => {
     const currentData = personal
@@ -987,13 +1109,14 @@ export function World() {
     controllerRef.current?.setTheaterLoading(dataLoadingRef.current);
   }, [dataStatus]);
   useEffect(() => {
-    const paused = !isZombie && (panel !== null || cameraOpen || accountMenuOpen);
+    const paused =
+      !inArenaBattle && (achievementsOpen || (!isZombie && (panel !== null || cameraOpen || accountMenuOpen)));
     if (paused) {
       controllerRef.current?.setRideLift(0);
       controllerRef.current?.setFiring(false);
     }
     controllerRef.current?.setPaused(paused);
-  }, [panel, cameraOpen, accountMenuOpen, sceneState, isZombie]);
+  }, [panel, cameraOpen, accountMenuOpen, achievementsOpen, sceneState, isZombie, inArenaBattle]);
   useEffect(() => {
     if (panel?.kind === 'zone' && panel.id === 'theater') {
       controllerRef.current?.setTheaterPaused(true);
@@ -1019,6 +1142,11 @@ export function World() {
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+  useEffect(() => {
+    if (!shirtIntroduction) return;
+    const timeout = window.setTimeout(() => setShirtIntroduction(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [shirtIntroduction]);
 
   const zone = WORLD_ZONES.find((item) => item.id === worldStatus.zone) ?? WORLD_ZONES[0];
   const heading = panel ? panelHeading(panel, data) : null;
@@ -1029,22 +1157,29 @@ export function World() {
   const previewedSector = panel?.kind === 'social-cluster' ? socialSectorForView(sectors, panel) : undefined;
 
   function wander() {
+    if (arenaBattleRef.current) return;
     setWelcome(false);
     setOverview(false);
     containerRef.current?.focus({ preventScroll: true });
   }
+  function recordAchievementInteraction(id: WorldInteractionAchievementId, identity?: string) {
+    if (!sessionAliveRef.current) return;
+    achievementActionsRef.current.recordInteraction(id, identity);
+  }
   function selectPanel(nextPanel: Panel) {
-    if (bittenRef.current) return;
+    if (bittenRef.current || arenaBattleRef.current) return;
     controllerRef.current?.setPaused(true);
     setPanel(nextPanel);
   }
   function previewSector(sector: number) {
+    if (arenaBattleRef.current) return;
     const target = sectors[sector];
     if (!target) return;
     setSectorPreviewPage(0);
     selectPanel({ kind: 'social-cluster', sector, sectorKey: target.key });
   }
   function enterSector(sector: number) {
+    if (arenaBattleRef.current) return;
     const target = sectors[sector];
     if (!target) return;
     setSocialView({ sector, sectorKey: target.key, page: 0 });
@@ -1053,7 +1188,7 @@ export function World() {
     travelTo('plaza');
   }
   function travelTo(destination: WorldZoneId, options?: { faceLandmark?: boolean }) {
-    if (bittenRef.current) return;
+    if (bittenRef.current || arenaBattleRef.current) return;
     setWelcome(false);
     setOverview(false);
     setPanel(null);
@@ -1067,7 +1202,7 @@ export function World() {
     containerRef.current?.focus({ preventScroll: true });
   }
   function visitPerson(id: string) {
-    if (bittenRef.current) return;
+    if (bittenRef.current || arenaBattleRef.current) return;
     const view = socialViewForPerson(data.people, id);
     if (!view) return;
     setSocialView(view);
@@ -1079,22 +1214,26 @@ export function World() {
     containerRef.current?.focus({ preventScroll: true });
   }
   function showAllSectors() {
+    if (arenaBattleRef.current) return;
     setSocialView({ sector: null, page: 0 });
     setSocialViewChanged(false);
     controllerRef.current?.setSocialFocus(null);
     travelTo('plaza');
   }
   function signInToFollow() {
+    if (arenaBattleRef.current) return;
     requireAuth(() => undefined);
   }
   function move(x: number, z: number) {
-    if (!panel) controllerRef.current?.setMove(x, z);
+    if (!panel && !achievementsOpen && !arenaBattleRef.current) controllerRef.current?.setMove(x, z);
   }
   function pauseTheater(paused: boolean) {
+    if (arenaBattleRef.current) return;
     controllerRef.current?.setTheaterPaused(paused);
     setWorldStatus((current) => ({ ...current, theaterPaused: paused }));
   }
   function stepTheater(delta: number) {
+    if (arenaBattleRef.current) return;
     pauseTheater(true);
     if (controllerRef.current) {
       controllerRef.current.stepTheater(delta);
@@ -1107,7 +1246,7 @@ export function World() {
     }
   }
   function perform(action: 'dance' | 'jump') {
-    if (bittenRef.current) return;
+    if (bittenRef.current || arenaBattleRef.current) return;
     setPanel(null);
     setWelcome(false);
     setOverview(false);
@@ -1127,45 +1266,93 @@ export function World() {
       data-world-zombie={isZombie}
       data-world-humans={worldStatus.infection?.humans}
       data-world-zombies={worldStatus.infection?.zombies}
+      data-world-arena={arenaBattle?.phase ?? 'idle'}
       data-welcome={welcome}
-      data-map-visible={showMap && !welcome && !isZombie}
+      data-map-visible={showMap && !welcome && !isZombie && !arenaBattle}
     >
       <div
         ref={containerRef}
         className={styles.canvas}
         tabIndex={0}
         aria-label={
-          isZombie
-            ? 'You are a zombie. Use W A S D or arrow keys to shamble toward living people and E to bite. Drag to orbit the camera.'
-            : horseback
-              ? 'Ride the horse with W A S D or arrow keys. Your knight swings a sword automatically. Ride into zombies to knock them down. E to get off.'
-              : autonomousRide
-                ? 'Interactive Pubky island. The dragon flies itself. Press F to roll and breathe fire or E to land and get off. Drag to orbit the camera.'
-                : worldStatus.tool
-                  ? 'Interactive Pubky island. Drag to aim, hold the mouse or B to fire, and press E to drop the flamethrower. Use W A S D or arrow keys to move.'
-                  : 'Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera.'
+          arenaBattle
+            ? 'Arena battle in progress. Movement and other interactions return after the battle or respawn.'
+            : isZombie
+              ? 'You are a zombie. Use W A S D or arrow keys to shamble toward living people and E to bite. Drag to orbit the camera.'
+              : horseback
+                ? 'Ride the horse with W A S D or arrow keys. Your knight swings a sword automatically. Ride into zombies to knock them down. E to get off.'
+                : autonomousRide
+                  ? 'Interactive Pubky island. The dragon flies itself. Press F to roll and breathe fire or E to land and get off. Drag to orbit the camera.'
+                  : worldStatus.tool
+                    ? 'Interactive Pubky island. Drag to aim, hold the mouse or B to fire, and press E to drop the flamethrower. Use W A S D or arrow keys to move.'
+                    : 'Interactive Pubky island. Use W A S D or arrow keys to walk, space to jump, E to interact. Drag to orbit the camera.'
         }
       />
       <div className={styles.vignette} aria-hidden="true" />
 
-      <header className={styles.topbar}>
-        <div className={styles.brand}>
-          <span className={styles.brandMark}>
-            <PubkyIcon size={26} />
-          </span>
-          <span>
-            pubky<span className={styles.brandWorld}>world</span>
-          </span>
-          <span className={styles.experiment}>EXPERIMENT</span>
-        </div>
-        {!isZombie && (
-          <div className={styles.topActions}>
-            <WorldAccountMenu personaColor={personaColor} onOpenChange={setAccountMenuOpen} />
-          </div>
-        )}
-      </header>
+      {arenaBattle && <WorldArenaBattle battle={arenaBattle} reducedMotion={reducedMotion} />}
 
-      {dataError && !isZombie && (
+      {!arenaBattle && (
+        <header className={styles.topbar}>
+          <div className={styles.brand}>
+            <span className={styles.brandMark}>
+              <PubkyIcon size={26} />
+            </span>
+            <span>
+              pubky<span className={styles.brandWorld}>world</span>
+            </span>
+            <span className={styles.experiment}>EXPERIMENT</span>
+          </div>
+          {!isZombie && (
+            <div className={styles.topActions}>
+              <WorldAccountMenu personaColor={personaColor} onOpenChange={setAccountMenuOpen} />
+            </div>
+          )}
+        </header>
+      )}
+
+      {!arenaBattle && (
+        <div className={styles.collectiblesHud}>
+          {!isZombie && (
+            <div
+              className={styles.keyBalance}
+              role="status"
+              aria-label="Key balance"
+              title={`${keys.unlocked} of ${WORLD_RIDEABLES.length} rides unlocked. Knight horse: ${WORLD_UNLOCK_COSTS.horse} keys. Flamethrower: ${WORLD_UNLOCK_COSTS.flamethrower} keys. Other rides: 1 key. Unlock once, use again for free.`}
+            >
+              <KeyRound size={18} aria-hidden="true" />
+              <span>
+                <strong>{keys.available}</strong> {keys.available === 1 ? 'key' : 'keys'}
+              </span>
+            </div>
+          )}
+          <WorldAchievements
+            earned={achievements.earned}
+            progress={achievements.progress}
+            celebration={achievements.celebration}
+            showCelebration={!welcome && !panel && !cameraOpen && !accountMenuOpen && !shirtIntroduction}
+            reducedMotion={reducedMotion}
+            zombie={isZombie}
+            onDismissCelebration={achievements.dismissCelebration}
+            onOpenChange={setAchievementsOpen}
+            onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
+          />
+        </div>
+      )}
+
+      {shirtIntroduction &&
+        worldStatus.shirtSpeaker?.id === shirtIntroduction &&
+        !arenaBattle &&
+        !isZombie &&
+        !welcome &&
+        !panel &&
+        !cameraOpen &&
+        !accountMenuOpen &&
+        !achievementsOpen && (
+          <WorldShirtIntroduction speaker={worldStatus.shirtSpeaker} reducedMotion={reducedMotion} />
+        )}
+
+      {dataError && !arenaBattle && !isZombie && (
         <div className={styles.dataNotice} role="status">
           <Info size={15} />
           <span>{dataError}</span>
@@ -1180,7 +1367,7 @@ export function World() {
         </div>
       )}
 
-      {welcome && (
+      {welcome && !arenaBattle && (
         <section className={styles.welcome}>
           <div className={styles.welcomeEyebrow}>
             <span />
@@ -1228,7 +1415,7 @@ export function World() {
         </section>
       )}
 
-      {sceneState !== 'ready' && (
+      {sceneState !== 'ready' && !arenaBattle && (
         <div className={`${styles.loadingCard} ${sceneState === 'error' ? styles.errorCard : ''}`} role="status">
           {sceneState === 'loading' ? (
             <>
@@ -1266,7 +1453,7 @@ export function World() {
         </div>
       )}
 
-      {isZombie && (
+      {isZombie && !arenaBattle && (
         <section className={styles.zombieNotice} aria-labelledby="world-bitten-title">
           <div role="alert">
             <Skull size={26} aria-hidden="true" />
@@ -1277,7 +1464,7 @@ export function World() {
         </section>
       )}
 
-      {!welcome && !isZombie && (
+      {!welcome && !isZombie && !arenaBattle && (
         <div className={styles.location}>
           <span className={styles.locationDot} />
           <div>
@@ -1294,7 +1481,7 @@ export function World() {
         </div>
       )}
 
-      {showMap && !welcome && !isZombie && (
+      {showMap && !welcome && !isZombie && !arenaBattle && (
         <aside id="world-pocket-map" className={styles.minimap} aria-label="Island map">
           <div className={styles.mapHeader}>
             <span>POCKET MAP</span>
@@ -1366,6 +1553,7 @@ export function World() {
       )}
 
       {!welcome &&
+        !arenaBattle &&
         !isZombie &&
         !panel &&
         !cameraOpen &&
@@ -1465,15 +1653,21 @@ export function World() {
           </aside>
         )}
 
-      {!isZombie && worldStatus.nearby && !worldStatus.ride && !worldStatus.tool && !welcome && !panel && (
-        <Button overrideDefaults className={styles.interactPrompt} onClick={() => controllerRef.current?.interact()}>
-          <kbd>E</kbd>
-          <span>{worldStatus.nearby}</span>
-          <MousePointer2 size={15} />
-        </Button>
-      )}
+      {!isZombie &&
+        !arenaBattle &&
+        worldStatus.nearby &&
+        !worldStatus.ride &&
+        !worldStatus.tool &&
+        !welcome &&
+        !panel && (
+          <Button overrideDefaults className={styles.interactPrompt} onClick={() => controllerRef.current?.interact()}>
+            <kbd>E</kbd>
+            <span>{worldStatus.nearby}</span>
+            <MousePointer2 size={15} />
+          </Button>
+        )}
 
-      {isZombie && (
+      {isZombie && !arenaBattle && (
         <Button
           overrideDefaults
           className={`${styles.interactPrompt} ${styles.biteButton}`}
@@ -1489,7 +1683,7 @@ export function World() {
         </Button>
       )}
 
-      {!isZombie && worldStatus.ride && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+      {!isZombie && !arenaBattle && worldStatus.ride && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
         <WorldRideControls
           ride={worldStatus.ride}
           onLift={(value) => controllerRef.current?.setRideLift(value)}
@@ -1504,7 +1698,7 @@ export function World() {
         />
       )}
 
-      {!isZombie && worldStatus.tool && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
+      {!isZombie && !arenaBattle && worldStatus.tool && !welcome && !panel && !cameraOpen && !accountMenuOpen && (
         <WorldToolControls
           firing={worldStatus.tool.firing}
           onFire={(value) => controllerRef.current?.setFiring(value)}
@@ -1515,7 +1709,7 @@ export function World() {
         />
       )}
 
-      {(isZombie || !autonomousRide) && (
+      {!arenaBattle && (isZombie || !autonomousRide) && (
         <div className={styles.touchControls} aria-label="Touch movement controls">
           <div className={styles.directionPad}>
             {[
@@ -1562,119 +1756,122 @@ export function World() {
         </div>
       )}
 
-      <footer className={styles.bottomBar}>
-        <div className={styles.worldStamp}>
-          <Orbit size={15} />
-          <span>
-            {isZombie
-              ? 'FOLLOW THE LIVING.'
-              : worldStatus.infection && !welcome
-                ? `${worldStatus.infection.humans} people · ${worldStatus.infection.zombies} zombies`
-                : 'AN OPEN WEB, WITH ROOM TO WANDER.'}
-          </span>
-        </div>
-        <div className={styles.movementHelp}>
-          {autonomousRide && !isZombie ? (
+      {!arenaBattle && (
+        <footer className={styles.bottomBar}>
+          <div className={styles.worldStamp}>
+            <Orbit size={15} />
             <span>
-              <kbd>F</kbd>Stunt + fire
-            </span>
-          ) : (
-            <span>
-              <kbd>W</kbd>
-              <kbd>A</kbd>
-              <kbd>S</kbd>
-              <kbd>D</kbd>
               {isZombie
-                ? 'Shamble'
-                : worldStatus.ride
-                  ? worldRideCanFly(worldStatus.ride.id)
-                    ? 'Fly'
-                    : 'Ride'
-                  : 'Walk'}
+                ? 'FOLLOW THE LIVING.'
+                : worldStatus.infection && !welcome
+                  ? `${worldStatus.infection.humans} people · ${worldStatus.infection.zombies} zombies`
+                  : 'AN OPEN WEB, WITH ROOM TO WANDER.'}
             </span>
-          )}
-          <span>
-            <MousePointer2 size={14} />
-            {!isZombie && worldStatus.tool ? 'Drag to aim' : 'Drag to orbit'}
-          </span>
-          {!isZombie && !horseback && !autonomousRide && (
-            <span>
-              <kbd>SPACE</kbd>
-              {worldRideCanFly(worldStatus.ride?.id) ? 'Ascend' : 'Jump'}
-            </span>
-          )}
-          {!isZombie && worldStatus.tool && (
-            <span>
-              <kbd>B</kbd>Fire
-            </span>
-          )}
-          <span>
-            <kbd>E</kbd>
-            {isZombie
-              ? 'Bite'
-              : autonomousRide
-                ? 'Land and get off'
-                : worldStatus.ride
-                  ? 'Get off'
-                  : worldStatus.tool
-                    ? 'Drop'
-                    : 'Interact'}
-          </span>
-        </div>
-        {!isZombie && (
-          <div className={styles.viewControls}>
-            <WorldCamera
-              disabled={sceneState !== 'ready' || panel !== null}
-              onCapture={() => controllerRef.current?.capturePhoto() ?? Promise.resolve(null)}
-              onOpenChange={setCameraOpen}
-              onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
-            />
-            <Button
-              overrideDefaults
-              aria-label={overview ? 'Follow my persona' : 'Show island overview'}
-              aria-pressed={overview}
-              title={overview ? 'Follow my persona' : 'Island overview'}
-              onClick={() => {
-                setOverview(!overview);
-                setWelcome(false);
-              }}
-            >
-              <Orbit size={18} />
-            </Button>
-            <Button
-              overrideDefaults
-              aria-label={showMap ? 'Hide minimap' : 'Show minimap'}
-              aria-pressed={showMap}
-              aria-controls="world-pocket-map"
-              title="Toggle minimap"
-              onClick={() => setShowMap(!showMap)}
-            >
-              <Map size={18} />
-            </Button>
-            <Button
-              overrideDefaults
-              aria-label={night ? 'Switch to daytime' : 'Switch to nighttime'}
-              aria-pressed={night}
-              title={night ? 'Daytime' : 'Nighttime'}
-              onClick={() => setNight(!night)}
-            >
-              {night ? <Moon size={18} /> : <Sun size={18} />}
-            </Button>
-            <span />
-            <Button
-              overrideDefaults
-              aria-label="World settings"
-              title="Make yourself at home"
-              onClick={() => selectPanel({ kind: 'settings' })}
-            >
-              <Settings2 size={18} />
-            </Button>
           </div>
-        )}
-      </footer>
+          <div className={styles.movementHelp}>
+            {autonomousRide && !isZombie ? (
+              <span>
+                <kbd>F</kbd>Stunt + fire
+              </span>
+            ) : (
+              <span>
+                <kbd>W</kbd>
+                <kbd>A</kbd>
+                <kbd>S</kbd>
+                <kbd>D</kbd>
+                {isZombie
+                  ? 'Shamble'
+                  : worldStatus.ride
+                    ? worldRideCanFly(worldStatus.ride.id)
+                      ? 'Fly'
+                      : 'Ride'
+                    : 'Walk'}
+              </span>
+            )}
+            <span>
+              <MousePointer2 size={14} />
+              {!isZombie && worldStatus.tool ? 'Drag to aim' : 'Drag to orbit'}
+            </span>
+            {!isZombie && !horseback && !autonomousRide && (
+              <span>
+                <kbd>SPACE</kbd>
+                {worldRideCanFly(worldStatus.ride?.id) ? 'Ascend' : 'Jump'}
+              </span>
+            )}
+            {!isZombie && worldStatus.tool && (
+              <span>
+                <kbd>B</kbd>Fire
+              </span>
+            )}
+            <span>
+              <kbd>E</kbd>
+              {isZombie
+                ? 'Bite'
+                : autonomousRide
+                  ? 'Land and get off'
+                  : worldStatus.ride
+                    ? 'Get off'
+                    : worldStatus.tool
+                      ? 'Drop'
+                      : 'Interact'}
+            </span>
+          </div>
+          {!isZombie && (
+            <div className={styles.viewControls}>
+              <WorldCamera
+                disabled={sceneState !== 'ready' || panel !== null}
+                onCapture={() => controllerRef.current?.capturePhoto() ?? Promise.resolve(null)}
+                onOpenChange={setCameraOpen}
+                onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
+                onPhotoPosted={() => recordAchievementInteraction('picture-this')}
+              />
+              <Button
+                overrideDefaults
+                aria-label={overview ? 'Follow my persona' : 'Show island overview'}
+                aria-pressed={overview}
+                title={overview ? 'Follow my persona' : 'Island overview'}
+                onClick={() => {
+                  setOverview(!overview);
+                  setWelcome(false);
+                }}
+              >
+                <Orbit size={18} />
+              </Button>
+              <Button
+                overrideDefaults
+                aria-label={showMap ? 'Hide minimap' : 'Show minimap'}
+                aria-pressed={showMap}
+                aria-controls="world-pocket-map"
+                title="Toggle minimap"
+                onClick={() => setShowMap(!showMap)}
+              >
+                <Map size={18} />
+              </Button>
+              <Button
+                overrideDefaults
+                aria-label={night ? 'Switch to daytime' : 'Switch to nighttime'}
+                aria-pressed={night}
+                title={night ? 'Daytime' : 'Nighttime'}
+                onClick={() => setNight(!night)}
+              >
+                {night ? <Moon size={18} /> : <Sun size={18} />}
+              </Button>
+              <span />
+              <Button
+                overrideDefaults
+                aria-label="World settings"
+                title="Make yourself at home"
+                onClick={() => selectPanel({ kind: 'settings' })}
+              >
+                <Settings2 size={18} />
+              </Button>
+            </div>
+          )}
+        </footer>
+      )}
 
       <Dialog
-        open={!isZombie && panel !== null}
+        open={!arenaBattle && !isZombie && panel !== null}
         onOpenChange={(open) => {
           if (!open) setPanel(null);
         }}
@@ -1819,6 +2016,7 @@ export function World() {
                 onTheaterStep={stepTheater}
                 chess={chess}
                 signedIn={isFullyAuthenticated}
+                onAchievementInteraction={recordAchievementInteraction}
               />
             )
           )}

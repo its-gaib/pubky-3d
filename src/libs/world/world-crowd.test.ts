@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WORLD_ANIME_SHIRTS } from '@/libs/world/world-anime-shirt';
 import { createWorldBurning } from '@/libs/world/world-burning';
 import { createWorldCrowd } from '@/libs/world/world-crowd';
 import { WORLD_INFECTION, type WorldInfectionPlayer } from '@/libs/world/world-infection';
@@ -21,23 +22,180 @@ function setup(random = () => 0.2) {
   });
   return { scene, burning, crowd };
 }
+beforeEach(() => vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null));
 afterEach(() => {
   cleanups.splice(0).forEach((cleanup) => cleanup());
+  vi.restoreAllMocks();
 });
 
 describe('world crowd rendering and scenery integration', () => {
-  it('creates 100 peaceful visitors and one random zombie in eight shared batches', () => {
+  it('creates 100 peaceful visitors and one random zombie with only one extra draw for 20 anime shirts', () => {
     const { crowd } = setup();
     expect(crowd.tick(0, 0, absentPlayer())).toEqual({ playerBitten: false, humans: 100, zombies: 1 });
     const batches = crowd.group.children.filter((object) => object instanceof THREE.InstancedMesh);
-    expect(batches).toHaveLength(8);
-    expect(batches.every((mesh) => mesh.count === 101)).toBe(true);
+    expect(batches).toHaveLength(9);
+    expect(batches.filter((mesh) => mesh.count === 101)).toHaveLength(8);
+    expect(batches.filter((mesh) => mesh.count === WORLD_ANIME_SHIRTS.count)).toHaveLength(1);
     expect(crowd.isZombie('human:crowd-zombie-0')).toBe(true);
     expect(crowd.isZombie('human:crowd-0')).toBe(false);
     const other = setup(() => 0.7);
     expect(other.crowd.group.getObjectByName('crowd-zombie-0')!.position).not.toEqual(
       crowd.group.getObjectByName('crowd-zombie-0')!.position,
     );
+  });
+
+  it('gives exactly 20 original walkers a shared anime print while preserving the other 80 shirts', () => {
+    const { crowd } = setup();
+    const wearers = crowd.group.children.filter((object) => object.userData.worldAnimeShirt);
+    expect(wearers).toHaveLength(20);
+    expect(wearers.every((object) => object.name.startsWith('crowd-human-'))).toBe(true);
+    expect(crowd.group.getObjectByName('crowd-zombie-0')!.userData.worldAnimeShirt).toBeUndefined();
+    const torsos = crowd.group.getObjectByName('crowd-shirts') as THREE.InstancedMesh;
+    const prints = crowd.group.getObjectByName('crowd-anime-shirt-prints') as THREE.InstancedMesh;
+    expect(prints.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    const material = prints.material as THREE.MeshStandardMaterial;
+    expect(material.map).toBeInstanceOf(THREE.CanvasTexture);
+    expect(material.map!.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(material.emissiveMap).toBe(material.map);
+    const originalShirts = ['#8f94cd', '#e4b965', '#85b7ac', '#cd857a', '#91a8c8', '#b59ac6'];
+    const tint = new THREE.Color();
+    for (let index = 0; index < 100; index++) {
+      const wearer = crowd.group.getObjectByName(`crowd-human-${index}`)!;
+      torsos.getColorAt(index, tint);
+      expect(tint.getHexString()).toBe(
+        wearer.userData.worldAnimeShirt
+          ? WORLD_ANIME_SHIRTS.fabric.slice(1).toLowerCase()
+          : originalShirts[index % 6].slice(1),
+      );
+    }
+    const shirtMatrix = new THREE.Matrix4();
+    const torsoMatrix = new THREE.Matrix4();
+    for (const [slot, wearer] of wearers.entries()) {
+      const index = Number(wearer.name.slice('crowd-human-'.length));
+      prints.getMatrixAt(slot, shirtMatrix);
+      torsos.getMatrixAt(index, torsoMatrix);
+      expect(shirtMatrix.elements).toEqual(torsoMatrix.elements);
+    }
+  });
+
+  it('reports a nearby shirt only for a living player within four world units of a visible living wearer', () => {
+    const { crowd, scene } = setup();
+    for (const object of crowd.group.children) {
+      if (object.userData.worldCrowdProxy) object.visible = false;
+    }
+    const wearer = scene.getObjectByName('crowd-human-0')!;
+    wearer.position.set(0, 0.15, 0);
+    wearer.visible = true;
+    const player = { ...absentPlayer(), position: new THREE.Vector3(3.9, 0.15, 0) };
+    expect(crowd.tick(0, 0, player).shirtNearby).toBe(true);
+    player.position.x = 4.1;
+    expect(crowd.tick(0, 0, player).shirtNearby).toBeUndefined();
+    player.position.set(0, 4.3, 0);
+    expect(crowd.tick(0, 0, player).shirtNearby).toBeUndefined();
+    player.position.copy(wearer.position);
+    expect(crowd.tick(0, 0, { ...player, alive: false }).shirtNearby).toBeUndefined();
+    expect(crowd.tick(0, 0, { ...player, zombie: true }).shirtNearby).toBeUndefined();
+    crowd.group.visible = false;
+    expect(crowd.tick(0, 0, player).shirtNearby).toBeUndefined();
+    crowd.group.visible = true;
+    wearer.visible = false;
+    const ordinary = scene.getObjectByName('crowd-human-1')!;
+    ordinary.position.copy(player.position);
+    ordinary.visible = true;
+    expect(crowd.tick(0, 0, player).shirtNearby).toBeUndefined();
+  });
+
+  it('keeps the printed shirt on a bitten and fallen wearer without advertising from their corpse', () => {
+    const { crowd, scene } = setup();
+    for (const object of crowd.group.children) {
+      if (object.userData.worldCrowdProxy) object.visible = false;
+    }
+    const wearer = scene.getObjectByName('crowd-human-0')!;
+    wearer.position.set(0, 0.15, 0);
+    wearer.visible = true;
+    const player = { ...absentPlayer(), position: wearer.position.clone() };
+    crowd.tick(0.05, 0.05, { ...player, zombie: true, bite: true });
+    expect(crowd.isZombie('human:crowd-0')).toBe(true);
+    expect(crowd.tick(0, 0.05, player).shirtNearby).toBeUndefined();
+    expect(crowd.knockDownZombies(player.position)).toBe(1);
+    crowd.tick(0.05, 1, player, true);
+    expect(crowd.tick(0, 1, player).shirtNearby).toBeUndefined();
+    const torsoMatrix = new THREE.Matrix4();
+    const printMatrix = new THREE.Matrix4();
+    (crowd.group.getObjectByName('crowd-shirts') as THREE.InstancedMesh).getMatrixAt(0, torsoMatrix);
+    (crowd.group.getObjectByName('crowd-anime-shirt-prints') as THREE.InstancedMesh).getMatrixAt(0, printMatrix);
+    expect(printMatrix.elements).toEqual(torsoMatrix.elements);
+    expect(printMatrix.determinant()).toBeGreaterThan(0);
+    wearer.visible = false;
+    crowd.tick(0, 1, player);
+    (crowd.group.getObjectByName('crowd-anime-shirt-prints') as THREE.InstancedMesh).getMatrixAt(0, printMatrix);
+    expect(printMatrix.determinant()).toBe(0);
+  });
+
+  it('identifies the nearest wearer and keeps their speech anchored to their moving head', () => {
+    const { crowd, burning, scene } = setup();
+    for (const object of crowd.group.children) {
+      if (object.userData.worldCrowdProxy) object.visible = false;
+    }
+    const wearers = crowd.group.children.filter((object) => object.userData.worldAnimeShirt).slice(0, 2);
+    wearers[0].visible = true;
+    wearers[0].position.set(0, 0.15, 0);
+    wearers[1].visible = true;
+    wearers[1].position.set(3, 0.15, 0);
+    const player = { ...absentPlayer(), position: new THREE.Vector3(2.8, 0.15, 0) };
+    const speakerId = crowd.tick(0, 0, player).shirtSpeakerId!;
+    expect(speakerId).not.toBe('human:crowd-0');
+    const point = new THREE.Vector3();
+    expect(crowd.getShirtSpeakerPosition(speakerId, point)).toBe(point);
+    expect(point.x).toBe(3);
+    expect(point.y).toBeCloseTo(wearers[1].position.y + 2.9 * wearers[1].scale.y);
+
+    // The six-second message follows its original speaker even after they leave proximity.
+    wearers[1].position.set(12, 0.15, 7);
+    expect(crowd.tick(0, 0, player).shirtSpeakerId).toBe('human:crowd-0');
+    crowd.getShirtSpeakerPosition(speakerId, point);
+    expect(point.x).toBe(12);
+    expect(point.z).toBe(7);
+
+    wearers[1].visible = false;
+    expect(crowd.getShirtSpeakerPosition(speakerId, point)).toBeNull();
+    wearers[1].visible = true;
+    crowd.group.visible = false;
+    expect(crowd.getShirtSpeakerPosition(speakerId, point)).toBeNull();
+    crowd.group.visible = true;
+    expect(crowd.getShirtSpeakerPosition('human:crowd-1', point)).toBeNull();
+    expect(crowd.getShirtSpeakerPosition('unknown', point)).toBeNull();
+    expect(burning.ignite(speakerId)).toBe(true);
+    expect(crowd.getShirtSpeakerPosition(speakerId, point)).toBeNull();
+    expect(scene.getObjectByName('crowd-human-0')).toBe(wearers[0]);
+  });
+
+  it('never advertises a burning shirt and releases its shared print resources exactly once', () => {
+    const { crowd, burning, scene } = setup();
+    for (const object of crowd.group.children) {
+      if (object.userData.worldCrowdProxy) object.visible = false;
+    }
+    const wearer = scene.getObjectByName('crowd-human-0')!;
+    wearer.position.set(0, 0.15, 0);
+    wearer.visible = true;
+    const player = { ...absentPlayer(), position: wearer.position.clone() };
+    expect(burning.ignite('human:crowd-0')).toBe(true);
+    expect(crowd.tick(0, 0, player).shirtNearby).toBeUndefined();
+    const prints = crowd.group.getObjectByName('crowd-anime-shirt-prints') as THREE.InstancedMesh;
+    const normal = prints.material as THREE.MeshStandardMaterial;
+    const disposeTexture = vi.spyOn(normal.map!, 'dispose');
+    const disposeGeometry = vi.spyOn(prints.geometry, 'dispose');
+    const disposeMaterial = vi.spyOn(normal, 'dispose');
+    crowd.setZombieVision(true);
+    expect((prints.material as THREE.MeshBasicMaterial).map).toBe(normal.map);
+    const disposeVisionMaterial = vi.spyOn(prints.material as THREE.Material, 'dispose');
+    crowd.setZombieVision(false);
+    expect(prints.material).toBe(normal);
+    crowd.dispose();
+    crowd.dispose();
+    for (const dispose of [disposeTexture, disposeGeometry, disposeMaterial, disposeVisionMaterial]) {
+      expect(dispose).toHaveBeenCalledExactlyOnceWith();
+    }
   });
 
   it('registers susceptible scenery, leaves social profiles immune, and isolates shared skin materials', () => {

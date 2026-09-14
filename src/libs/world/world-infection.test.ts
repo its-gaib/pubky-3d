@@ -120,10 +120,22 @@ describe('world infection', () => {
     simulation.add(person('human:a', 0.4, 0));
     simulation.add(person('human:b', -0.4, 0));
     const player = { ...absentPlayer(), position: new THREE.Vector3(0, 0.15, 0), zombie: true };
-    expect(simulation.tick(0.05, player).zombies).toBe(0);
+    expect(simulation.tick(0.05, player)).toMatchObject({ zombies: 0 });
     player.bite = true;
-    expect(simulation.tick(0.05, player).zombies).toBe(1);
-    expect(simulation.tick(0.05, player).zombies).toBe(1);
+    expect(simulation.tick(0.05, player)).toMatchObject({ zombies: 1, playerInfected: 1 });
+    const cooldown = simulation.tick(0.05, player);
+    expect(cooldown.zombies).toBe(1);
+    expect(cooldown.playerInfected).toBeUndefined();
+  });
+
+  it('does not credit the player for nearby infections caused by other zombies', () => {
+    const simulation = createWorldInfection([]);
+    simulation.add(person('human:zombie', 0, 0, true));
+    simulation.add(person('human:prey', 0.4, 0));
+    const frame = simulation.tick(0.05, absentPlayer());
+    expect(frame.zombies).toBe(2);
+    expect(frame.infected).toEqual(['human:prey']);
+    expect(frame.playerInfected).toBeUndefined();
   });
 
   it('cannot see or bite through solid props, but can see underneath elevated signs', () => {

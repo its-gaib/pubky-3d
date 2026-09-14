@@ -16,6 +16,12 @@ export const ARENA_DIMENSIONS = {
   height: 11,
 } as const;
 
+export interface WorldGladiatorCombatPose {
+  stride: number;
+  strike: number;
+  guard: number;
+}
+
 // Exact symbol-only paths from the inherited PubkyIcon and Synonym components
 // in src/libs/icons/icons.tsx. Wordmark paths are intentionally absent.
 // Brand references: https://pubky.org/ and https://synonym.to/.
@@ -465,6 +471,8 @@ function createGladiatorDuel(parent: THREE.Group) {
         fighter.parent !== duel ||
         fighter.userData.worldBurnPending ||
         fighter.userData.worldZombie ||
+        fighter.userData.worldArenaCombat ||
+        fighter.userData.worldArenaDead ||
         !fighter.visible
       )
         continue;
@@ -494,7 +502,36 @@ function createGladiatorDuel(parent: THREE.Group) {
     animate,
     gladiators: fighters.map(({ fighter, legs, knees, swordArm, shieldArm, swordElbow, shieldElbow }) => ({
       group: fighter,
+      setCombatOwned(value: boolean) {
+        fighter.userData.worldArenaCombat = value;
+      },
+      setCombatPose({ stride, strike, guard }: WorldGladiatorCombatPose) {
+        if (fighter.userData.worldArenaDead) return;
+        legs[0].rotation.set(stride * 0.38 - strike * 0.18, 0, -0.04);
+        legs[1].rotation.set(-stride * 0.38 + strike * 0.18, 0, 0.04);
+        knees[0].rotation.x = 0.1 + Math.max(0, stride) * 0.38;
+        knees[1].rotation.x = 0.1 + Math.max(0, -stride) * 0.38;
+        swordArm.rotation.set(-2.35 + strike * 1.65, strike * 0.25, -0.2);
+        shieldArm.rotation.set(-1.05 - guard * 0.65, 0, 0.18);
+        swordElbow.rotation.x = -0.42 + strike * 0.35;
+        shieldElbow.rotation.x = -0.28 - guard * 0.2;
+      },
+      setFallenPose(progress: number, direction = 1) {
+        const fall = Number.isFinite(progress) ? THREE.MathUtils.clamp(progress, 0, 1) : 0;
+        fighter.rotation.x = (-Math.PI / 2) * fall;
+        fighter.rotation.z = direction * 0.12 * fall;
+        fighter.position.y = 0.36 * fall;
+        legs[0].rotation.set(-0.16 * fall, 0, -0.16 * fall);
+        legs[1].rotation.set(0.2 * fall, 0, 0.24 * fall);
+        knees[0].rotation.x = 0.23 * fall;
+        knees[1].rotation.x = 0.16 * fall;
+        swordArm.rotation.set(-0.1, 0, -0.75 * fall);
+        shieldArm.rotation.set(-0.18, 0, 0.65 * fall);
+        swordElbow.rotation.x = -0.2 * fall;
+        shieldElbow.rotation.x = -0.18 * fall;
+      },
       setZombiePose(stride: number, reducedMotion: boolean) {
+        if (fighter.userData.worldArenaCombat || fighter.userData.worldArenaDead) return;
         const step = reducedMotion ? 0 : stride * 0.18;
         legs[0].rotation.x = step - 0.03;
         legs[1].rotation.x = -step * 0.65;
@@ -506,6 +543,7 @@ function createGladiatorDuel(parent: THREE.Group) {
         shieldElbow.rotation.x = -0.22;
       },
       setEscapePose(frame: WorldBurnEscapeFrame, reducedMotion: boolean) {
+        if (fighter.userData.worldArenaCombat || fighter.userData.worldArenaDead) return;
         const stride = reducedMotion ? 0 : frame.stride;
         const falling = frame.falling && !reducedMotion;
         for (let index = 0; index < legs.length; index++) {
@@ -661,13 +699,22 @@ export function createArena(
         metalness: 0,
       }),
   );
+  const victoryBanners: THREE.Mesh[] = [];
+  const victoryBannerGeometry = new THREE.PlaneGeometry(1.75, 2.7);
   for (let index = 0; index < 14; index++) {
     const angle = 0.45 + (index / 13) * (Math.PI * 2 - 0.9);
     const x = Math.sin(angle) * 19.12;
     const z = Math.cos(angle) * 15.49;
     const yaw = Math.atan2(Math.sin(angle) / 19.12, Math.cos(angle) / 15.49);
     block([1.95, 0.1, 0.16], surfaces.bronze, [x, 8.45, z], yaw);
-    add(new THREE.PlaneGeometry(1.75, 2.7), bannerSurfaces[index % 2], [x, 6.98, z], yaw);
+    if ((index + 1) % 3 === 0) {
+      // Only every third physical banner needs a mutable champion portrait.
+      // The remaining ten flags keep their original shared brand draw calls.
+      const banner = mesh(group, victoryBannerGeometry, bannerSurfaces[index % 2], [x, 6.98, z]);
+      banner.name = `arena-banner-${index + 1}`;
+      banner.rotation.y = yaw;
+      victoryBanners.push(banner);
+    } else add(new THREE.PlaneGeometry(1.75, 2.7), bannerSurfaces[index % 2], [x, 6.98, z], yaw);
   }
 
   const flames: THREE.Mesh[] = [];
@@ -695,6 +742,7 @@ export function createArena(
   // scene's existing disposeObject lifecycle. This module owns no timers or IO.
   return {
     group,
+    victoryBanners,
     gladiators: duel.gladiators,
     animate(time: number) {
       if (!Number.isFinite(time)) return;

@@ -29,11 +29,12 @@ interface UseWorldPhotoPostResult {
  * in memory and belongs to the current public identity; nothing is uploaded or
  * queued by opening it. The existing composer owns validation and publishing.
  */
-export function useWorldPhotoPost(): UseWorldPhotoPostResult {
+export function useWorldPhotoPost({ onPhotoPosted }: { onPhotoPosted?: () => void } = {}): UseWorldPhotoPostResult {
   const { isAuthenticated, requireAuth } = useRequireAuth();
   const currentUserPubky = useAuthStore((state) => state.currentUserPubky);
   const [draft, setDraft] = useState<WorldPhotoDraft | null>(null);
   const draftRef = useRef<WorldPhotoDraft | null>(null);
+  const publicationRef = useRef({ photoAttached: false, published: false });
   const [error, setError] = useState<string | null>(null);
   const network: WorldPhotoNetwork = isWorldProductionConfigured() ? 'production' : 'unavailable';
   const isComposerOpen = draft !== null && draft.authorId === currentUserPubky && network !== 'unavailable';
@@ -87,6 +88,7 @@ export function useWorldPhotoPost(): UseWorldPhotoPostResult {
         authorId,
         file: new File([blob], 'pubky-world.png', { type: 'image/png' }),
       };
+      publicationRef.current = { photoAttached: false, published: false };
       draftRef.current = nextDraft;
       setDraft(nextDraft);
       return true;
@@ -118,6 +120,25 @@ export function useWorldPhotoPost(): UseWorldPhotoPostResult {
           onOpenChangeAction={closeComposer}
           initialContent="A postcard from Pubky World."
           initialAttachments={[draft.file]}
+          onAttachmentsChange={(attachments) => {
+            if (draftRef.current === draft) publicationRef.current.photoAttached = attachments.includes(draft.file);
+          }}
+          onPostCreated={
+            onPhotoPosted
+              ? () => {
+                  if (
+                    draftRef.current !== draft ||
+                    publicationRef.current.published ||
+                    !publicationRef.current.photoAttached ||
+                    useAuthStore.getState().currentUserPubky !== draft.authorId ||
+                    !isWorldProductionConfigured()
+                  )
+                    return;
+                  publicationRef.current.published = true;
+                  onPhotoPosted?.();
+                }
+              : undefined
+          }
           description={`Posting to Pubky ${network}. Review your photo and choose Post to publish.`}
         />
       ) : null,

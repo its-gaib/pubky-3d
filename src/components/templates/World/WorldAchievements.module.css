@@ -1,0 +1,231 @@
+.collectionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #d1acff3b;
+  border-radius: 14px;
+  background: var(--world-glass);
+  box-shadow: var(--world-shadow);
+  color: #dbbcff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.collectionButton:hover {
+  background: #30223e;
+}
+.collectionButton:focus-visible {
+  outline: 2px solid #dbbcff;
+  outline-offset: 3px;
+}
+.collection {
+  width: min(660px, calc(100% - 32px));
+}
+.badgeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+.badgeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--world-border);
+  border-radius: 18px;
+  padding: 22px 16px 18px;
+  background: var(--world-card);
+  text-align: center;
+}
+.badgeCard[data-earned='true'] {
+  border-color: #efc66a55;
+  background: radial-gradient(ellipse at top, #4f381d55, transparent 75%), var(--world-card);
+}
+.badgeCard[data-earned='false'] {
+  border-style: dashed;
+}
+.badgeMedal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  margin-bottom: 15px;
+  border: 2px solid #5a5964;
+  border-radius: 50%;
+  background: #26252f;
+  color: #97959f;
+  box-shadow: 0 0 0 4px #4846501a;
+}
+.badgeCard[data-earned='true'] .badgeMedal {
+  border-color: #f5cf7b;
+  background: linear-gradient(145deg, #5b4424, #241a14);
+  color: #ffe6a1;
+  box-shadow:
+    0 0 0 4px #cc9d4522,
+    0 0 22px #e4ab3822;
+}
+.badgeStateIcon {
+  position: absolute;
+  right: -3px;
+  bottom: 0;
+  box-sizing: content-box;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  padding: 4px;
+  background: var(--world-card);
+}
+.badgeCard h3 {
+  margin: 0 0 8px;
+  color: var(--world-text);
+  font-size: 16px;
+  font-weight: 650;
+}
+.badgeCard p {
+  flex: 1;
+  margin: 0 0 14px;
+  color: var(--world-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.badgeState {
+  color: var(--world-soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.badgeCard[data-earned='true'] .badgeState {
+  color: #ffdc92;
+}
+.collectionFootnote {
+  margin: 20px 0 0;
+  color: var(--world-muted);
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: center;
+}
+.celebration {
+  position: fixed;
+  z-index: 30;
+  top: max(135px, 17vh);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: min(450px, calc(100% - 32px));
+  border: 1px solid #edca725c;
+  border-radius: 20px;
+  padding: 20px 23px;
+  background: linear-gradient(120deg, #362815f2, #161019f5);
+  box-shadow:
+    0 12px 50px #00000070,
+    0 0 45px #d9a1471f;
+  transform: translateX(-50%);
+  animation: reveal 550ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  pointer-events: none;
+}
+.celebrationMedal {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border: 2px solid #ffd97a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #78592c, #20160e);
+  color: #ffe5a5;
+  box-shadow:
+    0 0 0 5px #f9cb6226,
+    0 0 30px #efc56c40;
+}
+.celebration[data-zombie='true'] {
+  top: auto;
+  bottom: max(130px, calc(env(safe-area-inset-bottom) + 110px));
+}
+.celebrationMedal::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border: 1px dashed #e4b86370;
+  border-radius: 50%;
+  animation: orbit 6s linear both;
+}
+.celebrationCopy span {
+  color: #d6b57c;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.9px;
+}
+.celebrationCopy strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffe1a1;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(23px, 4vw, 29px);
+}
+.celebrationCopy p {
+  margin: 6px 0 0;
+  color: #ddd0b8;
+  font-size: 11px;
+  line-height: 1.6;
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+@keyframes orbit {
+  to {
+    transform: rotate(90deg);
+  }
+}
+.celebration[data-reduced-motion='true'],
+.celebration[data-reduced-motion='true'] .celebrationMedal::before {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebration,
+  .celebrationMedal::before {
+    animation: none;
+  }
+}
+@media (max-width: 460px) {
+  .badgeGrid {
+    gap: 10px;
+  }
+  .badgeCard {
+    padding: 17px 10px;
+  }
+  .badgeCard h3 {
+    font-size: 14px;
+  }
+  .badgeCard p {
+    font-size: 11px;
+  }
+  .celebration {
+    gap: 17px;
+    padding: 18px;
+  }
+  .celebrationMedal {
+    width: 63px;
+    height: 63px;
+  }
+}
+@media (max-width: 360px) {
+  .badgeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-height: 520px) {
+  .celebration {
+    top: 80px;
+  }
+}

@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WORLD_ACHIEVEMENTS_STORAGE_KEY } from '@/hooks/useWorldAchievements/useWorldAchievements';
 import type { UseWorldSocialOptions } from '@/hooks/useWorldSocial/useWorldSocial.types';
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
 import { DEMO_WORLD_DATA } from '@/libs/world/world-catalog';
 import { consumeWorldEntry, requestWorldEntry } from '@/libs/world/world-entry';
+import { WORLD_RIDEABLES } from '@/libs/world/world-transport-motion';
+import { WORLD_KEY_COUNT } from '@/libs/world/world-transport-unlocks';
 import type {
   WorldController,
   WorldData,
@@ -95,6 +98,7 @@ vi.mock('@/hooks/useDialogKeyboardOrchestrator/useDialogKeyboardOrchestrator', (
 }));
 
 const PERSON_ID = 'y'.repeat(52);
+const LEGACY_SHIRT_INTRODUCTION_KEY = 'pubky-world:anime-shirt-introduction';
 const VIEWER_ID = 'b'.repeat(52);
 const AVATAR_URL = `https://nexus.pubky.app/static/avatar/${PERSON_ID}`;
 const DATA: WorldData = {
@@ -212,6 +216,18 @@ async function updateInfection(bitten: boolean, overrides: Partial<WorldStatus> 
   );
 }
 
+function sceneStatus(overrides: Partial<WorldStatus> = {}): WorldStatus {
+  return {
+    zone: 'arena',
+    position: [55, 48],
+    nearby: null,
+    collected: 0,
+    theaterIndex: 0,
+    theaterPaused: false,
+    ...overrides,
+  };
+}
+
 function ridePointer(target: HTMLElement, type: string, pointerId = 1) {
   const event = new MouseEvent(type, { bubbles: true, button: 0 });
   Object.defineProperty(event, 'pointerId', { value: pointerId });
@@ -219,6 +235,8 @@ function ridePointer(target: HTMLElement, type: string, pointerId = 1) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.removeItem(LEGACY_SHIRT_INTRODUCTION_KEY);
+  window.localStorage.removeItem(WORLD_ACHIEVEMENTS_STORAGE_KEY);
   mocks.auth.isFullyAuthenticated = false;
   mocks.auth.isLoading = false;
   mocks.account = null;
@@ -236,10 +254,304 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('World', () => {
+  it('lets a zombie celebrate and review earned badges while the collection pauses gameplay', async () => {
+    render(<World />);
+    await updateInfection(true, { achievementProgress: { 'walking-apocalypse': 5 } });
+    expect(screen.getByRole('status', { name: 'Achievement unlocked' })).toHaveTextContent('Walking Apocalypse');
+    fireEvent.click(screen.getByRole('button', { name: 'View achievements' }));
+    expect(screen.getByRole('dialog', { name: 'Your achievements' })).toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('button', { name: 'World settings' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close achievements' }));
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Bite a nearby person' })).toBeInTheDocument();
+  });
+  it('awards project and reading badges only after opening distinct eligible displays and links', async () => {
+    render(<World />);
+    await interact({ kind: 'zone', id: 'university' });
+    const lessons = screen.getAllByRole('link', { name: 'Read the full lesson' });
+    fireEvent.click(lessons[0]);
+    fireEvent.click(lessons[0]);
+    fireEvent.click(lessons[1]);
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).not.toContain(
+      'sovereign-scholar',
+    );
+    fireEvent.click(lessons[2]);
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain(
+      'sovereign-scholar',
+    );
+    for (const project of ['Pubky', 'Synonym', 'Bitkit']) {
+      fireEvent.click(screen.getByRole('button', { name: `About ${project}` }));
+      expect(screen.getByRole('link', { name: `Explore ${project}` })).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain(
+      'synonym-circuit',
+    );
+    await interact({ kind: 'zone', id: 'github' });
+    const repositories = screen.getAllByRole('link', { name: 'Open workshop' });
+    fireEvent.click(repositories[0]);
+    fireEvent.click(repositories[0]);
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).not.toContain(
+      'open-source-adventurer',
+    );
+    fireEvent.click(repositories[1]);
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain(
+      'open-source-adventurer',
+    );
+  });
+
+  it('ignores a successful follow callback belonging to a disposed game session', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    const previousFollowSuccess = mocks.useWorldSocial.mock.calls.at(-1)![0].onFollowSuccess;
+    await act(async () => mocks.createWorld.mock.calls[0][1].onRespawn?.());
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(2));
+    await act(async () => previousFollowSuccess?.());
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).not.toContain(
+      'follow-the-signal',
+    );
+    await act(async () => mocks.useWorldSocial.mock.calls.at(-1)![0].onFollowSuccess?.());
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain(
+      'follow-the-signal',
+    );
+  });
+
+  it('awards Arena Champion after victory, waits for the fight banner, and keeps the badge through respawn', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 4 } })));
+    expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Achievement unlocked' })).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem(WORLD_ACHIEVEMENTS_STORAGE_KEY) ?? '[]')).toContain('arena-champion');
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: null })));
+    expect(screen.getByRole('status', { name: 'Achievement unlocked' })).toHaveTextContent('Arena Champion');
+    fireEvent.click(screen.getByRole('button', { name: 'View achievements' }));
+    expect(screen.getByRole('dialog', { name: 'Your achievements' })).toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('status', { name: 'Achievement unlocked' })).not.toBeInTheDocument();
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'defeat', remaining: 15 } })));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+    await act(async () => options.onRespawn?.());
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('button', { name: 'View achievements' }));
+    expect(screen.getAllByText('Earned')).toHaveLength(2);
+    expect(screen.getByText('Glorious End')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar', { name: 'Arena Champion progress' })).not.toBeInTheDocument();
+  });
+
+  it('keeps a spendable key balance visible in overview and after hiding the map', async () => {
+    render(<World />);
+    expect(screen.getByRole('status', { name: 'Key balance' })).toHaveTextContent('0 keys');
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () =>
+      options.onStatus(sceneStatus({ collected: 3, keys: { available: 3, total: WORLD_KEY_COUNT, unlocked: 0 } })),
+    );
+    expect(screen.getByRole('status', { name: 'Key balance' })).toHaveTextContent('3 keys');
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide minimap' }));
+    await act(async () =>
+      options.onStatus(sceneStatus({ collected: 3, keys: { available: 2, total: WORLD_KEY_COUNT, unlocked: 1 } })),
+    );
+    expect(screen.getByRole('status', { name: 'Key balance' })).toHaveTextContent('2 keys');
+    expect(screen.getByRole('status', { name: 'Key balance' })).toHaveAttribute(
+      'title',
+      `1 of ${WORLD_RIDEABLES.length} rides unlocked. Knight horse: 3 keys. Flamethrower: 2 keys. Other rides: 1 key. Unlock once, use again for free.`,
+    );
+    expect(screen.queryByRole('complementary', { name: 'Island map' })).not.toBeInTheDocument();
+  });
+
+  it('clears a reader and blocks stale interactions throughout fighting and victory', async () => {
+    render(<World />);
+    await interact({ kind: 'zone', id: 'arena' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () => {
+      options.onStatus(sceneStatus({ arenaBattle: { phase: 'fighting', remaining: 8 } }));
+      // A same-frame scene callback must not reopen a reader before React renders the battle.
+      options.onInteract({ kind: 'person', id: PERSON_ID });
+    });
+    expect(screen.getByRole('heading', { name: 'Steel meets destiny' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Island map' })).not.toBeInTheDocument();
+    expect(mocks.controller.setPaused).toHaveBeenLastCalledWith(false);
+
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: { phase: 'victory', remaining: 4 } })));
+    await interact({ kind: 'zone', id: 'forest' });
+    expect(screen.getByRole('heading', { name: 'Victory!' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+
+    await act(async () => options.onStatus(sceneStatus({ arenaBattle: null })));
+    expect(screen.queryByRole('region', { name: 'Arena battle' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'World settings' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Island map' })).toBeInTheDocument();
+    await interact({ kind: 'zone', id: 'forest' });
+    expect(screen.getByRole('dialog', { name: 'Tag Forest' })).toBeInTheDocument();
+  });
+
+  it('ignores a pending photo capture after a battle starts', async () => {
+    let completeCapture: (blob: Blob) => void = () => undefined;
+    mocks.controller.capturePhoto.mockReturnValue(
+      new Promise<Blob>((resolve) => {
+        completeCapture = resolve;
+      }),
+    );
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Take a photo' }));
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus(sceneStatus({ arenaBattle: { phase: 'fighting', remaining: 8 } })),
+    );
+    await act(async () => completeCapture(new Blob(['photo'], { type: 'image/png' })));
+    expect(screen.getByRole('heading', { name: 'Steel meets destiny' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Take a photo' })).not.toBeInTheDocument();
+  });
+
+  it('recreates the scene after death with fresh gameplay and UI while retaining the account', async () => {
+    mocks.auth.isFullyAuthenticated = true;
+    mocks.account = { id: VIEWER_ID, name: 'Avery' };
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Enter your world' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide minimap' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to nighttime' }));
+    const previousCanvas = mocks.createWorld.mock.calls[0][0];
+    const previousOptions = mocks.createWorld.mock.calls[0][1];
+    await act(async () =>
+      previousOptions.onStatus(
+        sceneStatus({
+          arenaBattle: { phase: 'defeat', remaining: 15 },
+          collected: 4,
+          keys: { available: 2, total: WORLD_KEY_COUNT, unlocked: 2 },
+          infection: { bitten: false, humans: 24, zombies: 77 },
+          ride: { ...JETPACK_RIDE, id: 'horse', name: 'Horse' },
+        }),
+      ),
+    );
+    expect(screen.getByRole('heading', { name: 'A glorious death' })).toBeInTheDocument();
+    expect(screen.getByRole('timer', { name: 'Respawn countdown' })).toHaveTextContent('15');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    await act(async () => {
+      previousOptions.onRespawn?.();
+      previousOptions.onRespawn?.();
+    });
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(2));
+    expect(mocks.controller.dispose).toHaveBeenCalledOnce();
+    expect(mocks.createWorld.mock.calls[1][0]).not.toBe(previousCanvas);
+    expect(screen.getByTestId('pubky-world')).toHaveAttribute('data-world-zone', 'plaza');
+    expect(screen.getByTestId('pubky-world')).toHaveAttribute('data-world-ride', 'walking');
+    expect(screen.getByTestId('pubky-world')).toHaveAttribute('data-world-zombie', 'false');
+    expect(screen.getByTestId('pubky-world')).toHaveAttribute('data-welcome', 'false');
+    expect(screen.getByRole('status', { name: 'Key balance' })).toHaveTextContent('0 keys');
+    expect(screen.getByText('0 discoveries')).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Island map' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch to nighttime' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Account menu for Avery' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Interactive Pubky island/)).toHaveFocus();
+    expect(mocks.controller.setOverview).toHaveBeenLastCalledWith(false);
+
+    await act(async () => {
+      previousOptions.onStatus(sceneStatus({ arenaBattle: { phase: 'defeat', remaining: 0 } }));
+      previousOptions.onInteract({ kind: 'zone', id: 'arena' });
+      previousOptions.onRespawn?.();
+    });
+    expect(mocks.createWorld).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Arena battle' })).not.toBeInTheDocument();
+  });
+
+  it('introduces a nearby anime shirt only once per game and allows a new introduction after respawn', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const options = mocks.createWorld.mock.calls[0][1];
+    vi.useFakeTimers();
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })));
+    expect(screen.getByRole('status', { name: 'A nearby explorer says' })).toHaveTextContent(
+      'I bought my shirt on style.ninja!',
+    );
+    await act(async () => vi.advanceTimersByTime(6000));
+    await act(async () => {
+      options.onStatus(sceneStatus({ shirtSpeaker: null }));
+      options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } }));
+    });
+    expect(screen.queryByText('I bought my shirt on style.ninja!')).not.toBeInTheDocument();
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:3', x: 0.4, y: 0.5 } })));
+    expect(screen.queryByText('I bought my shirt on style.ninja!')).not.toBeInTheDocument();
+    vi.useRealTimers();
+    await act(async () => options.onRespawn?.());
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      mocks.createWorld.mock.calls[1][1].onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })),
+    );
+    expect(screen.getByText('I bought my shirt on style.ninja!')).toBeInTheDocument();
+  });
+
+  it('anchors the introduction to its original wearer and hides it while that wearer is out of view', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () => options.onStatus(sceneStatus({ shirtNearby: true, shirtSpeaker: null })));
+    expect(screen.queryByText('I bought my shirt on style.ninja!')).not.toBeInTheDocument();
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })));
+    const speech = screen.getByRole('status', { name: 'A nearby explorer says' });
+    expect(speech.parentElement).toHaveAttribute('data-speaker', 'crowd:2');
+    expect(speech.parentElement).toHaveStyle({ '--speaker-x': '40%', '--speaker-y': '50%' });
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.6, y: 0.3 } })));
+    expect(speech.parentElement).toHaveStyle({ '--speaker-x': '60%', '--speaker-y': '30%' });
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:3', x: 0.4, y: 0.5 } })));
+    expect(screen.queryByText('I bought my shirt on style.ninja!')).not.toBeInTheDocument();
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: null })));
+    expect(screen.queryByText('I bought my shirt on style.ninja!')).not.toBeInTheDocument();
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })));
+    expect(screen.getByText('I bought my shirt on style.ninja!')).toBeInTheDocument();
+  });
+
+  it('allows the shirt introduction again when the game is unmounted and loaded again', async () => {
+    const firstGame = render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () => options.onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })));
+    expect(screen.getByText('I bought my shirt on style.ninja!')).toBeInTheDocument();
+    firstGame.unmount();
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    await act(async () =>
+      mocks.createWorld.mock.calls[1][1].onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })),
+    );
+    expect(screen.getByText('I bought my shirt on style.ninja!')).toBeInTheDocument();
+  });
+
+  it('ignores a previously stored shirt introduction flag without reading or writing one', async () => {
+    window.sessionStorage.setItem(LEGACY_SHIRT_INTRODUCTION_KEY, 'seen');
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus(sceneStatus({ shirtSpeaker: { id: 'crowd:2', x: 0.4, y: 0.5 } })),
+    );
+    expect(screen.getByText('I bought my shirt on style.ninja!')).toBeInTheDocument();
+    expect(getItem).not.toHaveBeenCalledWith(expect.stringContaining('shirt'));
+    expect(setItem).not.toHaveBeenCalledWith(expect.stringContaining('shirt'), expect.anything());
+    expect(removeItem).not.toHaveBeenCalledWith(expect.stringContaining('shirt'));
+  });
+
   it('shows the horse riding budget and automatic sword instructions until the rider gets off', async () => {
     render(<World />);
     fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DialogContent } from '@/atoms/Dialog/Dialog';
 import { PostInput } from '@/organisms/PostInput/PostInput';
@@ -158,6 +158,25 @@ vi.mock('@/hooks/useConfirmableDialog/useConfirmableDialog', () => ({
 }));
 
 describe('DialogNewPost', () => {
+  it('reports draft attachment changes without treating them as a successful post', () => {
+    const onAttachmentsChange = vi.fn();
+    const onPostCreated = vi.fn();
+    render(
+      <DialogNewPost
+        open
+        onOpenChangeAction={vi.fn()}
+        onAttachmentsChange={onAttachmentsChange}
+        onPostCreated={onPostCreated}
+      />,
+    );
+    const file = new File(['photo'], 'pubky-world.png', { type: 'image/png' });
+    const input = vi.mocked(PostInput).mock.calls.at(-1)![0];
+    act(() => input.onContentChange?.('Photo caption', [], [file], '', []));
+    expect(onAttachmentsChange).toHaveBeenLastCalledWith([file]);
+    act(() => input.onContentChange?.('Photo caption', [], [], '', []));
+    expect(onAttachmentsChange).toHaveBeenLastCalledWith([]);
+    expect(onPostCreated).not.toHaveBeenCalled();
+  });
   beforeEach(async () => {
     vi.clearAllMocks();
   });

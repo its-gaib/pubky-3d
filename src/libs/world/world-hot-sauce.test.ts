@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { disposeObject } from '@/libs/world/world-geometry';
 import { createHotSauce, HOT_SAUCE_HEIGHT, HOT_SAUCE_POSITION, HOT_SAUCE_RADIUS } from '@/libs/world/world-hot-sauce';
 import { WORLD_ANCHORS, WORLD_RADIUS } from '@/libs/world/world-layout';
@@ -145,8 +145,10 @@ describe('Bitkit giant chili monument', () => {
     expect(body.material.bumpMap).toBeInstanceOf(THREE.DataTexture);
     expect(stem.material).toBe(calyx.material);
     expect(base.material.map).toBe(base.material.bumpMap);
-    expect(base.material.bumpMap!.image.width).toBe(128);
-    expect(base.material.bumpMap!.image.height).toBe(128);
+    const baseTexture = base.material.bumpMap;
+    assert(baseTexture instanceof THREE.DataTexture);
+    expect(baseTexture.image.width).toBe(128);
+    expect(baseTexture.image.height).toBe(128);
     expect(body.castShadow && body.receiveShadow && base.receiveShadow).toBe(true);
   });
 
@@ -159,15 +161,14 @@ describe('Bitkit giant chili monument', () => {
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       meshes++;
-      const positions = object.geometry.getAttribute('position');
-      triangles += (object.geometry.index?.count ?? positions.count) / 3;
-      for (const attribute of Object.values(object.geometry.attributes)) {
+      const geometry: THREE.BufferGeometry = object.geometry;
+      const positions = geometry.getAttribute('position');
+      triangles += (geometry.index?.count ?? positions.count) / 3;
+      for (const attribute of Object.values(geometry.attributes)) {
         expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
       }
-      if (object.geometry.index)
-        expect(Array.from(object.geometry.index.array).every((index) => index >= 0 && index < positions.count)).toBe(
-          true,
-        );
+      if (geometry.index)
+        expect(Array.from(geometry.index.array).every((index) => index >= 0 && index < positions.count)).toBe(true);
       expect(object.position.toArray().every(Number.isFinite)).toBe(true);
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
         materials.add(material);
@@ -179,8 +180,10 @@ describe('Bitkit giant chili monument', () => {
     expect(materials.size).toBeLessThanOrEqual(5);
     expect(textures.size).toBe(3);
     for (const texture of textures) {
-      expect(texture.image.width).toBeLessThanOrEqual(1536);
-      expect(texture.image.height).toBeLessThanOrEqual(192);
+      const image = texture.image;
+      assert(typeof image === 'object' && image !== null && 'width' in image && 'height' in image);
+      expect(image.width).toBeLessThanOrEqual(1536);
+      expect(image.height).toBeLessThanOrEqual(192);
     }
   });
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { assert, describe, expect, it, vi } from 'vitest';
 import { WORLD_DIMENSIONS } from '@/libs/world/world-layout';
 import { createWorldPlanets, WORLD_PLANET_ENVELOPE, WORLD_PLANETS } from './world-planets';
 
@@ -75,6 +75,7 @@ describe('seven world-space planets', () => {
       expect(surface.image.width).toBe(surface.image.height * 2);
       expect(surface.generateMipmaps).toBe(true);
       const { data, width, height } = surface.image;
+      assert.isNotNull(data);
       for (let row = 0; row < height; row++) {
         for (let channel = 0; channel < 3; channel++) {
           expect(
@@ -83,7 +84,12 @@ describe('seven world-space planets', () => {
         }
       }
     }
-    expect([...textures].reduce((total, value) => total + value.image.data.byteLength, 0)).toBeLessThan(17_000_000);
+    expect(
+      [...textures].reduce((total, value) => {
+        assert.isNotNull(value.image.data);
+        return total + value.image.data.byteLength;
+      }, 0),
+    ).toBeLessThan(17_000_000);
     const ocean = objects.find((object) => object.name === 'Cobalt garden cloud layer')!;
     expect((ocean.material as THREE.MeshStandardMaterial).transparent).toBe(true);
     const ember = objects.find((object) => object.name === 'Ember body')!;

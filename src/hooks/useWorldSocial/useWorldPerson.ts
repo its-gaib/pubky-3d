@@ -21,6 +21,7 @@ export function useWorldPerson(
   scope: string,
   selectedId: string | null,
   view: Pick<WorldSocialView, 'context' | 'selectedFollowing' | 'selectedCanFollow'>,
+  onFollowSuccess?: () => void,
 ) {
   const renderedContext = view.context;
   const { toggleFollow } = useFollowUser();
@@ -124,6 +125,7 @@ export function useWorldPerson(
       const succeeded = await toggleFollow(selectedId, !desired);
       if (!manager.isActive(context)) return;
       if (!succeeded) failedIntents.current.set(selectedId, intent);
+      else if (desired) onFollowSuccess?.();
     } catch {
       if (manager.isActive(context)) failedIntents.current.set(selectedId, intent);
     } finally {

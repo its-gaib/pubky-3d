@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 import { BANK_BILL_COUNT, BANK_BILL_LIFETIME, bankBillFrame, createBank } from './world-bank';
 
 describe('bank bill life cycles', () => {
@@ -106,8 +106,10 @@ describe('bank printer renderer', () => {
       new THREE.Vector3(0, 0, -1),
     );
     expect(ray.intersectObjects(meshes.filter((object) => object !== bills))[0].object).toBe(sign);
-    expect(bills.material.map!.image.width).toBe(768);
-    expect(bills.material.map!.image.height).toBe(384);
+    const billImage = bills.material.map?.image;
+    assert.instanceOf(billImage, HTMLCanvasElement);
+    expect(billImage.width).toBe(768);
+    expect(billImage.height).toBe(384);
     bank.dispose();
   });
 

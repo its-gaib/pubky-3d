@@ -143,6 +143,36 @@ describe('Roman arena', () => {
     disposeObject(arena.group);
   });
 
+  it('makes only every third physical banner available for champion portraits', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const arena = createArena(new THREE.Scene(), vi.fn(), vi.fn());
+    expect(arena.victoryBanners.map((banner) => banner.name)).toEqual([
+      'arena-banner-3',
+      'arena-banner-6',
+      'arena-banner-9',
+      'arena-banner-12',
+    ]);
+    expect(new Set(arena.victoryBanners.map((banner) => banner.geometry)).size).toBe(1);
+    const brandSurfaces = new Set(arena.victoryBanners.map((banner) => banner.material));
+    expect(brandSurfaces.size).toBe(2);
+    const ordinaryBatches = arena.group.children.filter(
+      (object) =>
+        object instanceof THREE.Mesh && brandSurfaces.has(object.material) && !arena.victoryBanners.includes(object),
+    ) as THREE.Mesh[];
+    expect(ordinaryBatches).toHaveLength(2);
+    expect(
+      ordinaryBatches.reduce((vertices, banner) => vertices + banner.geometry.getAttribute('position').count, 0),
+    ).toBe(60);
+    arena.victoryBanners.forEach((banner, slot) => {
+      const index = slot * 3 + 2;
+      const angle = 0.45 + (index / 13) * (Math.PI * 2 - 0.9);
+      expect(banner.position.x).toBeCloseTo(Math.sin(angle) * 19.12);
+      expect(banner.position.z).toBeCloseTo(Math.cos(angle) * 15.49);
+      expect(banner.position.y).toBe(6.98);
+    });
+    disposeObject(arena.group);
+  });
+
   it('alternates the lunge and shield parry and replays the same absolute-time poses', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const arena = createArena(new THREE.Scene(), vi.fn(), vi.fn());
@@ -250,5 +280,35 @@ describe('Roman arena', () => {
     expect(fighter.group.visible).toBe(false);
     expect(arena.gladiators[0].group.visible).toBe(true);
     disposeObject(scene);
+  });
+
+  it('gives the knight battle ownership of articulated fighters and preserves fallen bodies', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const arena = createArena(new THREE.Scene(), vi.fn(), vi.fn());
+    const fighter = arena.gladiators[0];
+    fighter.setCombatOwned(true);
+    fighter.group.position.set(3, 0, -2);
+    fighter.setCombatPose({ stride: 0.6, strike: 0.9, guard: 0.3 });
+    const sword = fighter.group.getObjectByName('gladiator-sword-arm')!;
+    const position = fighter.group.position.clone();
+    const pose = sword.rotation.toArray();
+    arena.animate(8.4);
+    fighter.setZombiePose(1, false);
+    expect(fighter.group.position).toEqual(position);
+    expect(sword.rotation.toArray()).toEqual(pose);
+    fighter.group.userData.worldArenaDead = true;
+    fighter.setFallenPose(1, -1);
+    fighter.setCombatOwned(false);
+    const fallen = fighter.group.rotation.toArray();
+    const fallenSword = sword.rotation.toArray();
+    for (let time = 0; time < 120; time += 4) arena.animate(time);
+    fighter.setCombatPose({ stride: 1, strike: 1, guard: 1 });
+    fighter.setZombiePose(1, false);
+    expect(fighter.group.rotation.toArray()).toEqual(fallen);
+    expect(sword.rotation.toArray()).toEqual(fallenSword);
+    expect(fighter.group.rotation.x).toBeCloseTo(-Math.PI / 2);
+    expect(fighter.group.visible).toBe(true);
+    expect(fighter.group.parent?.name).toBe('arena-gladiator-duel');
+    disposeObject(arena.group);
   });
 });

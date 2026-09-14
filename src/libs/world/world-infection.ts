@@ -222,6 +222,7 @@ export function createWorldInfection(obstacles: readonly WorldObstacle[], random
         if (person.active && person.zombie && finitePosition(person.position)) zombies.push(person);
       }
       let playerBitten = false;
+      let playerInfected = 0;
       for (const person of people) {
         if (!person.active || !finitePosition(person.position) || person.zombie || !person.wandering) continue;
         if (elapsed >= person.decisionAt) {
@@ -341,6 +342,7 @@ export function createWorldInfection(obstacles: readonly WorldObstacle[], random
         if (prey) {
           playerBiteAt = elapsed + WORLD_INFECTION.biteCooldown;
           infect(prey);
+          playerInfected = 1;
         }
       }
       let humans = 0;
@@ -350,7 +352,7 @@ export function createWorldInfection(obstacles: readonly WorldObstacle[], random
         if (person.zombie) zombieCount++;
         else humans++;
       }
-      return { playerBitten, humans, zombies: zombieCount, infected };
+      return { playerBitten, humans, zombies: zombieCount, infected, ...(playerInfected ? { playerInfected } : {}) };
     },
     dispose() {
       people.length = 0;

@@ -103,6 +103,32 @@
   align-items: center;
   gap: 20px;
 }
+.collectiblesHud {
+  position: absolute;
+  z-index: 10;
+  top: 94px;
+  right: var(--world-edge);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.keyBalance {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border: 1px solid #ffc9663b;
+  border-radius: 14px;
+  background: var(--world-glass);
+  box-shadow: var(--world-shadow);
+  color: #ffd580;
+  font-size: 12px;
+}
+.keyBalance strong {
+  color: #ffecc1;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
 
 .identity {
   display: flex;
@@ -1409,6 +1435,41 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+.projectDisplays {
+  margin-top: 30px;
+}
+.projectDisplay {
+  margin-top: 10px;
+  border: 1px solid var(--world-border);
+  border-radius: 15px;
+  background: var(--world-card);
+}
+.projectDisplayTrigger {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 17px 20px;
+  color: var(--world-text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.projectDisplayTrigger > svg:last-child {
+  margin-left: auto;
+}
+.projectDisplayTrigger[data-state='open'] > svg:last-child {
+  transform: rotate(90deg);
+}
+.projectDisplayContent {
+  padding: 0 20px 18px;
+}
+.projectDisplayContent p {
+  margin: 0 0 12px;
+  color: var(--world-soft);
+  font-size: 12px;
+  line-height: 1.8;
+}
 .projectCard {
   display: flex;
   flex-direction: column;
@@ -1505,18 +1566,7 @@
   margin: 12px auto;
   color: #c6acff;
 }
-.champion {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 22px;
-  border: 1px solid #c9b28c16;
-  border-radius: 18px;
-  background: linear-gradient(120deg, #48352438, var(--world-card));
-}
-.champion > span {
-  font-size: 50px;
-}
+
 .eyebrow {
   color: var(--world-muted);
   font-size: 9px;
@@ -1524,69 +1574,7 @@
   font-weight: 600;
   line-height: 1.6;
 }
-.champion h3 {
-  margin: 6px 0 8px;
-  font-weight: 600;
-  font-size: 25px;
-  letter-spacing: -0.8px;
-}
-.champion p {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--world-soft);
-  margin: 0;
-}
-.gameChoices {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 20px;
-}
-.gameChoice {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 22px 10px;
-  border: 1px solid var(--world-border);
-  border-radius: 15px;
-  background: var(--world-card);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 550;
-  transition:
-    transform 150ms,
-    background 150ms,
-    border-color 150ms;
-}
-.gameChoice:hover {
-  background: #29302a;
-  border-color: #c8ff0340;
-  transform: translateY(-2px);
-}
-.gameChoice svg {
-  color: var(--world-lime);
-}
-.gameResult {
-  min-height: 54px;
-  color: var(--world-soft);
-  font-size: 13px;
-  line-height: 1.8;
-  text-align: center;
-  margin: 22px 0 18px;
-}
-.gameScore {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 15px;
-  border: 1px solid var(--world-border);
-  border-radius: 12px;
-  background: #ffffff04;
-  color: var(--world-soft);
-  font-size: 12px;
-}
+
 .settingsPanel {
   margin-top: 7px;
 }
@@ -2117,12 +2105,6 @@
   margin-top: auto;
 }
 
-.arenaGame {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--world-border);
-}
-
 .settingRow:first-child {
   padding-top: 0;
 }
@@ -2407,6 +2389,12 @@
   .topbar {
     top: max(16px, env(safe-area-inset-top));
     gap: 12px;
+  }
+  .collectiblesHud {
+    top: max(70px, calc(env(safe-area-inset-top) + 54px));
+  }
+  .keyBalance {
+    padding: 7px 11px;
   }
   .brand {
     font-size: 22px;
@@ -2746,27 +2734,7 @@
   .socialSearch input {
     font-size: 16px;
   }
-  .champion {
-    gap: 13px;
-    padding: 18px;
-  }
-  .champion > span {
-    font-size: 42px;
-  }
-  .champion h3 {
-    font-size: 22px;
-  }
-  .gameChoices {
-    gap: 9px;
-  }
-  .gameChoice {
-    padding: 20px 8px;
-    font-size: 12px;
-  }
-  .gameScore {
-    flex-wrap: wrap;
-    font-size: 11px;
-  }
+
   .settingRow {
     gap: 12px;
   }

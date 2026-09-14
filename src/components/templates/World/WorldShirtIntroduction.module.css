@@ -1,0 +1,68 @@
+.anchor {
+  --speech-width: min(276px, calc(100vw - 28px));
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  pointer-events: none;
+}
+
+.speech {
+  position: absolute;
+  top: var(--speaker-y);
+  left: clamp(14px, calc(var(--speaker-x) - var(--speech-width) / 2), calc(100% - var(--speech-width) - 14px));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: var(--speech-width);
+  padding: 13px 16px;
+  border: 1px solid #a894ff77;
+  border-radius: 15px;
+  background: #191526f5;
+  box-shadow: 0 8px 26px #00000045;
+  color: #c9baff;
+  transform: translateY(calc(-100% - 14px));
+  transition:
+    left 180ms linear,
+    top 180ms linear;
+}
+
+.speech svg {
+  flex-shrink: 0;
+}
+
+.speech p {
+  margin: 0;
+  color: #f7f2ff;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.anchor::after {
+  position: absolute;
+  top: var(--speaker-y);
+  left: var(--speaker-x);
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid #a894ff77;
+  border-bottom: 1px solid #a894ff77;
+  background: #191526;
+  content: '';
+  transform: translate(-50%, -20px) rotate(45deg);
+  transition:
+    left 180ms linear,
+    top 180ms linear;
+}
+
+.anchor[data-reduced-motion='true'] .speech,
+.anchor[data-reduced-motion='true']::after {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech,
+  .anchor::after {
+    transition: none;
+  }
+}

@@ -538,6 +538,45 @@ describe('useWorldSocial', () => {
     expect(mocks.tags.mock.calls.some(([params]) => params.user_id === CAROL)).toBe(false);
   });
 
+  it('reports only a confirmed new follow, including a successful retry, never optimistic state or unfollow', async () => {
+    const onFollowSuccess = vi.fn();
+    mocks.commitFollow.mockRejectedValueOnce(new TypeError('Test transport unavailable'));
+    const { result } = renderHook(() => useWorldSocial({ enabled: true, selectedId: BOB, onFollowSuccess }));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await act(async () => result.current.follow.toggle());
+    expect(result.current.follow.isFollowing).toBe(true);
+    expect(result.current.follow.error).toContain('not confirmed');
+    expect(onFollowSuccess).not.toHaveBeenCalled();
+    await act(async () => result.current.follow.retry());
+    expect(onFollowSuccess).toHaveBeenCalledOnce();
+    await act(async () => result.current.follow.toggle());
+    expect(mocks.commitFollow).toHaveBeenLastCalledWith(HttpMethod.DELETE, { follower: VIEWER, followee: BOB });
+    expect(onFollowSuccess).toHaveBeenCalledOnce();
+  });
+
+  it.each(['account switch', 'unmount'])('ignores confirmed follows from before %s', async (reason) => {
+    const onFollowSuccess = vi.fn();
+    const write = deferred<void>();
+    mocks.commitFollow.mockImplementationOnce(() => write.promise);
+    const { result, rerender, unmount } = renderHook(() =>
+      useWorldSocial({ enabled: true, selectedId: BOB, onFollowSuccess }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.follow.toggle();
+    });
+    if (reason === 'account switch') {
+      mocks.actor = CAROL;
+      rerender();
+    } else unmount();
+    await act(async () => {
+      write.resolve();
+      await pending;
+    });
+    expect(onFollowSuccess).not.toHaveBeenCalled();
+  });
+
   it('rejects old rendered follow callbacks after an account switch or a selection change', async () => {
     const { result, rerender } = renderHook(({ selectedId }) => useWorldSocial({ enabled: true, selectedId }), {
       initialProps: { selectedId: ALICE },

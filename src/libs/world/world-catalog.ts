@@ -21,9 +21,8 @@ export const WORLD_ZONES: WorldZone[] = [
   {
     id: 'arena',
     name: 'The Arena',
-    subtitle: 'Extremely unserious competition',
-    description:
-      'Roman grandeur. Permissionless competition. Step into Pubky Arena, or warm up against the local duck.',
+    subtitle: 'Steel. Sand. Glory.',
+    description: 'Roman grandeur. Permissionless competition.',
     color: '#E98154',
     position: [...WORLD_ANCHORS.arena],
   },

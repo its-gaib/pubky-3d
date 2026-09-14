@@ -1,4 +1,7 @@
 import type { ChesskySnapshot } from '@/libs/chessky/chessky.types';
+import type { WorldAchievementId } from '@/libs/world/world-achievements';
+import type { WorldArenaBattleStatus } from '@/libs/world/world-arena-battle';
+import type { WorldShirtSpeaker } from '@/libs/world/world-shirt-speech';
 
 /** Serializable world state, independent of rendering or a future presence transport. */
 export type WorldZoneId =
@@ -116,12 +119,22 @@ export interface WorldStatus {
   position: [number, number];
   nearby: string | null;
   collected: number;
+  /** Spendable keys for this scene; unlocked counts transports only, independently of their key costs. */
+  keys?: { available: number; total: number; unlocked: number };
   theaterIndex: number;
   theaterPaused: boolean;
   ride?: WorldRideStatus | null;
   tool?: { id: 'flamethrower'; firing: boolean } | null;
   /** Local outbreak state; a fresh scene starts a new population. */
   infection?: { bitten: boolean; humans: number; zombies: number };
+  /** Scene-local knight encounter, including its victory celebration or respawn countdown. */
+  arenaBattle?: WorldArenaBattleStatus | null;
+  /** An anime-shirt wearer is close enough to introduce their shirt. */
+  shirtNearby?: boolean;
+  /** Screen anchor for the same anime-shirt wearer throughout their introduction; null when out of view. */
+  shirtSpeaker?: WorldShirtSpeaker | null;
+  /** Scene-local counters used only to evaluate the island's achievement challenges. */
+  achievementProgress?: Partial<Record<WorldAchievementId, number>>;
 }
 
 export interface WorldOptions {
@@ -130,6 +143,8 @@ export interface WorldOptions {
   onStatus: (status: WorldStatus) => void;
   onReady: () => void;
   onExplore?: () => void;
+  /** Recreate the scene and its transient UI after the knight's death countdown. */
+  onRespawn?: () => void;
 }
 
 export interface WorldSocialView {

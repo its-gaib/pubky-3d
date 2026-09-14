@@ -56,6 +56,43 @@ describe('useWorldPhotoPost', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('reports a published world photo once, only after the composer confirms success with the photo attached', () => {
+    const onPhotoPosted = vi.fn();
+    const { result } = renderHook(() => useWorldPhotoPost({ onPhotoPosted }));
+    act(() => result.current.openComposer(photoBlob()));
+    render(result.current.composer);
+    const props = vi.mocked(DialogNewPost).mock.calls.at(-1)![0];
+    const file = props.initialAttachments![0];
+    act(() => props.onAttachmentsChange?.([file]));
+    expect(onPhotoPosted).not.toHaveBeenCalled();
+    act(() => {
+      void props.onPostCreated?.('first-public-id:photo-post');
+      void props.onPostCreated?.('first-public-id:photo-post');
+    });
+    expect(onPhotoPosted).toHaveBeenCalledOnce();
+  });
+
+  it.each(['removed photo', 'discarded draft', 'signed out', 'changed account', 'changed network', 'unmounted'])(
+    'ignores a publication callback after %s',
+    (reason) => {
+      const onPhotoPosted = vi.fn();
+      const { result, unmount } = renderHook(() => useWorldPhotoPost({ onPhotoPosted }));
+      act(() => result.current.openComposer(photoBlob()));
+      render(result.current.composer);
+      const props = vi.mocked(DialogNewPost).mock.calls.at(-1)![0];
+      const file = props.initialAttachments![0];
+      act(() => props.onAttachmentsChange?.([file]));
+      if (reason === 'removed photo') act(() => props.onAttachmentsChange?.([]));
+      if (reason === 'discarded draft') fireEvent.click(screen.getByRole('button', { name: 'Discard photo draft' }));
+      if (reason === 'signed out') mocks.author = null;
+      if (reason === 'changed account') mocks.author = 'another-public-id';
+      if (reason === 'changed network') mocks.network = 'staging';
+      if (reason === 'unmounted') unmount();
+      act(() => void props.onPostCreated?.('first-public-id:photo-post'));
+      expect(onPhotoPosted).not.toHaveBeenCalled();
+    },
+  );
+
   it('hands one PNG File to the existing composer without publishing it', () => {
     const { result } = renderHook(useWorldPhotoPost);
     const photo = photoBlob();

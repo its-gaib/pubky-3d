@@ -22,12 +22,15 @@ interface DialogNewPostProps {
    * collection / bookmarks and trigger an optimistic feed insert.
    */
   onPostCreated?: (createdPostId: string) => void | Promise<void>;
+  /** Lets a supplied draft track whether its originating attachment is still present. */
+  onAttachmentsChange?: (attachments: readonly File[]) => void;
 }
 
 export function DialogNewPost({
   open,
   onOpenChangeAction,
   onPostCreated,
+  onAttachmentsChange,
   initialContent,
   initialAttachments,
   description,
@@ -61,7 +64,10 @@ export function DialogNewPost({
             variant={POST_INPUT_VARIANT.POST}
             onSuccess={handlePostSuccess}
             expanded={true}
-            onContentChange={handleContentChange}
+            onContentChange={(content, tags, attachments, articleTitle, existingAttachments) => {
+              handleContentChange(content, tags, attachments, articleTitle, existingAttachments);
+              onAttachmentsChange?.(attachments);
+            }}
             onArticleModeChange={setIsArticle}
             layoutOverride="inline"
             initialContent={initialContent}

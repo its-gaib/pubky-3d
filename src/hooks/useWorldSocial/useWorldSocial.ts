@@ -13,6 +13,7 @@ export function useWorldSocial({
   enabled,
   selectedId,
   directoryIds = [],
+  onFollowSuccess,
 }: UseWorldSocialOptions): UseWorldSocialResult {
   const rawViewerId = useAuthStore((state) => state.currentUserPubky);
   const hydrated = useAuthStore((state) => state.hasHydrated);
@@ -61,7 +62,7 @@ export function useWorldSocial({
   }, [manager, scope, active, directoryKey]);
 
   const current = view.scope === scope ? view : EMPTY_WORLD_SOCIAL_VIEW;
-  const person = useWorldPerson(manager, scope, selectedId, current);
+  const person = useWorldPerson(manager, scope, selectedId, current, onFollowSuccess);
   return {
     people: current.people,
     relationships: current.relationships,

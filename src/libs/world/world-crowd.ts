@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createWorldAnimeShirtTexture, WORLD_ANIME_SHIRTS } from '@/libs/world/world-anime-shirt';
 import { createWorldHumanBurnTarget } from '@/libs/world/world-burn-escape';
 import type { createWorldBurning } from '@/libs/world/world-burning';
 import {
@@ -86,6 +87,7 @@ interface CrowdRecord extends WorldCrowdPerson {
   agent: WorldInfectionPerson;
   materials?: ReturnType<typeof personMaterials>;
   slot?: number;
+  shirtSlot?: number;
   unbind?: () => void;
   defeated?: { elapsed: number; position: THREE.Vector3; yaw: number };
 }
@@ -97,7 +99,7 @@ function visibleInWorld(object: THREE.Object3D) {
   return true;
 }
 
-/** Eight shared low-poly batches animate 101 articulated visitors without per-frame React state. */
+/** Nine shared batches animate 101 visitors, including 20 original anime shirts. */
 export function createWorldCrowd(
   scene: THREE.Scene,
   obstacles: readonly WorldObstacle[],
@@ -128,13 +130,36 @@ export function createWorldCrowd(
   faceParts.push(new THREE.BoxGeometry(0.12, 0.019, 0.018).translate(0, -0.12, 0.279));
   const faceGeometry = mergeGeometries(faceParts)!;
   faceParts.forEach((part) => part.dispose());
+  const shirtTexture = createWorldAnimeShirtTexture();
+  const shirtMaterial = new THREE.MeshStandardMaterial({
+    map: shirtTexture,
+    roughness: 0.9,
+    metalness: 0,
+    emissive: '#ffffff',
+    emissiveMap: shirtTexture,
+    emissiveIntensity: 0.12,
+  });
+  const shirtVisionMaterial = new THREE.MeshBasicMaterial({ map: shirtTexture });
+  const shirtParts = [
+    new THREE.PlaneGeometry(0.92, 0.94).translate(0, 0, 0.505),
+    new THREE.PlaneGeometry(0.92, 0.94).rotateY(Math.PI).translate(0, 0, -0.505),
+  ];
+  const shirtGeometry = mergeGeometries(shirtParts)!;
+  shirtParts.forEach((part) => part.dispose());
+  const shirtSlots = new Map(
+    Array.from({ length: WORLD_ANIME_SHIRTS.count }, (_, index) => [
+      Math.floor((index * WORLD_INFECTION.humans) / WORLD_ANIME_SHIRTS.count),
+      index,
+    ]),
+  );
 
   const batch = (
     name: string,
     geometry: THREE.BufferGeometry = boxGeometry,
     material: THREE.Material = normalMaterial,
+    instances = count,
   ) => {
-    const mesh = new THREE.InstancedMesh(geometry, material, count);
+    const mesh = new THREE.InstancedMesh(geometry, material, instances);
     mesh.name = `crowd-${name}`;
     mesh.userData.worldCrowd = true;
     mesh.frustumCulled = false;
@@ -152,7 +177,10 @@ export function createWorldCrowd(
   const leftLeg = batch('left-legs');
   const rightLeg = batch('right-legs');
   const faces = batch('faces', faceGeometry, faceMaterial);
-  const batches = [torso, heads, hair, leftArm, rightArm, leftLeg, rightLeg, faces];
+  const bodyBatches = [torso, heads, hair, leftArm, rightArm, leftLeg, rightLeg, faces];
+  const shirtPrints = batch('anime-shirt-prints', shirtGeometry, shirtMaterial, WORLD_ANIME_SHIRTS.count);
+  shirtPrints.castShadow = false;
+  const batches = [...bodyBatches, shirtPrints];
   const dummy = new THREE.Object3D();
   const matrix = new THREE.Matrix4();
   const headMatrix = new THREE.Matrix4();
@@ -175,7 +203,7 @@ export function createWorldCrowd(
       if (vision && !zombie && !burned) tint.lerp(new THREE.Color('#fff0c1'), 0.68);
       mesh.setColorAt(index, tint);
     };
-    color(torso, shirts[index % shirts.length], '#586345');
+    color(torso, record.shirtSlot === undefined ? shirts[index % shirts.length] : WORLD_ANIME_SHIRTS.fabric, '#586345');
     color(heads, complexions[index % complexions.length], '#7e9d68');
     color(hair, hairColors[index % hairColors.length], '#354031');
     color(leftArm, complexions[index % complexions.length], '#7e9d68');
@@ -183,6 +211,11 @@ export function createWorldCrowd(
     color(leftLeg, pants[index % pants.length], '#374139');
     color(rightLeg, pants[index % pants.length], '#374139');
     color(faces, '#272c30', '#d3e787');
+    if (record.shirtSlot !== undefined) {
+      tint.set(burned ? '#322921' : zombie ? '#869779' : '#ffffff');
+      if (vision && !zombie && !burned) tint.set('#fff0c1');
+      shirtPrints.setColorAt(record.shirtSlot, tint);
+    }
     for (const mesh of batches) {
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
@@ -199,6 +232,7 @@ export function createWorldCrowd(
       ...person,
       agent: state,
       slot,
+      shirtSlot: slot === undefined ? undefined : shirtSlots.get(slot),
       materials: slot === undefined ? personMaterials(person.group) : undefined,
     };
     records.set(person.id, record);
@@ -219,6 +253,7 @@ export function createWorldCrowd(
     const root = new THREE.Group();
     root.name = zombie ? 'crowd-zombie-0' : `crowd-human-${index}`;
     root.userData.worldCrowdProxy = true;
+    if (shirtSlots.has(index)) root.userData.worldAnimeShirt = true;
     root.position.copy(worldCrowdSpawn(index, positions, obstacles, random));
     root.scale.setScalar(0.94 + worldCrowdRandom(random) * 0.14);
     positions.push(root.position.clone());
@@ -266,7 +301,8 @@ export function createWorldCrowd(
       const { agent, group: root } = record;
       const index = record.slot!;
       if (!visibleInWorld(root) || burning.isGone(record.id)) {
-        for (const mesh of batches) mesh.setMatrixAt(index, hidden);
+        for (const mesh of bodyBatches) mesh.setMatrixAt(index, hidden);
+        if (record.shirtSlot !== undefined) shirtPrints.setMatrixAt(record.shirtSlot, hidden);
         continue;
       }
       root.updateWorldMatrix(true, false);
@@ -277,6 +313,7 @@ export function createWorldCrowd(
       const lean = zombie ? 0.13 : 0;
       const bob = reducedMotion || !agent.active ? 0 : Math.abs(stride) * (zombie ? 0.024 : 0.035);
       part(torso, index, transform, 0, 1.47 + bob, zombie ? 0.07 : 0, 0.77, 0.91, 0.43, lean);
+      if (record.shirtSlot !== undefined) shirtPrints.setMatrixAt(record.shirtSlot, matrix);
       const legSwing = stride * (zombie ? 0.22 : 0.52);
       for (const [mesh, side] of [
         [leftLeg, -1],
@@ -342,6 +379,24 @@ export function createWorldCrowd(
     group,
     registerPerson: (person: WorldCrowdPerson) => register(person),
     isZombie: (id: string) => records.get(id)?.agent.zombie ?? false,
+    /** Keep a spoken introduction attached to the same living wearer as they walk away. */
+    getShirtSpeakerPosition(id: string, target: THREE.Vector3) {
+      const record = records.get(id);
+      if (
+        disposed ||
+        !record ||
+        record.shirtSlot === undefined ||
+        !record.agent.active ||
+        record.agent.zombie ||
+        record.defeated ||
+        !visibleInWorld(record.group) ||
+        record.group.userData.worldBurnPending ||
+        burning.isBurning(id) ||
+        burning.isGone(id)
+      )
+        return null;
+      return record.group.localToWorld(target.set(0, 2.9, 0));
+    },
     /** The mounted knight's sword/trampling only reaches nearby, living zombies. */
     knockDownZombies(position: THREE.Vector3, radius = 2.5) {
       if (disposed || !Number.isFinite(radius) || radius <= 0) return 0;
@@ -378,14 +433,15 @@ export function createWorldCrowd(
     setZombieVision(enabled: boolean) {
       if (disposed || vision === enabled) return;
       vision = enabled;
-      for (const mesh of batches)
+      for (const mesh of bodyBatches)
         mesh.material = vision ? visionMaterial : mesh === faces ? faceMaterial : normalMaterial;
+      shirtPrints.material = vision ? shirtVisionMaterial : shirtMaterial;
       for (const record of records.values()) {
         record.materials?.paint(record.agent.zombie, vision);
         paintColors(record);
       }
     },
-    tick(delta: number, time: number, player: WorldInfectionPlayer, reducedMotion = false) {
+    tick(delta: number, time: number, player: WorldInfectionPlayer & { alive?: boolean }, reducedMotion = false) {
       if (disposed) return { playerBitten: false, humans: 0, zombies: 0 };
       for (const record of records.values()) {
         const { agent, group: root } = record;
@@ -429,7 +485,24 @@ export function createWorldCrowd(
         record.pose?.(reducedMotion ? 0 : agent.stride, agent.zombie, reducedMotion);
       }
       render(Number.isFinite(time) ? time : 0, reducedMotion);
-      return { playerBitten: frame.playerBitten, humans: frame.humans, zombies: frame.zombies };
+      let shirtSpeakerId: string | undefined;
+      let shirtDistance = WORLD_ANIME_SHIRTS.nearbyDistance ** 2;
+      if (player.alive !== false && !player.zombie && !frame.playerBitten) {
+        for (const { id, shirtSlot, agent } of walkers) {
+          if (shirtSlot === undefined || !agent.active || agent.zombie) continue;
+          const distance = agent.position.distanceToSquared(player.position);
+          if (distance > shirtDistance) continue;
+          shirtSpeakerId = id;
+          shirtDistance = distance;
+        }
+      }
+      return {
+        playerBitten: frame.playerBitten,
+        humans: frame.humans,
+        zombies: frame.zombies,
+        ...(shirtSpeakerId ? { shirtNearby: true, shirtSpeakerId } : {}),
+        ...(frame.playerInfected ? { playerInfected: frame.playerInfected } : {}),
+      };
     },
     dispose() {
       if (disposed) return;
@@ -443,8 +516,18 @@ export function createWorldCrowd(
       records.clear();
       walkers.length = 0;
       group.removeFromParent();
-      for (const geometry of [proxyGeometry, boxGeometry, headGeometry, hairGeometry, faceGeometry]) geometry.dispose();
-      for (const material of [normalMaterial, faceMaterial, visionMaterial, proxyMaterial]) material.dispose();
+      for (const geometry of [proxyGeometry, boxGeometry, headGeometry, hairGeometry, faceGeometry, shirtGeometry])
+        geometry.dispose();
+      for (const material of [
+        normalMaterial,
+        faceMaterial,
+        visionMaterial,
+        proxyMaterial,
+        shirtMaterial,
+        shirtVisionMaterial,
+      ])
+        material.dispose();
+      shirtTexture.dispose();
       for (const mesh of batches) mesh.dispose();
     },
   };

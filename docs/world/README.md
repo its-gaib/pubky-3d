@@ -59,10 +59,24 @@ their readers and nearby interactions reveal more as you approach.
 - **The Arena:** a larger Roman amphitheater with two arcaded levels, oval seating
   tiers, sand, fire bowls and separate Pubky and Synonym symbol banners. Its wide
   entrance and center stay walkable. **Try out the Pubky Arena** opens the arena
-  experiment; the local rock, paper, scissors challenge remains available. Two
+  experiment. Two
   small bronze-armored gladiators circle, lunge, strike, parry and retreat in a
   playful 12-second duel until fire or infection interrupts them.
+  Ride into the arena on the knight's horse to challenge both gladiators in a
+  cinematic battle. Each encounter has a **60% chance of victory**: **Victory!**
+  appears after the gladiators fall dead to the sand, three seconds apart. In
+  half of the losing encounters, the knight kills one gladiator before the
+  survivor strikes back. Every defeat leaves the armored knight and horse
+  fallen together beneath **A glorious death**, followed by a
+  **15-second countdown**. Respawn rebuilds the entire local island and its
+  transient interface, then returns you to the plaza ready to explore; your
+  signed-in account remains. A signed-in victory replaces every third arena
+  banner with your profile picture beneath **GLORY** for that island visit.
+  Readers, camera and movement controls wait until
+  the fight, celebration or respawn ends.
 - **Pubky University:** short lessons linking to the official Pubky documentation.
+  Its **Meet the projects** displays introduce Pubky, Synonym and Bitkit, each
+  opening an information card with a link to its official site.
 - **Open Source Yard:** workshops introducing the organization's GitHub projects.
 - **Bitkit Beacon:** the official Bitkit logo extruded into a large orange landmark,
   facing inward so it reads correctly from the island. The bank jump arrives on
@@ -131,10 +145,17 @@ their readers and nearby interactions reveal more as you approach.
 - **Three portals:** walk into one glowing ring to exit at either of the other
   two at random. Arrival clearance, a cooldown and an exit gate prevent bouncing
   between portals. This replaces the former university shortcut.
-- **Other encounters:** giant duck, trampoline, balloon, dancing and eight
-  collectible keys. Keys and bills are local game props with no monetary value.
+- **Other encounters:** giant duck, trampoline, balloon, dancing and collectible
+  keys. The map contains exactly eleven keys, randomly spread across reachable
+  ground away from the starting area. Collecting a key increases the balance in
+  the upper-right corner. Each of the six regular rides costs one key, the knight
+  horse costs three, and the flamethrower costs two. Unlocks consume keys only
+  on the first successful use; later mounts and pickups are free for the rest
+  of that island visit. Respawn or reload randomizes all key positions and locks
+  everything again. Keys and bills are local game props with no monetary value.
 - **Rides:** discover a skateboard, jetpack, kart, BMX, hoverboard and a sleeping
-  dragon. Press **E** nearby to mount. The dragon flies itself along changing
+  dragon. Press **E** nearby to unlock and mount with one collected key, or to
+  mount a previously unlocked ride for free. The dragon flies itself along changing
   routes: **F** rolls and breathes fire, while **E** requests a safe landing and
   automatically lets the rider off. The jetpack uses **Space** to ascend, **C**
   to descend and the usual movement controls to steer. **F** performs a stunt;
@@ -159,10 +180,17 @@ their readers and nearby interactions reveal more as you approach.
   Burning people flee over the coast; burning zombies collapse and keep burning
   on the ground for one minute before vanishing, unable to move or bite.
   A bitten player becomes a slow zombie: scenery darkens, living people stand
-  out, and only movement and biting remain. Reloading starts a fresh outbreak.
+  out, and movement, biting and the local badge collection remain available.
+  Reloading starts a fresh outbreak.
+  Twenty walkers wear original anime-style T-shirt graphics. Approaching one
+  introduces the shirt with **I bought my shirt on style.ninja!** once per game
+  load. This is tracked only in memory: reload or respawn allows a new introduction.
+  The short speech bubble follows the person who says it, above their head, and
+  hides when they leave the camera's view. It makes no network request and stores
+  no introduction flag in browser storage.
 - **Horse and knight armor:** find the horse and armor together, then mount to
-  become a knight. The sword swings automatically; ride into zombies to knock
-  them down. Fallen zombies disappear after one minute. The horse gives one
+  become a knight. Ride into zombies to unleash a full circular sword sweep with
+  a golden blade trail and knock them down. Fallen zombies disappear after one minute. The horse gives one
   minute of riding in total, then slows, stops and lets you off. **The horse is
   tired** floats above it during its two-minute rest. Dismounting early does not
   refill its riding time. Burning the parked horse or its armor sends the horse
@@ -176,6 +204,52 @@ their readers and nearby interactions reveal more as you approach.
 
 Profile markers, theater spectators and the walking persona are separate concepts.
 The world does not show other connected players or claim live presence.
+
+## Achievements
+
+The trophy button beside your key balance opens a scrollable collection of 26
+badges. Earned medals reveal their names and descriptions; unearned badges show
+only a lock, with their challenges kept secret. A new badge gets a short animated
+celebration; multiple awards queue, and arena results take priority. Reduced
+motion keeps the awards still. Earned IDs persist in this browser across reloads
+and respawns. Unfinished challenge progress restarts with the island; if browser
+storage is blocked, earned badges still survive respawns during the current page.
+Only badge IDs are saved, never profile identities, followed accounts or photos.
+Zombies can still earn and view badges; opening the collection pauses gameplay.
+
+| Badge                  | How to earn it                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| Keymaster              | Collect all eleven keys, including keys already spent.                           |
+| World Rider            | Unlock and ride every transport.                                                 |
+| Plaguebreaker          | Defeat every living zombie.                                                      |
+| Arena Champion         | Win the mounted arena fight.                                                     |
+| Glorious End           | Fall in a mounted arena fight against the gladiators.                            |
+| First Freedom          | Unlock and ride your first transport.                                            |
+| Island Explorer        | Visit every named zone.                                                          |
+| Dragon Whisperer       | Ride the dragon.                                                                 |
+| Through the Fire       | Complete 10 dragon barrel rolls.                                                 |
+| Sky’s the Limit        | Reach the jetpack’s maximum altitude.                                            |
+| Frequent Flyer         | Accumulate 60 seconds airborne on flying rides.                                  |
+| Stunt Collector        | Perform a stunt on every ride that supports one.                                 |
+| Pedal to the Metal     | Keep the kart near top speed for five seconds.                                   |
+| Bounce Knight          | Complete five trampoline jumps.                                                  |
+| Portal Pilgrim         | Enter each of the three portals.                                                 |
+| Dance Break            | Dance on foot in three different zones.                                          |
+| Zombie Jouster         | Knock down 10 zombies on horseback.                                              |
+| Walking Apocalypse     | Infect five people with your own bites.                                          |
+| Island Photographer    | Successfully capture an in-game photo.                                           |
+| Social Butterfly       | Open five different Social Plaza profiles.                                       |
+| Against the Horde      | Stay human while living zombies reach at least half the starting NPC population. |
+| Picture This           | Publish an in-game photo through the existing Pubky post composer.               |
+| Follow the Signal      | Successfully follow someone discovered in the Social Plaza.                      |
+| Sovereign Scholar      | Open three different University article links.                                   |
+| Synonym Circuit        | Open the Pubky, Synonym and Bitkit information cards at University.              |
+| Open Source Adventurer | Open two different repository links at the Open Source Yard.                     |
+
+Photo and follow awards wait for the existing publication flow to confirm
+success. Opening the composer, failed writes, unfollowing and discarded photo
+drafts earn nothing. Removing the originating photo before publishing does not
+earn Picture This. The game makes no follow or post on a player's behalf.
 
 ## Layout
 

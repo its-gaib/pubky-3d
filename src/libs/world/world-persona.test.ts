@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FLAMETHROWER_GRIPS } from '@/libs/world/world-flamethrower';
 import { disposeObject } from '@/libs/world/world-geometry';
+import { WORLD_KNIGHT_SWEEP } from '@/libs/world/world-knight-sweep';
 import { createPersona, PERSONA_DIMENSIONS, type WorldPersonaRidePose } from '@/libs/world/world-persona';
 
 describe('articulated Pubky explorer', () => {
@@ -28,7 +29,7 @@ describe('articulated Pubky explorer', () => {
     expect(figure.group.getObjectByName('explorer-profile-portrait')!.visible).toBe(false);
   });
   const rideKinds = ['skateboard', 'jetpack', 'kart', 'bmx', 'hoverboard', 'dragon'] as const;
-  it('wears knight armor on horseback, swings the sword automatically and removes the gear on infection', () => {
+  it('wears knight armor in a calm mounted guard and removes the gear on infection', () => {
     const figure = create();
     figure.setRidePose({ kind: 'horse', speed: 8, airborne: false, lean: 0, stuntProgress: null });
     figure.animate(0, 'walk');
@@ -38,7 +39,7 @@ describe('articulated Pubky explorer', () => {
     expect(helmet.visible).toBe(true);
     const first = figure.rightArm.rotation.toArray();
     figure.animate(0.3, 'walk');
-    expect(figure.rightArm.rotation.toArray()).not.toEqual(first);
+    expect(figure.rightArm.rotation.toArray()).toEqual(first);
     figure.animate(1, 'walk', true);
     const still = figure.rightArm.rotation.toArray();
     figure.animate(10, 'walk', true);
@@ -52,6 +53,100 @@ describe('articulated Pubky explorer', () => {
     expect(sword.visible).toBe(false);
     expect(helmet.visible).toBe(false);
   });
+  it('cleaves a complete broad circle after a hit while leaving the horse and physics root fixed', () => {
+    const figure = create();
+    figure.setRidePose({ kind: 'horse', speed: 0, airborne: false, lean: 0, stuntProgress: null });
+    figure.animate(10);
+    const sword = figure.group.getObjectByName('knight-sword')!;
+    const ribbon = figure.group.getObjectByName('knight-sword-sweep-trail')!;
+    const guard = figure.rightArm.quaternion.clone();
+    figure.group.position.set(12, 0.15, -8);
+    figure.group.rotation.y = 1.7;
+    figure.group.updateMatrixWorld(true);
+    const root = figure.group.matrix.toArray();
+    const horseMount = figure.transportMount.matrix.toArray();
+    const bladeTips: THREE.Vector3[] = [];
+    expect(figure.triggerKnightSweep(10)).toBe(true);
+    for (let frame = 0; frame <= 24; frame++) {
+      figure.animate(10 + WORLD_KNIGHT_SWEEP.windupSeconds + (frame / 24) * WORLD_KNIGHT_SWEEP.circleSeconds);
+      figure.group.updateMatrixWorld(true);
+      const tip = figure.body.worldToLocal(sword.localToWorld(new THREE.Vector3(0, -1.47, 0)));
+      bladeTips.push(tip.sub(figure.rightArm.position));
+      expect(figure.group.matrix.toArray()).toEqual(root);
+      expect(figure.transportMount.matrix.toArray()).toEqual(horseMount);
+      expect(sword.parent).toBe(figure.rightElbow);
+      expect(sword.visible).toBe(true);
+    }
+    let circle = 0;
+    for (let sample = 1; sample < bladeTips.length; sample++) {
+      const before = Math.atan2(bladeTips[sample - 1].z, bladeTips[sample - 1].x);
+      const after = Math.atan2(bladeTips[sample].z, bladeTips[sample].x);
+      circle += Math.atan2(Math.sin(after - before), Math.cos(after - before));
+      expect(Math.hypot(bladeTips[sample].x, bladeTips[sample].z)).toBeGreaterThan(2);
+    }
+    expect(Math.abs(circle)).toBeCloseTo(Math.PI * 2, 5);
+    expect(bladeTips[0].distanceTo(bladeTips.at(-1)!)).toBeLessThan(0.00001);
+    expect(ribbon.visible).toBe(true);
+    figure.animate(10 + WORLD_KNIGHT_SWEEP.durationSeconds + 0.01);
+    expect(figure.rightArm.quaternion.angleTo(guard)).toBeLessThan(0.00001);
+    expect(ribbon.visible).toBe(false);
+  });
+
+  it('keeps reduced-motion strikes still with only a stationary fading gold cue', () => {
+    const figure = create();
+    figure.setRidePose({ kind: 'horse', speed: 10, airborne: false, lean: 0, stuntProgress: null });
+    figure.animate(20, 'walk', true);
+    const guard = figure.rightArm.quaternion.clone();
+    const body = figure.body.quaternion.clone();
+    const ribbon = figure.group.getObjectByName('knight-sword-sweep-trail') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    figure.triggerKnightSweep(20);
+    figure.animate(20.1, 'walk', true);
+    const positions = Array.from(ribbon.geometry.getAttribute('position').array);
+    const initialOpacity = ribbon.material.opacity;
+    expect(ribbon.visible).toBe(true);
+    figure.animate(20.7, 'walk', true);
+    expect(Array.from(ribbon.geometry.getAttribute('position').array)).toEqual(positions);
+    expect(ribbon.material.opacity).toBeLessThan(initialOpacity);
+    expect(figure.rightArm.quaternion.angleTo(guard)).toBeLessThan(0.00001);
+    expect(figure.body.quaternion.angleTo(body)).toBeLessThan(0.00001);
+  });
+
+  it.each(['dismount', 'infection', 'arena', 'death'] as const)(
+    'cancels a pending sword sweep and preserves pose ownership on %s',
+    (transition) => {
+      const figure = create();
+      const horse = { kind: 'horse', speed: 10, airborne: false, lean: 0, stuntProgress: null } as const;
+      figure.setRidePose(horse);
+      figure.animate(10);
+      figure.triggerKnightSweep(10);
+      figure.animate(10.4);
+      const ribbon = figure.group.getObjectByName('knight-sword-sweep-trail')!;
+      expect(ribbon.visible).toBe(true);
+      if (transition === 'dismount') figure.setRidePose(null);
+      if (transition === 'infection') figure.setZombie();
+      if (transition === 'arena') figure.group.userData.worldArenaCombat = true;
+      if (transition === 'death') figure.group.userData.worldArenaDead = true;
+      figure.animate(10.5);
+      expect(ribbon.visible).toBe(false);
+      expect(figure.triggerKnightSweep(10.6)).toBe(false);
+      if (transition === 'arena' || transition === 'death') {
+        // The battle module can now own these transforms without a late attack altering them.
+        figure.rightArm.rotation.set(-2.8, 0, 0.55);
+        const arenaPose = figure.rightArm.rotation.toArray();
+        figure.cancelKnightSweep();
+        expect(figure.rightArm.rotation.toArray()).toEqual(arenaPose);
+      }
+      if (transition === 'dismount') {
+        figure.setRidePose(horse);
+        figure.animate(10.7);
+        expect(ribbon.visible).toBe(false);
+        expect(figure.rightArm.rotation.y).toBe(0);
+      }
+    },
+  );
   const ride = (kind: WorldPersonaRidePose['kind'], overrides: Partial<WorldPersonaRidePose> = {}) => ({
     kind,
     speed: 8,

@@ -23,6 +23,8 @@ export interface UseWorldSocialOptions {
   enabled: boolean;
   selectedId: string | null;
   directoryIds?: string[];
+  /** Called only after a new follow has been confirmed by the existing publication flow. */
+  onFollowSuccess?: () => void;
 }
 
 export interface UseWorldSocialResult {

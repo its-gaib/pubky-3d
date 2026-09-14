@@ -25,6 +25,23 @@ beforeEach(() => {
 });
 
 describe('WorldCamera', () => {
+  it('forwards the publication callback to the photo composer without firing it on capture', async () => {
+    const onPhotoPosted = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <WorldCamera
+        disabled={false}
+        onCapture={async () => new Blob(['image'], { type: 'image/png' })}
+        onOpenChange={vi.fn()}
+        onReturnFocus={vi.fn()}
+        onPhotoPosted={onPhotoPosted}
+      />,
+    );
+    expect(mocks.useWorldPhotoPost).toHaveBeenLastCalledWith({ onPhotoPosted });
+    await user.click(screen.getByRole('button', { name: 'Take a photo' }));
+    await screen.findByRole('img');
+    expect(onPhotoPosted).not.toHaveBeenCalled();
+  });
   it('keeps the photo private until the user explicitly opens the composer', async () => {
     const user = userEvent.setup();
     const photo = new Blob(['test image'], { type: 'image/png' });

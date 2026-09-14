@@ -13,15 +13,18 @@ interface WorldCameraProps {
   onCapture: () => Promise<Blob | null>;
   onOpenChange: (open: boolean) => void;
   onReturnFocus: () => void;
+  onPhotoPosted?: () => void;
 }
 
-export function WorldCamera({ disabled, onCapture, onOpenChange, onReturnFocus }: WorldCameraProps) {
+export function WorldCamera({ disabled, onCapture, onOpenChange, onReturnFocus, onPhotoPosted }: WorldCameraProps) {
   const [photo, setPhoto] = useState<{ blob: Blob; url: string } | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const generation = useRef(0);
   const inFlight = useRef(false);
-  const { openComposer, composer, isComposerOpen, isAuthenticated, network, error, clearError } = useWorldPhotoPost();
+  const { openComposer, composer, isComposerOpen, isAuthenticated, network, error, clearError } = useWorldPhotoPost({
+    onPhotoPosted,
+  });
 
   useEffect(
     () => () => {

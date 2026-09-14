@@ -12,6 +12,7 @@ import {
 } from '@/libs/world/world-avatar-head';
 import type { createWorldAvatarImageLoader } from '@/libs/world/world-avatar-image';
 import { createWorldKnightEquipment } from '@/libs/world/world-knight';
+import { createWorldKnightSweep } from '@/libs/world/world-knight-sweep';
 import type { PersonaState, WorldAvatarIdentity, WorldRideableId } from '@/libs/world/world-types';
 
 type Point = readonly [number, number, number];
@@ -664,6 +665,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
   let ridePose: WorldPersonaRidePose | null = null;
   let knight: ReturnType<typeof createWorldKnightEquipment> | null = null;
   let knightPieces: THREE.Group[] = [];
+  let knightSweep: ReturnType<typeof createWorldKnightSweep> | null = null;
   let toolPitch: number | null = null;
   let lastSeconds = 0;
   let lastAnimation: PersonaState['animation'] = 'idle';
@@ -687,6 +689,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
       knight.sword.position.set(0, -0.43, 0.045);
       leftElbow.add(knight.shield);
       knight.shield.position.set(0, -0.37, 0.13);
+      knightSweep = createWorldKnightSweep({ body, head, rightArm, rightElbow, sword: knight.sword });
     }
     for (const piece of knightPieces) piece.visible = visible;
   }
@@ -798,9 +801,8 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
         placeRideFoot(leftLeg, leftKnee, leftFoot, 1.55 + 0.161 - lift, -0.05 - figure.position.z, -0.72);
         placeRideFoot(rightLeg, rightKnee, rightFoot, 1.55 + 0.161 - lift, -0.05 - figure.position.z, 0.72);
         placeRideHands(0.37, 2.98, 0.95, lift);
-        const sweep = reducedMotion ? 0 : Math.sin(time * 4.8);
-        rightArm.rotation.set(-1.07 - Math.max(0, sweep) * 0.28, sweep * 0.62, 0.35 + sweep * 0.55);
-        rightElbow.rotation.x = -0.25 - Math.max(0, -sweep) * 0.25;
+        rightArm.rotation.set(-1.07, 0, 0.35, 'YXZ');
+        rightElbow.rotation.set(-0.25, 0, 0);
         riderPivot.rotation.z = -lean * 0.07;
         break;
       }
@@ -908,6 +910,8 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     lastSeconds = seconds;
     lastAnimation = animation;
     lastReducedMotion = reducedMotion;
+    if (zombie || ridePose?.kind !== 'horse' || group.userData.worldArenaCombat || group.userData.worldArenaDead)
+      knightSweep?.cancel();
     resetRideTransforms();
     knightEquipment(!zombie && ridePose?.kind === 'horse');
     atlas.flush();
@@ -970,6 +974,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     leftElbow.rotation.x = jumping ? -0.73 : dancing ? -1.05 + beat * 0.3 : -0.15 - Math.max(0, -stride) * 0.5;
     rightElbow.rotation.x = jumping ? -0.73 : dancing ? -1.05 - beat * 0.3 : -0.15 - Math.max(0, stride) * 0.5;
     applyRidePose(time, reducedMotion);
+    knightSweep?.update(seconds, reducedMotion);
     if (toolPitch !== null && !ridePose) {
       toolMount.rotation.x = toolPitch;
       toolMount.position.copy(toolPivot).applyEuler(toolMount.rotation).negate().add(toolPivot);
@@ -999,6 +1004,23 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     leftFoot,
     rightFoot,
     animate,
+    /** Scene combat calls this only after the horse actually knocks down a zombie. */
+    triggerKnightSweep(seconds: number) {
+      if (
+        zombie ||
+        ridePose?.kind !== 'horse' ||
+        group.userData.worldArenaCombat ||
+        group.userData.worldArenaDead ||
+        !Number.isFinite(seconds) ||
+        seconds < 0
+      )
+        return false;
+      knightEquipment(true);
+      return knightSweep!.trigger(seconds);
+    },
+    cancelKnightSweep() {
+      knightSweep?.cancel();
+    },
     /** Infection lasts for this scene; atlas updates cannot replace the zombie face. */
     setZombie(value = true) {
       if (!value || zombie) return;
@@ -1027,6 +1049,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     setRidePose(value: WorldPersonaRidePose | null) {
       const wasRiding = ridePose !== null;
       ridePose = value;
+      if (value?.kind !== 'horse') knightSweep?.cancel();
       if (!value) knightEquipment(false);
       if (wasRiding && !value) animate(lastSeconds, lastAnimation, lastReducedMotion);
     },
@@ -1037,6 +1060,7 @@ export function createPersona(color = '#C8FF03', imageLoader?: ReturnType<typeof
     },
     // World ownership releases shared geometry/materials through disposeObject(scene).
     dispose() {
+      knightSweep?.cancel();
       abort.abort();
       atlas.dispose();
       portrait.material.map = null;
