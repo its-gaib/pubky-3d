@@ -591,6 +591,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
   let capturingPhoto = false;
   let playerBitten = false;
   let biteRequested = false;
+  let gladiatorsReleased = false;
   let arenaVictoryCelebrated = false;
   let shirtSpeakerId: string | null = null;
   const shirtSpeakerPosition = new THREE.Vector3();
@@ -1133,6 +1134,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
       arenaBattle.start(timestamp / 1000)
     ) {
       releaseGladiators.forEach((release) => release());
+      gladiatorsReleased = true;
       clearInput();
       drag = null;
       nearby = null;
@@ -1436,6 +1438,26 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
           if (shirtSpeaker) shirtSpeakerId = candidateId;
         }
       }
+      const population = crowd.getPopulation();
+      population.livingPeople += social.getLivingCount();
+      if (!player.group.userData.worldArenaDead) {
+        population.livingPeople++;
+        if (playerBitten) population.zombies++;
+      }
+      // Fighters leave the infection simulation during the encounter, but are still living people until defeated.
+      if (gladiatorsReleased) {
+        for (const [index, { group: fighter }] of arena.gladiators.entries()) {
+          if (fighter.userData.worldArenaDead || burning.isGone(arenaHumans[index].id)) continue;
+          let visible = true;
+          for (let parent: THREE.Object3D | null = fighter; parent; parent = parent.parent) {
+            if (!parent.visible) {
+              visible = false;
+              break;
+            }
+          }
+          if (visible) population.livingPeople++;
+        }
+      }
       options.onStatus({
         zone: zone.id,
         position: [player.group.position.x, player.group.position.z],
@@ -1469,6 +1491,7 @@ export function createWorld(container: HTMLElement, options: WorldOptions): Worl
         shirtNearby: !paused && !overview && !playerBitten && !battleLocked && !!crowdStatus.shirtNearby,
         shirtSpeaker,
         infection: { bitten: playerBitten, humans: crowdStatus.humans, zombies: crowdStatus.zombies },
+        population,
         ...theater.getStatus(),
       });
       if (playerBitten) applyWorldZombieVision(scene);

@@ -368,6 +368,37 @@ describe('World', () => {
     expect(screen.queryByRole('complementary', { name: 'Island map' })).not.toBeInTheDocument();
   });
 
+  it('shows a cryptic population count and keeps it visible after the player turns', async () => {
+    render(<World />);
+    expect(screen.queryByRole('status', { name: 'Biohazard count' })).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    const options = mocks.createWorld.mock.calls[0][1];
+    await act(async () => options.onStatus(sceneStatus({ population: { zombies: 20, livingPeople: 83 } })));
+    const counter = screen.getByRole('status', { name: 'Biohazard count' });
+    expect(counter).toHaveTextContent(/^20\/83$/);
+    expect(counter).not.toHaveAttribute('title');
+    expect(counter).not.toHaveAttribute('aria-description');
+    expect(counter).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('status', { name: 'Key balance' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View achievements' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explore as a guest' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide minimap' }));
+    await updateInfection(true, { population: { zombies: 21, livingPeople: 83 } });
+    expect(screen.getByRole('status', { name: 'Biohazard count' })).toHaveTextContent(/^21\/83$/);
+    expect(screen.queryByRole('status', { name: 'Key balance' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View achievements' })).toBeInTheDocument();
+  });
+
+  it('keeps the population counter visible when no living zombies remain', async () => {
+    render(<World />);
+    await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledOnce());
+    await act(async () =>
+      mocks.createWorld.mock.calls[0][1].onStatus(sceneStatus({ population: { zombies: 0, livingPeople: 63 } })),
+    );
+    expect(screen.getByRole('status', { name: 'Biohazard count' })).toHaveTextContent(/^0\/63$/);
+  });
+
   it('clears a reader and blocks stale interactions throughout fighting and victory', async () => {
     render(<World />);
     await interact({ kind: 'zone', id: 'arena' });

@@ -201,6 +201,7 @@ export function createSocialPlaza(
   root.name = 'world-social';
   scene.add(root);
   let data = initialData;
+  let populationIds = new Set(data.people.map(({ id }) => id));
   let view: WorldSocialView = { sector: null, page: 0 };
   let focus: string | null = null;
   let clustered = false;
@@ -958,6 +959,13 @@ export function createSocialPlaza(
   renderInstances();
 
   return {
+    /** Page changes and overview clusters represent the same people, not separate populations. */
+    getLivingCount() {
+      if (disposed) return 0;
+      let living = 0;
+      for (const id of populationIds) if (!personGone(id)) living++;
+      return living;
+    },
     setAvatarIdentities(identities: readonly WorldAvatarIdentity[]) {
       if (disposed) return;
       approvedIdentities = new Map(identities.slice(0, INSTANCE_CAPACITY).map((identity) => [identity.id, identity]));
@@ -966,6 +974,7 @@ export function createSocialPlaza(
     },
     updateData(value: WorldData) {
       data = value;
+      populationIds = new Set(data.people.map(({ id }) => id));
       rebuild();
     },
     setView(value: WorldSocialView) {
@@ -1111,6 +1120,7 @@ export function createSocialPlaza(
       for (const entry of people.values()) entry.unbindBurn?.();
       clusters.forEach((cluster) => cluster.unbindBurn?.());
       people.clear();
+      populationIds.clear();
       burnedParents.clear();
       personParents.clear();
       approvedIdentities.clear();

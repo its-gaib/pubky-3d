@@ -182,6 +182,13 @@ their readers and nearby interactions reveal more as you approach.
   A bitten player becomes a slow zombie: scenery darkens, living people stand
   out, and movement, biting and the local badge collection remain available.
   Reloading starts a fresh outbreak.
+  A biohazard symbol beside the key and trophy counters shows living zombies
+  followed by everyone still alive, including zombies, without explaining either
+  number in the game. Killed zombies leave both counts immediately, even while
+  their bodies remain visible. The player counts toward the living total until
+  death and also joins the zombie count when bitten. Arena fighters and distinct
+  Social Plaza profiles are included, with fleeing people counted until they die.
+  Reload and respawn start a fresh tally.
   Twenty walkers wear original anime-style T-shirt graphics. Approaching one
   introduces the shirt with **I bought my shirt on style.ninja!** once per game
   load. This is tracked only in memory: reload or respawn allows a new introduction.
@@ -192,7 +199,7 @@ their readers and nearby interactions reveal more as you approach.
   become a knight. Ride into zombies to unleash a full circular sword sweep with
   a golden blade trail and knock them down. Fallen zombies disappear after one minute. The horse gives one
   minute of riding in total, then slows, stops and lets you off. **The horse is
-  tired** floats above it during its two-minute rest. Dismounting early does not
+  tired** floats above it during its one-minute rest. Dismounting early does not
   refill its riding time. Burning the parked horse or its armor sends the horse
   fleeing in flames over the coast. The kart protects its rider from bites but
   cannot hurt zombies. The dragon protects its rider while airborne. A jetpack

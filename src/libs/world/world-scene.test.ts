@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WORLD_INFECTION } from '@/libs/world/world-infection';
 import { WORLD_ANCHORS } from '@/libs/world/world-layout';
 import { createWorld } from '@/libs/world/world-scene';
 import { WORLD_KEY_COUNT, WORLD_UNLOCK_COSTS } from '@/libs/world/world-transport-unlocks';
@@ -17,6 +18,7 @@ const harness = vi.hoisted(() => ({
   tools: [] as ReturnType<typeof import('@/libs/world/world-flamethrower').createWorldFlamethrower>[],
   battles: [] as ReturnType<typeof import('@/libs/world/world-arena-battle').createWorldArenaBattle>[],
   glories: [] as ReturnType<typeof import('@/libs/world/world-arena-glory').createWorldArenaGlory>[],
+  crowds: [] as ReturnType<typeof import('@/libs/world/world-crowd').createWorldCrowd>[],
   battleRoll: 0.5,
 }));
 
@@ -116,6 +118,18 @@ vi.mock('@/libs/world/world-arena-glory', async (importOriginal) => {
   };
 });
 
+vi.mock('@/libs/world/world-crowd', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/libs/world/world-crowd')>();
+  return {
+    ...actual,
+    createWorldCrowd(...args: Parameters<typeof actual.createWorldCrowd>) {
+      const crowd = actual.createWorldCrowd(...args);
+      harness.crowds.push(crowd);
+      return crowd;
+    },
+  };
+});
+
 const controllers: WorldController[] = [];
 
 function visibleBounds(root: THREE.Object3D) {
@@ -162,6 +176,7 @@ afterEach(() => {
   harness.renderers.length = harness.players.length = harness.transports.length = harness.battles.length = 0;
   harness.tools.length = 0;
   harness.glories.length = 0;
+  harness.crowds.length = 0;
   document.body.replaceChildren();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -242,6 +257,45 @@ function fixture() {
 }
 
 describe('world gameplay integration', () => {
+  it('counts only living zombies and everyone still alive, including social identities and the infected player', () => {
+    const world = fixture();
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
+    const person = {
+      id: 'visitor',
+      name: 'Visitor',
+      degree: 1 as const,
+      color: '#C8FF03',
+      position: [0, 0] as [number, number],
+      bio: '',
+    };
+    world.controller.updateData({
+      source: 'production',
+      tags: [],
+      trendingPosts: [],
+      relationships: [],
+      people: [person, person],
+    });
+    world.refresh();
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 114 });
+    // Advance only the real crowd's bite cooldown before presenting the player as prey.
+    const crowd = harness.crowds.at(-1)!;
+    for (let frame = 0; frame < WORLD_INFECTION.biteCooldown / 0.05 + 1; frame++) {
+      crowd.tick(0.05, frame * 0.05, {
+        position: new THREE.Vector3(0, 100, 0),
+        zombie: false,
+        canBeBitten: false,
+        bite: false,
+      });
+    }
+    world.scene.getObjectByName('crowd-zombie-0')!.position.copy(world.player.group.position);
+    world.frame();
+    expect(world.status().infection?.bitten).toBe(true);
+    expect(world.status().population).toEqual({ zombies: 2, livingPeople: 114 });
+    world.player.group.userData.worldArenaDead = true;
+    world.refresh();
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
+  }, 45_000);
+
   it('spawns the full key budget and charges three keys only on the first successful horse mount', () => {
     const world = fixture();
     expect(world.keys).toHaveLength(WORLD_KEY_COUNT);
@@ -282,6 +336,7 @@ describe('world gameplay integration', () => {
     expect(sweep).not.toHaveBeenCalled();
     const zombie = world.scene.getObjectByName('crowd-zombie-0')!;
     const human = world.scene.getObjectByName('crowd-human-0')!;
+    expect(world.status().population).toEqual({ zombies: 1, livingPeople: 113 });
     zombie.position.set(0.8, 0.15, 24.2);
     human.position.set(-0.8, 0.15, 24.2);
     world.frame();
@@ -292,6 +347,7 @@ describe('world gameplay integration', () => {
     world.refresh();
     expect(sweep).toHaveBeenCalledOnce();
     expect(world.status().achievementProgress?.['zombie-jouster']).toBe(1);
+    expect(world.status().population).toEqual({ zombies: 0, livingPeople: 112 });
   }, 45_000);
 
   it('charges two keys for a successful flamethrower pickup, including a pending pickup, and re-equips for free', () => {
@@ -346,9 +402,15 @@ describe('world gameplay integration', () => {
     world.frame();
     expect(world.battle.getStatus()).toBeNull();
     world.mountHorse();
+    const population = world.status().population!;
     const began = world.enterArena();
+    expect(world.status().population).toEqual(population);
+    world.frame(began + 5_000);
+    world.refresh();
+    expect(world.status().population).toEqual({ ...population, livingPeople: population.livingPeople - 1 });
     world.frame(began + 10_000);
     expect(world.battle.getStatus()?.phase).toBe('victory');
+    expect(world.status().population).toEqual({ ...population, livingPeople: population.livingPeople - 2 });
     expect(celebrate).toHaveBeenCalledOnce();
     world.frame(began + 12_000);
     expect(world.battle.isLocked()).toBe(false);
@@ -408,6 +470,7 @@ describe('world gameplay integration', () => {
     harness.battleRoll = 0.8;
     const world = fixture();
     world.mountHorse();
+    const population = world.status().population!;
     const began = world.enterArena();
     world.frame(began + 8_000);
     expect(world.battle.getStatus()).toEqual({ phase: 'defeat', remaining: 15 });
@@ -421,6 +484,7 @@ describe('world gameplay integration', () => {
     expect(visibleBounds(world.player.group.getObjectByName('explorer-riding-figure')!).min.y).toBeLessThan(0.65);
     expect(world.player.group.rotation.z).toBeCloseTo(-Math.PI / 2);
     expect(world.player.group.userData.worldArenaDead).toBe(true);
+    expect(world.status().population).toEqual({ ...population, livingPeople: population.livingPeople - 1 });
     for (const code of ['KeyE', 'KeyR', 'KeyW', 'Space']) window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     world.controller.interact();
     world.controller.travelTo('plaza');
@@ -447,6 +511,7 @@ describe('world gameplay integration', () => {
     expect(respawn.transports.active).toBeNull();
     expect(respawn.battle.getStatus()).toBeNull();
     expect(respawn.player.group.userData.worldArenaDead).toBeUndefined();
+    expect(respawn.status().population).toEqual({ zombies: 1, livingPeople: 113 });
   }, 45_000);
 
   it('publishes the defeat badge before respawn when a frame skips the whole outcome countdown', () => {

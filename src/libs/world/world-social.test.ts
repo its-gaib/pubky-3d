@@ -122,6 +122,22 @@ describe('bounded social plaza renderer', () => {
     return new THREE.Raycaster(origin, direction, 0, 8);
   }
 
+  it('counts each social identity once across overview, pages, and graph updates', () => {
+    const people = Array.from({ length: 120 }, (_, index) => person(`person-${index}`));
+    social = createSocialPlaza(scene, graph([...people, people[0], people[119]]));
+    expect(social.getLivingCount()).toBe(120);
+    social.setView({ sector: 0, page: 1 });
+    social.tick(0.1, new THREE.Vector3(), true, false);
+    expect(social.getLivingCount()).toBe(120);
+    social.setView({ sector: null, page: 0 });
+    social.tick(0.1, new THREE.Vector3(), true, true);
+    expect(social.getLivingCount()).toBe(120);
+    social.updateData(graph([...people, person('newcomer'), people[0]]));
+    expect(social.getLivingCount()).toBe(121);
+    social.dispose();
+    expect(social.getLivingCount()).toBe(0);
+  });
+
   it('runs an ignited person at full size through paging, keeps its approved portrait attached and falls without exploding', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const people = Array.from({ length: 120 }, (_, index) => avatarPerson(index));
@@ -148,6 +164,7 @@ describe('bounded social plaza renderer', () => {
     const otherPosition = instancePosition(body(), 1);
     const ray = exposePerson(burning, placement.position);
     expect(burning.isBurning(`social-person:${target.id}`)).toBe(true);
+    expect(social.getLivingCount()).toBe(120);
     expect(social.findPerson(target.id)).toBeNull();
     expect(social.nearest(...placement.position, 1)).toBeNull();
     expect(social.pick(ray)?.action).not.toEqual({ kind: 'person', id: target.id });
@@ -171,9 +188,11 @@ describe('bounded social plaza renderer', () => {
     expect(instancePosition(body()).distanceTo(moving)).toBeGreaterThan(14);
     expect(bodyScale()).toBeCloseTo(original, 6);
     expect(onGone).not.toHaveBeenCalled();
+    expect(social.getLivingCount()).toBe(120);
     advanceBurn(burning, 30);
     expect(body().count).toBe(24);
     expect(ledger.has(`social-person:${target.id}`)).toBe(true);
+    expect(social.getLivingCount()).toBe(119);
     expect(onGone).toHaveBeenCalledOnce();
     const [goneId, gone] = onGone.mock.calls[0];
     expect(goneId).toBe(`social-person:${target.id}`);
@@ -193,6 +212,7 @@ describe('bounded social plaza renderer', () => {
     expect(body().geometry).toBe(geometry);
     expect(body().material).toBe(material);
     expect(data.people).toHaveLength(120);
+    expect(social.getLivingCount()).toBe(119);
     social.setView({ sector: null, page: 0 });
     social.tick(0.1, new THREE.Vector3(), true, true);
     await vi.waitFor(() => {
@@ -256,11 +276,14 @@ describe('bounded social plaza renderer', () => {
     expect(onGone.mock.calls).toHaveLength(1);
     expect(onGone.mock.calls[0][1].completion).toBe('explode');
     expect(onGone.mock.calls[0][0]).toBe('social-sector:tag:red');
+    // The destroyed red sector loses its hidden members, but its fleeing representative is still alive.
+    expect(social.getLivingCount()).toBe(61);
     social.setView({ sector: sector.sector, sectorKey: sector.key, page: 0 });
     social.tick(0.1, new THREE.Vector3(), true, false);
     expect(body().count).toBe(1);
     expect(portraits.count).toBe(1);
     advanceBurn(burning, 25);
+    expect(social.getLivingCount()).toBe(60);
     expect(onGone.mock.calls.find(([id]) => id === `social-person:${representative.id}`)?.[1].completion).toBe('fall');
     social.setView({ sector: null, page: 0 });
     social.tick(0.1, new THREE.Vector3(), true, true);
@@ -275,6 +298,7 @@ describe('bounded social plaza renderer', () => {
       .map((entry, index) => (index === 0 ? { ...entry, profileTags: [{ label: 'blue', count: 10 }] } : entry))
       .reverse();
     social.updateData(graph(moved));
+    expect(social.getLivingCount()).toBe(60);
     expect(social.findPerson(people[0].id)).toBeNull();
     expect(social.findPerson(people[90].id)).not.toBeNull();
     social.tick(0.1, new THREE.Vector3(), true, false);

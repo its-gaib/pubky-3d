@@ -109,8 +109,11 @@
   top: 94px;
   right: var(--world-edge);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  max-width: calc(100% - var(--world-edge) * 2);
 }
 .keyBalance {
   display: flex;
@@ -128,6 +131,22 @@
   color: #ffecc1;
   font-size: 16px;
   font-variant-numeric: tabular-nums;
+}
+.populationCount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #c8ff033b;
+  border-radius: 14px;
+  background: var(--world-glass);
+  box-shadow: var(--world-shadow);
+  color: var(--world-lime);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .identity {

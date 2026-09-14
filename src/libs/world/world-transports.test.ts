@@ -522,7 +522,7 @@ describe('world transport ownership and animation', () => {
     expect(transports.stunt()).toBe(false);
   });
 
-  it('slows an exhausted horse to a stop, dismounts automatically and blocks remounting for two minutes', () => {
+  it('slows an exhausted horse to a stop, dismounts automatically and blocks remounting for one minute', () => {
     const { transports, mount, model, player, slot } = create();
     expect(mount('horse')).toBe(true);
     for (let frame = 0; frame < 1198; frame++) transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
@@ -541,9 +541,9 @@ describe('world transport ownership and animation', () => {
     expect(mount('horse')).toBe(false);
     transports.setAvailable('horse', true);
     expect(transports.isAvailable('horse')).toBe(false);
-    for (let frame = 0; frame < 2399; frame++) transports.animate(0.05, frame * 0.05, true);
+    for (let frame = 0; frame < 1199; frame++) transports.animate(0.05, frame * 0.05, true);
     expect(mount('horse')).toBe(false);
-    transports.animate(0.05, 120, true);
+    transports.animate(0.05, 60, true);
     expect(model('horse').getObjectByName('horse-tired-label')!.visible).toBe(false);
     expect(mount('horse')).toBe(true);
     expect(transports.getStatus()?.horse).toEqual({ remaining: 60, tired: false });
@@ -564,7 +564,7 @@ describe('world transport ownership and animation', () => {
       transports.step(0.05, { x: 0, z: 0, yaw: 0, lift: 0 });
     }
     expect(transports.active).toBeNull();
-    expect(transports.getHorseState()).toMatchObject({ rest: 120, tired: true });
+    expect(transports.getHorseState()).toMatchObject({ rest: 60, tired: true });
     expect(Math.abs(player.group.position.x)).toBeGreaterThan(0.1);
     expect(Math.abs(player.group.position.z)).toBeGreaterThan(0.1);
     for (const obstacle of obstacles) {

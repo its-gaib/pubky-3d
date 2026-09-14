@@ -32,6 +32,7 @@ describe('world crowd rendering and scenery integration', () => {
   it('creates 100 peaceful visitors and one random zombie with only one extra draw for 20 anime shirts', () => {
     const { crowd } = setup();
     expect(crowd.tick(0, 0, absentPlayer())).toEqual({ playerBitten: false, humans: 100, zombies: 1 });
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 101 });
     const batches = crowd.group.children.filter((object) => object instanceof THREE.InstancedMesh);
     expect(batches).toHaveLength(9);
     expect(batches.filter((mesh) => mesh.count === 101)).toHaveLength(8);
@@ -211,9 +212,11 @@ describe('world crowd rendering and scenery integration', () => {
     const pose = vi.fn();
     crowd.registerPerson({ id: 'human:theater-0', group: figure, onInfect, pose });
     crowd.registerPerson({ id: 'person:social-profile', group: profile });
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 102 });
     const player = { ...absentPlayer(), position: new THREE.Vector3(0, 0.15, 0), zombie: true, bite: true };
     const frame = crowd.tick(0.05, 0.05, player);
     expect(frame).toMatchObject({ humans: 100, zombies: 2 });
+    expect(crowd.getPopulation()).toEqual({ zombies: 2, livingPeople: 102 });
     expect(onInfect).toHaveBeenCalledOnce();
     expect(pose).toHaveBeenCalled();
     expect(figure.userData.worldZombie).toBe(true);
@@ -253,6 +256,25 @@ describe('world crowd rendering and scenery integration', () => {
     expect(target.userData.worldBurnPending).toBe(true);
     expect(target.position.distanceTo(start)).toBeGreaterThan(0.5);
     expect(crowd.tick(0.05, 0.15, absentPlayer()).humans).toBe(99);
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 101 });
+    for (let frame = 0; frame < 600 && !burning.isGone('human:crowd-0'); frame++) burning.tick(0.1);
+    expect(burning.isGone('human:crowd-0')).toBe(true);
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 100 });
+  });
+
+  it('excludes burning zombie corpses from both counts immediately and after their remains disappear', () => {
+    const { crowd, burning, scene } = setup();
+    const zombie = scene.getObjectByName('crowd-zombie-0')!;
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 101 });
+    expect(burning.ignite('human:crowd-zombie-0')).toBe(true);
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 100 });
+    for (let frame = 0; frame < 20; frame++) burning.tick(0.1);
+    expect(zombie.visible).toBe(true);
+    expect(burning.isGone('human:crowd-zombie-0')).toBe(false);
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 100 });
+    for (let frame = 0; frame < 650; frame++) burning.tick(0.1);
+    expect(burning.isGone('human:crowd-zombie-0')).toBe(true);
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 100 });
   });
 
   it('knocks down only nearby living zombies and removes the inactive corpse after 60 seconds', () => {
@@ -261,9 +283,11 @@ describe('world crowd rendering and scenery integration', () => {
     zombie.position.set(0, 0.15, 0);
     const human = scene.getObjectByName('crowd-human-0')!;
     human.position.set(0.4, 0.15, 0);
+    expect(crowd.getPopulation()).toEqual({ zombies: 1, livingPeople: 101 });
     expect(crowd.knockDownZombies(new THREE.Vector3(0, 0.15, 0))).toBe(1);
     expect(crowd.knockDownZombies(new THREE.Vector3(0, 0.15, 0))).toBe(0);
     expect(human.userData.worldZombieFallen).toBeUndefined();
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 100 });
     for (const child of crowd.group.children) {
       if (child.userData.worldCrowdProxy) child.visible = false;
     }
@@ -275,6 +299,7 @@ describe('world crowd rendering and scenery integration', () => {
       crowd.tick(0.05, frame * 0.05, absentPlayer());
     }
     expect(zombie.visible).toBe(false);
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 0 });
   });
 
   it('rejects knight strikes against zombies at another height or outside its bounded reach', () => {
@@ -292,6 +317,7 @@ describe('world crowd rendering and scenery integration', () => {
     crowd.dispose();
     expect(scene.getObjectByName('crowd-zombie-0')).toBeUndefined();
     expect(crowd.tick(0.05, 1, absentPlayer()).humans).toBe(0);
+    expect(crowd.getPopulation()).toEqual({ zombies: 0, livingPeople: 0 });
     const next = setup();
     expect(next.crowd.tick(0, 0, absentPlayer())).toMatchObject({ humans: 100, zombies: 1 });
     expect(next.burning.isGone('human:crowd-zombie-0')).toBe(false);

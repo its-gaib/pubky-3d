@@ -379,6 +379,24 @@ export function createWorldCrowd(
     group,
     registerPerson: (person: WorldCrowdPerson) => register(person),
     isZombie: (id: string) => records.get(id)?.agent.zombie ?? false,
+    /** Count people independently of whether they can currently move, bite, or be interacted with. */
+    getPopulation() {
+      let zombies = 0;
+      let livingPeople = 0;
+      for (const { id, agent, group: person, defeated } of records.values()) {
+        if (
+          visibleInWorld(person) &&
+          !defeated &&
+          !person.userData.worldArenaDead &&
+          !burning.isGone(id) &&
+          (!agent.zombie || (!person.userData.worldBurnPending && !burning.isBurning(id)))
+        ) {
+          livingPeople++;
+          if (agent.zombie) zombies++;
+        }
+      }
+      return { zombies, livingPeople };
+    },
     /** Keep a spoken introduction attached to the same living wearer as they walk away. */
     getShirtSpeakerPosition(id: string, target: THREE.Vector3) {
       const record = records.get(id);

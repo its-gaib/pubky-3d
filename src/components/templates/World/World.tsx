@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
+  Biohazard,
   BookOpen,
   Check,
   ChevronRight,
@@ -1337,6 +1338,14 @@ function WorldSession({
             onOpenChange={setAchievementsOpen}
             onReturnFocus={() => containerRef.current?.focus({ preventScroll: true })}
           />
+          {worldStatus.population && (
+            <div className={styles.populationCount} role="status" aria-label="Biohazard count">
+              <Biohazard size={18} aria-hidden="true" />
+              <span>
+                {worldStatus.population.zombies}/{worldStatus.population.livingPeople}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

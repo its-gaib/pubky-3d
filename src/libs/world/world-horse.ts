@@ -4,7 +4,7 @@ import { createLandmarkBuilder } from '@/libs/world/world-landmark-details';
 
 export const WORLD_HORSE = {
   rideSeconds: 60,
-  restSeconds: 120,
+  restSeconds: 60,
   saddle: [0, 2.48, -0.12],
   stirrup: [0.72, 1.55, -0.05],
   reins: [0.37, 2.98, 0.95],

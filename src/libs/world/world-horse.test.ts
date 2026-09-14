@@ -12,7 +12,7 @@ describe('horse stamina and model', () => {
   const models: THREE.Group[] = [];
   afterEach(() => models.splice(0).forEach(disposeObject));
 
-  it('keeps used stamina across voluntary dismounts and restores it only after a full two-minute rest', () => {
+  it('keeps used stamina across voluntary dismounts and restores it only after a full one-minute rest', () => {
     const stamina = createWorldHorseStamina();
     for (let frame = 0; frame < 400; frame++) stamina.step(0.05, true);
     stamina.dismounted();
@@ -23,8 +23,8 @@ describe('horse stamina and model', () => {
     expect(stamina.getStatus().tired).toBe(true);
     expect(stamina.canMount()).toBe(false);
     stamina.dismounted();
-    expect(stamina.getStatus().rest).toBe(120);
-    for (let frame = 0; frame < 2399; frame++) stamina.step(0.05, false);
+    expect(stamina.getStatus().rest).toBe(60);
+    for (let frame = 0; frame < 1199; frame++) stamina.step(0.05, false);
     expect(stamina.canMount()).toBe(false);
     stamina.step(0.05, false);
     expect(stamina.getStatus()).toEqual({ remaining: 60, rest: 0, tired: false });
